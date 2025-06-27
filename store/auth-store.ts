@@ -8,6 +8,7 @@ export type User = {
   firstName: string;
   lastName: string;
   role: { roleName: string };
+  tenantId?: string;
 };
 
 interface AuthState {
@@ -49,8 +50,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await api.post('/api/auth/login', { email, password });
-      await get().setAuth(data.token, data.user);
+      const data = await api.post('/api/auth/login', { email, password }) as { user: any, tenant?: any, token: string };
+      if (!data || !data.user || !data.token) {
+        throw new Error('Invalid login response from server');
+      }
+      
+      // Extract tenantId from tenant object or user object
+      const tenantId = data.user.tenantId || data.tenant?.id;
+      if (!tenantId) {
+        throw new Error('Tenant ID not found in response');
+      }
+      
+      const user = { ...data.user, tenantId };
+      await get().setAuth(data.token, user);
     } catch (error: any) {
       set({ error: error.message || 'Login failed' });
     } finally {
@@ -61,8 +73,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (formData) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await api.post('/api/influencers/register', formData);
-      await get().setAuth(data.token, data.user);
+      const data = await api.post('/api/influencers/register', formData) as { user: any, tenant?: any, token: string };
+      if (!data || !data.user || !data.token) {
+        throw new Error('Invalid registration response from server');
+      }
+      
+      // Extract tenantId from tenant object or user object
+      const tenantId = data.user.tenantId || data.tenant?.id;
+      if (!tenantId) {
+        throw new Error('Tenant ID not found in response');
+      }
+      
+      const user = { ...data.user, tenantId };
+      await get().setAuth(data.token, user);
     } catch (error: any) {
       set({ error: error.message || 'Registration failed' });
     } finally {

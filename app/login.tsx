@@ -43,7 +43,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(data.email, data.password);
-      router.replace('/dashboard');
+      router.replace('/influencer/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -83,7 +83,7 @@ export default function LoginScreen() {
     }
     try {
       await login(email, password);
-      router.replace('/dashboard');
+      router.replace('/influencer/dashboard');
     } catch (e: any) {
       Alert.alert('Login Failed', e.message || 'Please try again later.');
     }
@@ -172,7 +172,7 @@ export default function LoginScreen() {
               Sign In
             </Button>
             <View style={{ height: 8 }} />
-            <TouchableOpacity onPress={() => router.push('/register')} disabled={loading}>
+            <TouchableOpacity onPress={() => router.push('/register/influencer')} disabled={loading}>
               <Text style={styles.link}>Don't have an account? <Text style={styles.linkBold}>Sign up</Text></Text>
             </TouchableOpacity>
             <View style={styles.dividerRow}>
@@ -189,6 +189,7 @@ export default function LoginScreen() {
             >
               Join as Influencer
             </Button>
+            {/*
             <Button
               mode="outlined"
               style={styles.button}
@@ -198,6 +199,7 @@ export default function LoginScreen() {
             >
               Rate my Rate
             </Button>
+            */}
           </View>
         </View>
         <Portal>

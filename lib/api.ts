@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use the user's local IP address for backend API calls
-const API_URL = 'http://192.168.31.26:3000';
+const API_URL = 'http://192.168.1.10:3000';
 
 class ApiClient {
   async getToken() {
@@ -29,10 +29,19 @@ class ApiClient {
       ...options,
       headers,
     });
-    const data = await response.json().catch(() => ({ message: 'An error occurred' }));
-    if (!response.ok) {
-      throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = {};
     }
+    if (!response.ok) {
+      // Log for debugging
+      console.error('API error:', data, response.status);
+      throw new Error(((data as any).error || (data as any).message) || `HTTP error! status: ${response.status}`);
+    }
+    // Log for debugging
+    console.log('API success:', data, response.status);
     return data;
   }
 
@@ -44,6 +53,14 @@ class ApiClient {
     return this.request(endpoint, {
       ...options,
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async patch(endpoint: string, data: any, options: RequestInit = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
