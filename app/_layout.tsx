@@ -4,13 +4,14 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { loadAuth } = useAuthStore();
+  const { loadAuth, isInitialized } = useAuthStore();
   
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -21,9 +22,13 @@ export default function RootLayout() {
     loadAuth();
   }, [loadAuth]);
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
+  if (!loaded || !isInitialized) {
+    // Show loading state while fonts and auth are loading
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
   }
 
   return (

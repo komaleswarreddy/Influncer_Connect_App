@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use the user's local IP address for backend API calls
-const API_URL = 'http://192.168.1.10:3000';
+const API_URL = 'http://192.168.31.26:3000';
 
 class ApiClient {
   async getToken() {
@@ -25,24 +25,42 @@ class ApiClient {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-    let data = {};
+    
+    console.log(`Making ${options.method || 'GET'} request to: ${API_URL}${endpoint}`);
+    
     try {
-      data = await response.json();
-    } catch (e) {
-      data = {};
-    }
-    if (!response.ok) {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+      
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.log('Failed to parse JSON response, using empty object');
+        data = {};
+      }
+      
+      console.log(`Response status: ${response.status}, data:`, data);
+      
+      if (!response.ok) {
+        // Log for debugging
+        console.error('API error:', data, response.status);
+        const errorMessage = (data as any).error || (data as any).message || `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
       // Log for debugging
-      console.error('API error:', data, response.status);
-      throw new Error(((data as any).error || (data as any).message) || `HTTP error! status: ${response.status}`);
+      console.log('API success:', data, response.status);
+      return data;
+    } catch (error: any) {
+      console.error('Network error:', error);
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to server. Please check your internet connection.');
+      }
+      throw error;
     }
-    // Log for debugging
-    console.log('API success:', data, response.status);
-    return data;
   }
 
   async get(endpoint: string, options: RequestInit = {}) {

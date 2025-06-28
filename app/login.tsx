@@ -10,14 +10,14 @@ import { useAuthStore } from '../store/auth-store';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
-  password: z.string().min(1, { message: 'Please enter your password.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters long.' }),
   remember: z.boolean().optional(),
   tenant: z.string().optional(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-const API_URL = 'http://192.168.31.27:3000'; // Changed from localhost to local IP for network access
+const API_URL = 'http://192.168.31.26:3000'; // Changed from localhost to local IP for network access
 
 export default function LoginScreen() {
   const theme = useTheme();
@@ -29,23 +29,36 @@ export default function LoginScreen() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const { login, isLoading, error: authError } = useAuthStore();
 
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm<LoginFormData>({
+  const { control, handleSubmit, setValue, formState: { errors, isValid } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '', remember: false, tenant: '' },
+    mode: 'onChange', // Validate on change
   });
 
   const onSubmit = async (data: LoginFormData) => {
+    // Additional validation check
+    if (!data.email || !data.password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    
+    if (data.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
     setError(null);
     setLoading(true);
     try {
+      console.log('Attempting login with form data:', { email: data.email, password: data.password ? '***' : 'empty' });
       await login(data.email, data.password);
+      console.log('Login successful, navigating to dashboard');
       router.replace('/influencer/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      console.error('Login failed:', err);
+      setError(err.message || 'Login failed. Please check your credentials and try again.');
     } finally {
       setLoading(false);
     }
@@ -66,26 +79,6 @@ export default function LoginScreen() {
       setResetMsg(err.message || 'Failed to send password reset email.');
     } finally {
       setResetLoading(false);
-    }
-  };
-
-  const validate = () => {
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Invalid email address';
-    if (!password) return 'Please enter your password';
-    return null;
-  };
-
-  const handleLogin = async () => {
-    const validationError = validate();
-    if (validationError) {
-      Alert.alert('Validation Error', validationError);
-      return;
-    }
-    try {
-      await login(email, password);
-      router.replace('/influencer/dashboard');
-    } catch (e: any) {
-      Alert.alert('Login Failed', e.message || 'Please try again later.');
     }
   };
 
@@ -167,14 +160,10 @@ export default function LoginScreen() {
               loading={loading}
               style={styles.button}
               contentStyle={{ paddingVertical: 8 }}
-              disabled={loading}
+              disabled={loading || !isValid}
             >
               Sign In
             </Button>
-            <View style={{ height: 8 }} />
-            <TouchableOpacity onPress={() => router.push('/register/influencer')} disabled={loading}>
-              <Text style={styles.link}>Don't have an account? <Text style={styles.linkBold}>Sign up</Text></Text>
-            </TouchableOpacity>
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
               <Text style={styles.dividerText}>Or</Text>

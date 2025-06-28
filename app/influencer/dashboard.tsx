@@ -14,9 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth-store';
 import { useInfluencerStore } from '@/store/influencer-store';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRouter } from 'expo-router';
 
 export default function InfluencerDashboard() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const router = useRouter();
   const {
     isLoading,
     error,
@@ -82,6 +84,27 @@ export default function InfluencerDashboard() {
     }
   }, [error, clearError]);
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Navigating to login...');
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
   const handleConnectInstagram = async () => {
     if (!instagramUsername.trim()) {
       Alert.alert('Error', 'Please enter your Instagram username');
@@ -139,6 +162,12 @@ export default function InfluencerDashboard() {
     },
     header: {
       marginBottom: 24,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    headerLeft: {
+      flex: 1,
     },
     headerTitle: {
       fontSize: 28,
@@ -149,6 +178,19 @@ export default function InfluencerDashboard() {
     headerSubtitle: {
       fontSize: 16,
       color: isDark ? '#ccc' : '#666',
+    },
+    logoutButton: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    logoutButtonText: {
+      color: '#fff',
+      fontWeight: '600',
+      marginLeft: 4,
     },
     mediaKitCard: {
       backgroundColor: isDark ? '#1a1a1a' : '#fff',
@@ -271,10 +313,22 @@ export default function InfluencerDashboard() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Your Stats</Text>
-          <Text style={styles.headerSubtitle}>
-            Welcome back, {user?.firstName}!
-          </Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Your Stats</Text>
+            <Text style={styles.headerSubtitle}>
+              Welcome back, {user?.firstName}!
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.logoutButton} 
+            onPress={() => {
+              console.log('Navigating to login...');
+              router.replace('/login');
+            }}
+          >
+            <Ionicons name="log-out-outline" size={16} color="#fff" />
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
         </View>
 
         {/* --- Account Details Section --- */}

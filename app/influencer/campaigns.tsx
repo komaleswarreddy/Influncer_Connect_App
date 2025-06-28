@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { useCampaignStore } from '../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CampaignDetailsScreen from '../../components/influencer/CampaignDetails';
+import CampaignFilters from '../../components/influencer/CampaignFilters';
 
 const TABS = [
   { key: 'available', label: 'Available Campaigns' },
@@ -24,6 +25,11 @@ export default function InfluencerCampaignsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showCampaignDetails, setShowCampaignDetails] = useState(false);
+  const [filters, setFilters] = useState({
+    targetAudienceAgeGroup: 'all',
+    requiredNiche: 'all',
+    dateRange: null as { from: Date | null; to: Date | null } | null,
+  });
 
   useEffect(() => {
     fetchCampaigns();
@@ -57,11 +63,61 @@ export default function InfluencerCampaignsScreen() {
     setSelectedCampaignId(null);
   };
 
+  const handleFilterChange = (newFilters: typeof filters) => {
+    setFilters(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      targetAudienceAgeGroup: 'all',
+      requiredNiche: 'all',
+      dateRange: null,
+    });
+  };
+
+  // Filter campaigns based on current filters
+  const filterCampaigns = (campaignsToFilter: any[]) => {
+    return campaignsToFilter.filter(campaign => {
+      // Age group filter
+      if (filters.targetAudienceAgeGroup !== 'all' && 
+          campaign.targetAudienceAgeGroup !== filters.targetAudienceAgeGroup) {
+        return false;
+      }
+
+      // Niche filter - case insensitive comparison
+      if (filters.requiredNiche !== 'all' && 
+          campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
+        return false;
+      }
+
+      // Date range filtering (only if both from and to are set)
+      if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
+        const campaignStartDate = new Date(campaign.startDate);
+        const campaignEndDate = new Date(campaign.endDate);
+        const filterStart = new Date(filters.dateRange.from);
+        const filterEnd = new Date(filters.dateRange.to);
+        
+        // Set both dates to start/end of day for accurate comparison
+        campaignStartDate.setHours(0, 0, 0, 0);
+        campaignEndDate.setHours(23, 59, 59, 999);
+        filterStart.setHours(0, 0, 0, 0);
+        filterEnd.setHours(23, 59, 59, 999);
+        
+        // Only include campaigns that start on/after filterStart AND end on/before filterEnd
+        if (campaignStartDate < filterStart || campaignEndDate > filterEnd) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
   // Partition campaigns
   const joinedIds = participations.filter(p => p.status === 'joined').map(p => p.campaignId);
   const appliedIds = participations.filter(p => p.status === 'applied').map(p => p.campaignId);
-  const availableCampaigns = campaigns.filter(c => !joinedIds.includes(c.id) && !appliedIds.includes(c.id));
-  const myCampaigns = campaigns.filter(c => joinedIds.includes(c.id) || appliedIds.includes(c.id));
+  const availableCampaigns = filterCampaigns(campaigns.filter(c => !joinedIds.includes(c.id) && !appliedIds.includes(c.id)));
+  const myCampaigns = filterCampaigns(campaigns.filter(c => joinedIds.includes(c.id) || appliedIds.includes(c.id)));
 
   const renderCampaignCard = (campaign: any, status: 'available' | 'applied' | 'joined') => (
     <View key={campaign.id} style={styles.card}>
@@ -101,6 +157,14 @@ export default function InfluencerCampaignsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Campaigns</Text>
       </View>
+      
+      {/* Campaign Filters */}
+      <CampaignFilters
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onReset={handleResetFilters}
+      />
+      
       <View style={styles.tabsRow}>
         {TABS.map(t => (
           <TouchableOpacity
@@ -126,7 +190,11 @@ export default function InfluencerCampaignsScreen() {
             availableCampaigns.length > 0 ? (
               availableCampaigns.map(c => renderCampaignCard(c, 'available'))
             ) : (
-              <Text style={styles.emptyText}>No available campaigns.</Text>
+              <Text style={styles.emptyText}>
+                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.dateRange
+                  ? 'No campaigns match your current filters.'
+                  : 'No available campaigns.'}
+              </Text>
             )
           )}
           {tab === 'my-campaigns' && (
@@ -138,7 +206,11 @@ export default function InfluencerCampaignsScreen() {
                 )
               )
             ) : (
-              <Text style={styles.emptyText}>No joined or applied campaigns.</Text>
+              <Text style={styles.emptyText}>
+                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.dateRange
+                  ? 'No campaigns match your current filters.'
+                  : 'No joined or applied campaigns.'}
+              </Text>
             )
           )}
         </ScrollView>

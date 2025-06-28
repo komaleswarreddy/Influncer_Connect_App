@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../../store/auth-store';
+import { useRouter } from 'expo-router';
 import ProfileSection from '../../components/influencer/ProfileSection';
 import PasswordSection from '../../components/influencer/PasswordSection';
 import NotificationSection from '../../components/influencer/NotificationSection';
@@ -9,10 +12,43 @@ const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'password', label: 'Password' },
   { key: 'notifications', label: 'Notifications' },
+  { key: 'logout', label: 'Logout' },
 ];
 
 export default function InfluencerSettingsScreen() {
   const [activeTab, setActiveTab] = useState('profile');
+  const { logout } = useAuthStore();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Navigating to login from settings...');
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleTabPress = (tabKey: string) => {
+    if (tabKey === 'logout') {
+      console.log('Navigating to login from settings...');
+      router.replace('/login');
+    } else {
+      setActiveTab(tabKey);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
@@ -21,10 +57,21 @@ export default function InfluencerSettingsScreen() {
         {TABS.map(tab => (
           <TouchableOpacity
             key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-            onPress={() => setActiveTab(tab.key)}
+            style={[
+              styles.tab, 
+              activeTab === tab.key && styles.activeTab,
+              tab.key === 'logout' && styles.logoutTab
+            ]}
+            onPress={() => handleTabPress(tab.key)}
           >
-            <Text style={[styles.tabLabel, activeTab === tab.key && styles.activeTabLabel]}>{tab.label}</Text>
+            <Text style={[
+              styles.tabLabel, 
+              activeTab === tab.key && styles.activeTabLabel,
+              tab.key === 'logout' && styles.logoutTabLabel
+            ]}>
+              {tab.key === 'logout' && <Ionicons name="log-out-outline" size={16} style={{ marginRight: 4 }} />}
+              {tab.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -55,12 +102,20 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: '#14b8a6',
   },
+  logoutTab: {
+    backgroundColor: '#fef2f2',
+  },
   tabLabel: {
     color: '#14b8a6',
     fontWeight: 'bold',
     fontSize: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   activeTabLabel: {
     color: '#fff',
+  },
+  logoutTabLabel: {
+    color: '#dc2626',
   },
 }); 

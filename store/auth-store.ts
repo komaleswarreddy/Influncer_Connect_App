@@ -16,6 +16,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: any) => Promise<void>;
@@ -29,6 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
 
   setAuth: async (token, user) => {
@@ -38,19 +40,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadAuth: async () => {
-    const token = await AsyncStorage.getItem('token');
-    const userStr = await AsyncStorage.getItem('user');
-    if (token && userStr) {
-      set({ token, user: JSON.parse(userStr), isAuthenticated: true });
-    } else {
-      set({ token: null, user: null, isAuthenticated: false });
+    set({ isLoading: true });
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userStr = await AsyncStorage.getItem('user');
+      if (token && userStr) {
+        set({ token, user: JSON.parse(userStr), isAuthenticated: true, isInitialized: true, isLoading: false });
+      } else {
+        set({ token: null, user: null, isAuthenticated: false, isInitialized: true, isLoading: false });
+      }
+    } catch (error) {
+      console.error('Error loading auth:', error);
+      set({ token: null, user: null, isAuthenticated: false, isInitialized: true, isLoading: false });
     }
   },
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
+      console.log('Attempting login with:', { email, password: password ? '***' : 'empty' });
+      
+      // Basic validation before API call
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+      
       const data = await api.post('/api/auth/login', { email, password }) as { user: any, tenant?: any, token: string };
+      console.log('Login API response:', data);
+      
       if (!data || !data.user || !data.token) {
         throw new Error('Invalid login response from server');
       }
@@ -63,8 +84,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       const user = { ...data.user, tenantId };
       await get().setAuth(data.token, user);
+      console.log('Login successful for user:', user.email);
     } catch (error: any) {
-      set({ error: error.message || 'Login failed' });
+      console.error('Login error:', error);
+      set({ error: error.message || 'Login failed', isLoading: false });
+      throw error; // Re-throw to be caught by the login component
     } finally {
       set({ isLoading: false });
     }
@@ -94,8 +118,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
-    set({ user: null, token: null, isAuthenticated: false });
+    console.log('Logging out...');
+    try {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null, isInitialized: true });
+      console.log('Logout successful');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if AsyncStorage fails, clear the state
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null, isInitialized: true });
+    }
   },
 })); 
