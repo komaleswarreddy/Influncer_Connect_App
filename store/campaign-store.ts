@@ -21,6 +21,12 @@ interface Campaign {
     conversions: number;
     revenue: number;
   };
+  targets?: {
+    totalReach: number;
+    engagementRate: number;
+    conversions: number;
+    revenue: number;
+  };
   tenantId: string;
   createdAt: string;
   updatedAt: string;
@@ -61,7 +67,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.get('/api/campaigns');
-      set({ campaigns: response, isLoading: false });
+      set({ campaigns: response as Campaign[], isLoading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch campaigns', isLoading: false });
     }
@@ -72,7 +78,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     try {
       const response = await api.get(`/api/campaigns/${id}`);
       set({ isLoading: false });
-      return response;
+      return response as Campaign;
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch campaign', isLoading: false });
       return null;
@@ -94,7 +100,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.get('/api/campaigns/participations');
-      set({ participations: response, isLoading: false });
+      set({ participations: response as CampaignParticipation[], isLoading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch participations', isLoading: false });
     }
