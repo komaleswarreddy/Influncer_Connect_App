@@ -318,10 +318,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#fff',
     overflow: 'hidden',
+    minHeight: 50,
   },
   picker: {
-    height: RNPlatform.OS === 'ios' ? 120 : 44,
+    height: RNPlatform.OS === 'ios' ? 120 : 50,
     width: '100%',
+    color: '#0f172a',
+    fontSize: 16,
+    backgroundColor: '#fff',
   },
   resultCard: {
     marginTop: 24,

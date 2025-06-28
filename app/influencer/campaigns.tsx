@@ -139,7 +139,10 @@ export default function InfluencerCampaignsScreen() {
         <Text style={styles.cardInfo}>Age: <Text style={styles.cardValue}>{campaign.targetAudienceAgeGroup}</Text></Text>
       </View>
       {status === 'applied' && (
-        <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
+        <View style={styles.appliedContainer}>
+          <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
+          <Text style={styles.appliedMessage}>Email is sent for contact agreement</Text>
+        </View>
       )}
       {status === 'joined' && (
         <Text style={styles.joinedBadge}>Joined</Text>
@@ -399,5 +402,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#14b8a6',
     marginLeft: 10,
+  },
+  appliedContainer: {
+    marginTop: 4,
+  },
+  appliedMessage: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 }); 

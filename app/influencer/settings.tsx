@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     color: '#14b8a6',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 14,
     flexDirection: 'row',
     alignItems: 'center',
   },
