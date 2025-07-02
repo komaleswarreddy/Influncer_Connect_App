@@ -34,7 +34,7 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
 
     setIsLoading(true);
     try {
-      await api.post('/api/influencers/notifications', newSettings);
+      await api.patch('/api/influencers/notifications', newSettings);
       setNotifications(newSettings);
       Alert.alert('Success', 'Notification settings updated');
       if (onUpdate) onUpdate();

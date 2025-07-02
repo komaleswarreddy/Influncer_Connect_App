@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { api } from '../../lib/api';
+import { Ionicons } from '@expo/vector-icons';
 
 interface PasswordSectionProps {
   onUpdate?: () => void;
@@ -13,6 +14,9 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
     newPassword: '',
     confirmPassword: '',
   });
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSave = async () => {
     if (!formData.currentPassword.trim() || !formData.newPassword.trim() || !formData.confirmPassword.trim()) {
@@ -32,7 +36,7 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
 
     setIsLoading(true);
     try {
-      await api.post('/api/influencers/password', {
+      await api.patch('/api/influencers/password', {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
       });
@@ -57,35 +61,50 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
         
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.currentPassword}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, currentPassword: text }))}
-            placeholder="Enter your current password"
-            secureTextEntry
-          />
+          <View style={styles.passwordInputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={formData.currentPassword}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, currentPassword: text }))}
+              placeholder="Enter your current password"
+              secureTextEntry={!showCurrent}
+            />
+            <TouchableOpacity onPress={() => setShowCurrent(v => !v)} style={styles.eyeIcon}>
+              <Ionicons name={showCurrent ? 'eye' : 'eye-off'} size={22} color="#888" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.newPassword}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, newPassword: text }))}
-            placeholder="Enter your new password"
-            secureTextEntry
-          />
+          <View style={styles.passwordInputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={formData.newPassword}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, newPassword: text }))}
+              placeholder="Enter your new password"
+              secureTextEntry={!showNew}
+            />
+            <TouchableOpacity onPress={() => setShowNew(v => !v)} style={styles.eyeIcon}>
+              <Ionicons name={showNew ? 'eye' : 'eye-off'} size={22} color="#888" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Confirm New Password</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.confirmPassword}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, confirmPassword: text }))}
-            placeholder="Confirm your new password"
-            secureTextEntry
-          />
+          <View style={styles.passwordInputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={formData.confirmPassword}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, confirmPassword: text }))}
+              placeholder="Confirm your new password"
+              secureTextEntry={!showConfirm}
+            />
+            <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={styles.eyeIcon}>
+              <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color="#888" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.passwordRequirements}>
@@ -184,5 +203,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  passwordInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    marginLeft: 8,
+    padding: 4,
   },
 }); 

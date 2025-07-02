@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth-store';
 
 // Get API_URL from api.ts
-const API_URL = 'http://192.168.1.10:3000'; // Keep in sync with api.ts
+const API_URL = 'http://192.168.62.235:3000'; // Keep in sync with api.ts
 
 const FAQS = [
   { q: "How do I connect my bank account?", a: "Go to Settings > Payouts and follow the instructions to securely connect your bank account." },
