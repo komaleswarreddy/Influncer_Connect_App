@@ -4,6 +4,7 @@ import { useCampaignStore } from '../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CampaignDetailsScreen from '../../components/influencer/CampaignDetails';
 import CampaignFilters from '../../components/influencer/CampaignFilters';
+import { api } from '../../lib/api';
 
 const TABS = [
   { key: 'available', label: 'Available Campaigns' },
@@ -29,17 +30,42 @@ export default function InfluencerCampaignsScreen() {
     targetAudienceAgeGroup: 'all',
     requiredNiche: 'all',
     dateRange: null as { from: Date | null; to: Date | null } | null,
+    tenantId: 'all',
   });
+  const [tenants, setTenants] = useState<Array<{
+    id: string;
+    tenantName: string;
+    domain: string;
+    subdomain: string;
+    status: string;
+  }>>([]);
 
   useEffect(() => {
     fetchCampaigns();
     fetchParticipations();
+    fetchTenants();
   }, []);
+
+  const fetchTenants = async () => {
+    try {
+      const response = await api.get('/api/tenants');
+      setTenants(response as Array<{
+        id: string;
+        tenantName: string;
+        domain: string;
+        subdomain: string;
+        status: string;
+      }>);
+    } catch (error) {
+      console.error('Error fetching tenants:', error);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchCampaigns();
     await fetchParticipations();
+    await fetchTenants();
     setRefreshing(false);
   };
 
@@ -72,6 +98,7 @@ export default function InfluencerCampaignsScreen() {
       targetAudienceAgeGroup: 'all',
       requiredNiche: 'all',
       dateRange: null,
+      tenantId: 'all',
     });
   };
 
@@ -87,6 +114,12 @@ export default function InfluencerCampaignsScreen() {
       // Niche filter - case insensitive comparison
       if (filters.requiredNiche !== 'all' && 
           campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
+        return false;
+      }
+
+      // Tenant filter
+      if (filters.tenantId !== 'all' && 
+          campaign.tenantId !== filters.tenantId) {
         return false;
       }
 
@@ -130,6 +163,11 @@ export default function InfluencerCampaignsScreen() {
         <Text style={styles.cardInfo}>Type: <Text style={styles.cardValue}>{campaign.type}</Text></Text>
         <Text style={styles.cardInfo}>Commission: <Text style={styles.cardValue}>{campaign.commissionRate ? `${campaign.commissionRate}%` : 'N/A'}</Text></Text>
       </View>
+      {campaign.tenant && (
+        <View style={styles.cardInfoRow}>
+          <Text style={styles.cardInfo}>Brand: <Text style={styles.cardValue}>{campaign.tenant.tenantName}</Text></Text>
+        </View>
+      )}
       <View style={styles.cardInfoRow}>
         <Text style={styles.cardInfo}>Start: <Text style={styles.cardValue}>{campaign.startDate?.slice(0, 10)}</Text></Text>
         <Text style={styles.cardInfo}>End: <Text style={styles.cardValue}>{campaign.endDate?.slice(0, 10) || 'Ongoing'}</Text></Text>
@@ -166,6 +204,7 @@ export default function InfluencerCampaignsScreen() {
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={handleResetFilters}
+        tenants={tenants}
       />
       
       <View style={styles.tabsRow}>
@@ -194,7 +233,7 @@ export default function InfluencerCampaignsScreen() {
               availableCampaigns.map(c => renderCampaignCard(c, 'available'))
             ) : (
               <Text style={styles.emptyText}>
-                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.dateRange
+                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
                   ? 'No campaigns match your current filters.'
                   : 'No available campaigns.'}
               </Text>
@@ -210,7 +249,7 @@ export default function InfluencerCampaignsScreen() {
               )
             ) : (
               <Text style={styles.emptyText}>
-                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.dateRange
+                {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
                   ? 'No campaigns match your current filters.'
                   : 'No joined or applied campaigns.'}
               </Text>

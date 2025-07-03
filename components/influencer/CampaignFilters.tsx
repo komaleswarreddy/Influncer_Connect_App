@@ -57,6 +57,7 @@ interface CampaignFiltersProps {
       from: Date | null;
       to: Date | null;
     } | null;
+    tenantId: string;
   };
   onFilterChange: (filters: {
     targetAudienceAgeGroup: string;
@@ -65,24 +66,35 @@ interface CampaignFiltersProps {
       from: Date | null;
       to: Date | null;
     } | null;
+    tenantId: string;
   }) => void;
   onReset: () => void;
+  tenants?: Array<{
+    id: string;
+    tenantName: string;
+    domain: string;
+    subdomain: string;
+    status: string;
+  }>;
 }
 
 export default function CampaignFilters({
   filters,
   onFilterChange,
   onReset,
+  tenants,
 }: CampaignFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [showAgeGroupPicker, setShowAgeGroupPicker] = useState(false);
   const [showNichePicker, setShowNichePicker] = useState(false);
+  const [showTenantPicker, setShowTenantPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [slideAnim] = useState(new Animated.Value(0));
 
   const hasActiveFilters =
     filters.targetAudienceAgeGroup !== 'all' ||
     filters.requiredNiche !== 'all' ||
+    filters.tenantId !== 'all' ||
     (filters.dateRange && (filters.dateRange.from || filters.dateRange.to));
 
   const toggleFilters = () => {
@@ -155,6 +167,12 @@ export default function CampaignFilters({
     return option ? option.label : 'Select Niche';
   };
 
+  const getTenantLabel = () => {
+    if (filters.tenantId === 'all') return 'All Brands';
+    const tenant = tenants?.find(t => t.id === filters.tenantId);
+    return tenant ? tenant.tenantName : 'Select Brand';
+  };
+
   const renderFilterChips = () => {
     const chips = [];
     
@@ -178,6 +196,20 @@ export default function CampaignFilters({
           <Text style={styles.chipText}>{getNicheLabel()}</Text>
           <TouchableOpacity
             onPress={() => handleFilterChange('requiredNiche', 'all')}
+            style={styles.chipClose}
+          >
+            <Ionicons name="close" size={14} color="#14b8a6" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    if (filters.tenantId !== 'all') {
+      chips.push(
+        <View key="tenant" style={styles.chip}>
+          <Text style={styles.chipText}>{getTenantLabel()}</Text>
+          <TouchableOpacity
+            onPress={() => handleFilterChange('tenantId', 'all')}
             style={styles.chipClose}
           >
             <Ionicons name="close" size={14} color="#14b8a6" />
@@ -279,6 +311,18 @@ export default function CampaignFilters({
                 >
                   <Text style={styles.pickerButtonText}>{getNicheLabel()}</Text>
                   <Ionicons name="chevron-down" size={20} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Brand Filter */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Choose the Brand</Text>
+                <TouchableOpacity
+                  style={styles.pickerButton}
+                  onPress={() => setShowTenantPicker(true)}
+                >
+                  <Text style={styles.pickerButtonText}>{getTenantLabel()}</Text>
+                  <Ionicons name="business" size={20} color="#64748b" />
                 </TouchableOpacity>
               </View>
 
@@ -391,6 +435,74 @@ export default function CampaignFilters({
                     {option.label}
                   </Text>
                   {filters.requiredNiche === option.value && (
+                    <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Tenant Picker Modal */}
+      <Modal
+        visible={showTenantPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTenantPicker(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Choose the Brand</Text>
+              <TouchableOpacity onPress={() => setShowTenantPicker(false)}>
+                <Ionicons name="close" size={24} color="#14b8a6" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.pickerList}>
+              <TouchableOpacity
+                style={[
+                  styles.pickerItem,
+                  filters.tenantId === 'all' && styles.pickerItemSelected,
+                ]}
+                onPress={() => {
+                  handleFilterChange('tenantId', 'all');
+                  setShowTenantPicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.pickerItemText,
+                    filters.tenantId === 'all' && styles.pickerItemTextSelected,
+                  ]}
+                >
+                  All Brands
+                </Text>
+                {filters.tenantId === 'all' && (
+                  <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                )}
+              </TouchableOpacity>
+              {tenants?.map((tenant) => (
+                <TouchableOpacity
+                  key={tenant.id}
+                  style={[
+                    styles.pickerItem,
+                    filters.tenantId === tenant.id && styles.pickerItemSelected,
+                  ]}
+                  onPress={() => {
+                    handleFilterChange('tenantId', tenant.id);
+                    setShowTenantPicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.pickerItemText,
+                      filters.tenantId === tenant.id && styles.pickerItemTextSelected,
+                    ]}
+                  >
+                    {tenant.tenantName}
+                  </Text>
+                  {filters.tenantId === tenant.id && (
                     <Ionicons name="checkmark" size={20} color="#14b8a6" />
                   )}
                 </TouchableOpacity>

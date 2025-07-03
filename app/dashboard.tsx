@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/auth-store';
 import { api } from '../lib/api';
 import { useRouter } from 'expo-router';
 
 export default function DashboardScreen() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -31,26 +30,7 @@ export default function DashboardScreen() {
     fetchStats();
   }, [isAuthenticated]);
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            console.log('Navigating to login from main dashboard...');
-            router.replace('/login');
-          },
-        },
-      ]
-    );
-  };
+
 
   if (!isAuthenticated) return null;
 
@@ -58,16 +38,6 @@ export default function DashboardScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Welcome, {user?.firstName || user?.email || 'Influencer'}!</Text>
-        <TouchableOpacity 
-          style={styles.logoutButton} 
-          onPress={() => {
-            console.log('Navigating to login from main dashboard...');
-            router.replace('/login');
-          }}
-        >
-          <Ionicons name="log-out-outline" size={16} color="#fff" />
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
       </View>
       {loading ? (
         <ActivityIndicator size="large" color="#00b894" style={{ marginTop: 32 }} />
@@ -97,19 +67,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: { fontSize: 28, fontWeight: 'bold', flex: 1 },
-  logoutButton: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
   statsBox: { backgroundColor: '#f1f2f6', borderRadius: 12, padding: 16, marginTop: 24 },
   statsTitle: { fontWeight: 'bold', fontSize: 18, marginBottom: 8 },
   error: { color: 'red', marginTop: 16, textAlign: 'center' },
