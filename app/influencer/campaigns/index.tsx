@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
-import { useCampaignStore } from '../../store/campaign-store';
+import { useCampaignStore } from '../../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CampaignDetailsScreen from '../../components/influencer/CampaignDetails';
-import CampaignFilters from '../../components/influencer/CampaignFilters';
-import { api } from '../../lib/api';
+import CampaignDetailsScreen from '../../../components/influencer/CampaignDetails';
+import CampaignFilters from '../../../components/influencer/CampaignFilters';
+import { api } from '../../../lib/api';
+import { useRouter } from 'expo-router';
 
 const TABS = [
   { key: 'available', label: 'Available Campaigns' },
@@ -39,6 +40,7 @@ export default function InfluencerCampaignsScreen() {
     subdomain: string;
     status: string;
   }>>([]);
+  const router = useRouter();
 
   useEffect(() => {
     fetchCampaigns();
@@ -110,38 +112,30 @@ export default function InfluencerCampaignsScreen() {
           campaign.targetAudienceAgeGroup !== filters.targetAudienceAgeGroup) {
         return false;
       }
-
       // Niche filter - case insensitive comparison
       if (filters.requiredNiche !== 'all' && 
           campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
         return false;
       }
-
       // Tenant filter
       if (filters.tenantId !== 'all' && 
           campaign.tenantId !== filters.tenantId) {
         return false;
       }
-
       // Date range filtering (only if both from and to are set)
       if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
         const campaignStartDate = new Date(campaign.startDate);
         const campaignEndDate = new Date(campaign.endDate);
         const filterStart = new Date(filters.dateRange.from);
         const filterEnd = new Date(filters.dateRange.to);
-        
-        // Set both dates to start/end of day for accurate comparison
         campaignStartDate.setHours(0, 0, 0, 0);
         campaignEndDate.setHours(23, 59, 59, 999);
         filterStart.setHours(0, 0, 0, 0);
         filterEnd.setHours(23, 59, 59, 999);
-        
-        // Only include campaigns that start on/after filterStart AND end on/before filterEnd
         if (campaignStartDate < filterStart || campaignEndDate > filterEnd) {
           return false;
         }
       }
-
       return true;
     });
   };
@@ -183,7 +177,9 @@ export default function InfluencerCampaignsScreen() {
         </View>
       )}
       {status === 'joined' && (
-        <Text style={styles.joinedBadge}>Joined</Text>
+        <TouchableOpacity style={styles.joinBtn} onPress={() => router.push({ pathname: '/influencer/campaign-progress', params: { participationId: participations.find(p => p.campaignId === campaign.id && p.status === 'joined')?.id, campaignId: campaign.id } })}>
+          <Text style={styles.joinBtnText}>Track Progress</Text>
+        </TouchableOpacity>
       )}
       {status === 'available' && (
         <TouchableOpacity style={styles.joinBtn} onPress={() => handleViewCampaign(campaign.id)}>
@@ -198,15 +194,12 @@ export default function InfluencerCampaignsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Campaigns</Text>
       </View>
-      
-      {/* Campaign Filters */}
       <CampaignFilters
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={handleResetFilters}
         tenants={tenants}
       />
-      
       <View style={styles.tabsRow}>
         {TABS.map(t => (
           <TouchableOpacity
@@ -257,8 +250,6 @@ export default function InfluencerCampaignsScreen() {
           )}
         </ScrollView>
       )}
-
-      {/* Campaign Details Modal */}
       <Modal
         visible={showCampaignDetails}
         animationType="slide"

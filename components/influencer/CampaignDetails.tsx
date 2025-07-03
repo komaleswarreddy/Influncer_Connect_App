@@ -105,7 +105,24 @@ export default function CampaignDetailsScreen({ campaignId, onClose }: CampaignD
               <Text style={styles.infoValue}>{campaign.requiredInfluencerNiche}</Text>
             </View>
             <View style={styles.section}><Text style={styles.sectionTitle}>Description</Text>{renderReadMore(campaign.description, 'desc')}</View>
-            <View style={styles.section}><Text style={styles.sectionTitle}>Marketing Objective</Text>{renderReadMore(campaign.marketingObjective, 'objectives')}</View>
+            {campaign.contentRequirements && campaign.contentRequirements.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Content Requirements</Text>
+                {campaign.contentRequirements.map((req: any, index: number) => (
+                  <View key={index} style={{ marginBottom: 8 }}>
+                    <Text style={styles.sectionText}>
+                      • {req.count} {req.type.replace('_', ' ')}s
+                      {req.schedule && ` (${req.schedule})`}
+                    </Text>
+                    {req.description && (
+                      <Text style={[styles.sectionText, { marginTop: 4, color: '#6b7280' }]}>
+                        {req.description}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
             <View style={styles.section}><Text style={styles.sectionTitle}>Basic Guidelines</Text>{renderReadMore(campaign.basicGuidelines, 'guidelines')}</View>
             <View style={styles.section}><Text style={styles.sectionTitle}>Preferred Platform</Text><Text style={styles.sectionText}>{campaign.preferredSocialMedia}</Text></View>
             {participation && (

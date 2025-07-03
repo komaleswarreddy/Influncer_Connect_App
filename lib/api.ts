@@ -75,6 +75,14 @@ class ApiClient {
     });
   }
 
+  async put(endpoint: string, data: any, options: RequestInit = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async patch(endpoint: string, data: any, options: RequestInit = {}) {
     return this.request(endpoint, {
       ...options,
@@ -82,6 +90,37 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  async delete(endpoint: string, options: RequestInit = {}) {
+    return this.request(endpoint, { ...options, method: 'DELETE' });
+  }
 }
 
-export const api = new ApiClient(); 
+export const api = new ApiClient();
+
+// Content Progress Tracking APIs
+export const contentProgressApi = {
+  // Get progress for a campaign participation
+  getProgress: async (participationId: string) => {
+    const response = await api.get(`/api/campaigns/participation/${participationId}/progress`);
+    return response;
+  },
+
+  // Submit content for a progress item
+  submitContent: async (participationId: string, data: { progressId: string; contentUrl: string; contentType: string }) => {
+    const response = await api.post(`/api/campaigns/participation/${participationId}/submit-content`, data);
+    return response;
+  },
+
+  // Update a submission
+  updateSubmission: async (submissionId: string, data: { contentUrl: string }) => {
+    const response = await api.put(`/api/campaigns/submission/${submissionId}`, data);
+    return response;
+  },
+
+  // Delete a submission
+  deleteSubmission: async (submissionId: string) => {
+    const response = await api.delete(`/api/campaigns/submission/${submissionId}`);
+    return response;
+  }
+}; 

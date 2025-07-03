@@ -13,7 +13,12 @@ interface Campaign {
   requiredInfluencerNiche: string;
   basicGuidelines: string;
   preferredSocialMedia: string;
-  marketingObjective: string;
+  contentRequirements: Array<{
+    type: string;
+    count: number;
+    schedule?: string;
+    description?: string;
+  }>;
   commissionRate?: number;
   metrics: {
     totalReach: number;
@@ -28,6 +33,12 @@ interface Campaign {
     revenue: number;
   };
   tenantId: string;
+  tenant?: {
+    id: string;
+    tenantName: string;
+    domain: string;
+    subdomain: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
