@@ -17,7 +17,7 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-const API_URL = 'http://192.168.31.26:3000'; // Changed from localhost to local IP for network access
+const API_URL = 'http://10.126.155.236:3000'; // Changed from localhost to local IP for network access
 
 export default function LoginScreen() {
   const theme = useTheme();
