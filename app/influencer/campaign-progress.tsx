@@ -464,7 +464,6 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: 'linear-gradient(90deg, #6366f1 0%, #a5b4fc 100%)', // fallback for gradient
     backgroundColor: '#6366f1',
     borderRadius: 8,
   },

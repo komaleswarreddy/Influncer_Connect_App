@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use the user's local IP address for backend API calls
-const API_URL = 'http://10.126.155.236:3000';
+const API_URL = 'http://10.125.185.235:3000';
 
 class ApiClient {
   async getToken() {
