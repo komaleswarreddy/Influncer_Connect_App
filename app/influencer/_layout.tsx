@@ -40,6 +40,15 @@ export default function InfluencerLayout() {
         }}
       />
       <Tabs.Screen
+        name="ratings"
+        options={{
+          title: 'Ratings',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="star" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           title: 'Account',

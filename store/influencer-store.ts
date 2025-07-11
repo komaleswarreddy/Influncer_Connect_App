@@ -35,7 +35,32 @@ interface InfluencerState {
   clearError: () => void;
 }
 
-export const useInfluencerStore = create<InfluencerState>((set, get) => ({
+// --- Additions for Ratings ---
+interface CampaignRating {
+  id: string;
+  participationId: string;
+  campaignId: string;
+  reviewerId: string;
+  ratedEntityId: string;
+  ratingType: 'influencer_to_campaign' | 'admin_to_influencer';
+  overallRating: number;
+  review?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
+
+interface RatingsState {
+  ratings: Record<string, CampaignRating | undefined>; // participationId -> rating
+  adminRatings: Record<string, CampaignRating[]>; // participationId -> admin ratings
+  ratingsLoading: boolean;
+  ratingsError: string | null;
+  fetchRatings: (participationId: string) => Promise<void>;
+  submitRating: (participationId: string, overallRating: number, review?: string) => Promise<void>;
+  fetchAdminRatings: (influencerId: string, campaignId: string, participationId: string) => Promise<void>;
+}
+
+// Extend the store
+export const useInfluencerStore = create<InfluencerState & RatingsState>((set, get) => ({
   instagramAnalytics: null,
   youtubeAnalytics: null,
   twitterAnalytics: null,
@@ -44,12 +69,16 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
   isConnected: false,
   isYtConnected: false,
   isTwitterConnected: false,
+  ratings: {},
+  adminRatings: {},
+  ratingsLoading: false,
+  ratingsError: null,
 
   connectInstagram: async (username: string) => {
     set({ isLoading: true, error: null });
     try {
       const response = await api.post('/api/influencers/connect-instagram', { username });
-      const { analytics } = response;
+      const { analytics } = response as { analytics: InfluencerAnalytics };
       set({
         instagramAnalytics: analytics,
         isConnected: true,
@@ -66,9 +95,10 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.get('/api/influencers/instagram-analytics');
-      if (response.analytics) {
+      const { analytics } = response as { analytics?: InfluencerAnalytics };
+      if (analytics) {
         set({
-          instagramAnalytics: response.analytics,
+          instagramAnalytics: analytics,
           isConnected: true,
           isLoading: false
         });
@@ -88,7 +118,7 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.post('/api/influencers/connect-youtube', { username });
-      const { analytics } = response;
+      const { analytics } = response as { analytics: InfluencerAnalytics };
       set({
         youtubeAnalytics: analytics,
         isYtConnected: true,
@@ -105,9 +135,10 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.get('/api/influencers/youtube-analytics');
-      if (response.analytics) {
+      const { analytics } = response as { analytics?: InfluencerAnalytics };
+      if (analytics) {
         set({
-          youtubeAnalytics: response.analytics,
+          youtubeAnalytics: analytics,
           isYtConnected: true,
           isLoading: false
         });
@@ -127,7 +158,7 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.post('/api/influencers/connect-twitter', { username });
-      const { analytics } = response;
+      const { analytics } = response as { analytics: InfluencerAnalytics };
       set({
         twitterAnalytics: analytics,
         isTwitterConnected: true,
@@ -144,9 +175,10 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await api.get('/api/influencers/twitter-analytics');
-      if (response.analytics) {
+      const { analytics } = response as { analytics?: InfluencerAnalytics };
+      if (analytics) {
         set({
-          twitterAnalytics: response.analytics,
+          twitterAnalytics: analytics,
           isTwitterConnected: true,
           isLoading: false
         });
@@ -159,6 +191,45 @@ export const useInfluencerStore = create<InfluencerState>((set, get) => ({
       } else {
         set({ isTwitterConnected: false, isLoading: false });
       }
+    }
+  },
+
+  fetchRatings: async (participationId: string) => {
+    set({ ratingsLoading: true, ratingsError: null });
+    try {
+      const response = await api.get(`/api/ratings?participationId=${participationId}&ratingType=influencer_to_campaign`);
+      const rating = Array.isArray(response) ? response.find((r: any) => r.participationId === participationId) : undefined;
+      set((state) => ({ ratings: { ...state.ratings, [participationId]: rating }, ratingsLoading: false }));
+    } catch (error: any) {
+      set({ ratingsError: error.message || 'Failed to fetch ratings', ratingsLoading: false });
+    }
+  },
+
+  submitRating: async (participationId: string, overallRating: number, review?: string) => {
+    set({ ratingsLoading: true, ratingsError: null });
+    try {
+      await api.post('/api/ratings/create', {
+        participationId,
+        overallRating,
+        review,
+        ratingType: 'influencer_to_campaign',
+      });
+      await get().fetchRatings(participationId);
+      set({ ratingsLoading: false });
+    } catch (error: any) {
+      set({ ratingsError: error.message || 'Failed to submit rating', ratingsLoading: false });
+      throw error;
+    }
+  },
+
+  fetchAdminRatings: async (influencerId: string, campaignId: string, participationId: string) => {
+    set({ ratingsLoading: true, ratingsError: null });
+    try {
+      const response = await api.get(`/api/ratings/influencer/${influencerId}?campaignId=${campaignId}`);
+      const { ratings } = response as { ratings?: CampaignRating[] };
+      set((state) => ({ adminRatings: { ...state.adminRatings, [participationId]: ratings || [] }, ratingsLoading: false }));
+    } catch (error: any) {
+      set({ ratingsError: error.message || 'Failed to fetch admin ratings', ratingsLoading: false });
     }
   },
 
