@@ -9,7 +9,6 @@ const ACCOUNT_LINKS = [
   { key: 'rate-calculator', label: 'Rate Calculator', icon: 'calculator-outline', path: '/account-screens/rate-calculator' },
   { key: 'support-hub', label: 'Support', icon: 'help-circle-outline', path: '/account-screens/support-hub' },
   { key: 'settings', label: 'Settings', icon: 'settings-outline', path: '/account-screens/settings' },
-  { key: 'logout', label: 'Logout', icon: 'log-out-outline', action: 'logout' },
 ];
 
 export default function AccountScreen() {
@@ -17,26 +16,7 @@ export default function AccountScreen() {
   const { logout } = useAuthStore();
 
   const handleItemPress = (link: any) => {
-    if (link.action === 'logout') {
-      Alert.alert(
-        'Logout',
-        'Are you sure you want to logout?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Logout',
-            style: 'destructive',
-            onPress: () => {
-              logout();
-              router.replace('/login');
-            },
-          },
-        ]
-      );
-    } else if (link.path) {
+    if (link.path) {
       router.navigate(link.path as any);
     }
   };
@@ -54,15 +34,27 @@ export default function AccountScreen() {
             <Ionicons 
               name={link.icon as any} 
               size={24} 
-              color={link.action === 'logout' ? '#EF4444' : '#14b8a6'} 
+              color={'#14b8a6'}
               style={{ marginRight: 16 }} 
             />
-            <Text style={[styles.label, link.action === 'logout' && styles.logoutLabel]}>
+            <Text style={[styles.label,
+            ]}>
               {link.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+      {/* Add a single working Log Out button at the bottom */}
+      <TouchableOpacity
+        style={[styles.item, { marginTop: 32, backgroundColor: '#fee2e2', borderRadius: 8, justifyContent: 'center' }]}
+        onPress={async () => {
+          await logout();
+          router.replace('/login');
+        }}
+      >
+        <Ionicons name="log-out-outline" size={24} color="#dc2626" style={{ marginRight: 16 }} />
+        <Text style={[styles.label, { color: '#dc2626', fontWeight: 'bold' }]}>Log Out</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

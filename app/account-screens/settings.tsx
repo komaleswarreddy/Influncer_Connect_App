@@ -32,8 +32,8 @@ export default function InfluencerSettingsScreen() {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            console.log('Navigating to login from settings...');
+          onPress: async () => {
+            await logout();
             router.replace('/login');
           },
         },
@@ -43,8 +43,7 @@ export default function InfluencerSettingsScreen() {
 
   const handleTabPress = (tabKey: string) => {
     if (tabKey === 'logout') {
-      console.log('Navigating to login from settings...');
-      router.replace('/login');
+      handleLogout();
     } else {
       setActiveTab(tabKey);
     }

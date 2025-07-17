@@ -24,14 +24,29 @@ export default function CampaignProgressScreen() {
   const { campaigns } = useCampaignStore();
   const [refreshing, setRefreshing] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProgress, setSelectedProgress] = useState<any>(null);
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [editingContentUrl, setEditingContentUrl] = useState('');
   const [contentUrl, setContentUrl] = useState('');
   const [contentType, setContentType] = useState('');
 
-  const progress = progressData[participationId as string];
+  const progress = participationId ? progressData[participationId as string] : undefined;
   const campaign = campaigns.find(c => c.id === campaignId);
+
+  // If participationId is missing or invalid
+  if (!participationId) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#ef4444" />
+          <Text style={styles.errorText}>No campaign participation selected.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/influencer/campaigns')}>
+            <Text style={styles.retryButtonText}>Go to Campaigns</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   useEffect(() => {
     if (participationId) fetchProgress(participationId as string);
@@ -72,12 +87,11 @@ export default function CampaignProgressScreen() {
     }
 
     try {
-      await updateSubmission(selectedSubmission.id, {
+      await updateSubmission(selectedSubmissionId as string, {
         contentUrl: contentUrl.trim(),
       });
-      setShowEditModal(false);
+      setSelectedSubmissionId(null);
       setContentUrl('');
-      setSelectedSubmission(null);
       Alert.alert('Success', 'Submission updated successfully!');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update submission');
@@ -113,9 +127,8 @@ export default function CampaignProgressScreen() {
   };
 
   const openEditModal = (submission: any) => {
-    setSelectedSubmission(submission);
-    setContentUrl(submission.contentUrl);
-    setShowEditModal(true);
+    setSelectedSubmissionId(submission.id);
+    setEditingContentUrl(submission.contentUrl);
   };
 
   const getStatusColor = (status: string) => {
@@ -148,7 +161,7 @@ export default function CampaignProgressScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
+          <ActivityIndicator size="large" color="#14b8a6" />
           <Text style={styles.loadingText}>Loading progress...</Text>
         </View>
       </SafeAreaView>
@@ -164,6 +177,9 @@ export default function CampaignProgressScreen() {
           <TouchableOpacity style={styles.retryButton} onPress={() => fetchProgress(participationId as string)}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.retryButton, { marginTop: 12, backgroundColor: '#f0fdfa' }]} onPress={() => router.push('/influencer/campaigns')}>
+            <Text style={[styles.retryButtonText, { color: '#14b8a6' }]}>Go to Campaigns</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -173,8 +189,11 @@ export default function CampaignProgressScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="information-circle" size={48} color="#6b7280" />
-          <Text style={styles.errorText}>No progress data found</Text>
+          <Ionicons name="information-circle" size={48} color="#14b8a6" />
+          <Text style={styles.errorText}>No progress data found for this campaign.<br/>You may need to join the campaign first.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/influencer/campaigns')}>
+            <Text style={styles.retryButtonText}>Go to Campaigns</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -254,31 +273,72 @@ export default function CampaignProgressScreen() {
                         </View>
                       </View>
                       
-                      <Text style={styles.contentUrl} numberOfLines={2}>
-                        {submission.contentUrl}
-                      </Text>
+                      {submission.id === selectedSubmissionId ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TextInput
+                            style={[styles.textInput, { flex: 1, marginBottom: 0 }]}
+                            value={editingContentUrl}
+                            onChangeText={setEditingContentUrl}
+                            placeholder="Enter new content URL"
+                            multiline
+                            autoFocus
+                          />
+                          <TouchableOpacity
+                            style={[styles.confirmButton, { marginLeft: 4 }]}
+                            onPress={async () => {
+                              if (!editingContentUrl.trim()) {
+                                Alert.alert('Error', 'Please enter a content URL');
+                                return;
+                              }
+                              try {
+                                await updateSubmission(submission.id, { contentUrl: editingContentUrl.trim() });
+                                setSelectedSubmissionId(null);
+                                setEditingContentUrl('');
+                                Alert.alert('Success', 'Submission updated successfully!');
+                              } catch (error: any) {
+                                Alert.alert('Error', error.message || 'Failed to update submission');
+                              }
+                            }}
+                          >
+                            <Text style={styles.confirmButtonText}>Save</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.cancelButton, { marginLeft: 4 }]}
+                            onPress={() => {
+                              setSelectedSubmissionId(null);
+                              setEditingContentUrl('');
+                            }}
+                          >
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={styles.contentUrl} numberOfLines={2}>{submission.contentUrl}</Text>
+                          <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={() => {
+                              setSelectedSubmissionId(submission.id);
+                              setEditingContentUrl(submission.contentUrl);
+                            }}
+                            disabled={selectedSubmissionId !== null && selectedSubmissionId !== submission.id}
+                          >
+                            <Ionicons name="pencil" size={16} color="#3b82f6" />
+                            <Text style={styles.actionButtonText}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.actionButton, styles.deleteButton]}
+                            onPress={() => handleDeleteSubmission(submission)}
+                          >
+                            <Ionicons name="trash" size={16} color="#ef4444" />
+                            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                       
                       {submission.feedback && (
                         <Text style={styles.feedbackText}>Feedback: {submission.feedback}</Text>
                       )}
-
-                      <View style={styles.submissionActions}>
-                        <TouchableOpacity 
-                          style={styles.actionButton}
-                          onPress={() => openEditModal(submission)}
-                        >
-                          <Ionicons name="pencil" size={16} color="#3b82f6" />
-                          <Text style={styles.actionButtonText}>Edit</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          style={[styles.actionButton, styles.deleteButton]}
-                          onPress={() => handleDeleteSubmission(submission)}
-                        >
-                          <Ionicons name="trash" size={16} color="#ef4444" />
-                          <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
-                        </TouchableOpacity>
-                      </View>
                     </View>
                   ))}
                 </View>
@@ -339,44 +399,6 @@ export default function CampaignProgressScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* Edit Submission Modal */}
-      <Modal visible={showEditModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Submission</Text>
-            
-            <Text style={styles.modalLabel}>Content URL *</Text>
-            <TextInput
-              style={styles.textInput}
-              value={contentUrl}
-              onChangeText={setContentUrl}
-              placeholder="Enter new content URL"
-              multiline
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowEditModal(false);
-                  setContentUrl('');
-                  setSelectedSubmission(null);
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.confirmButton}
-                onPress={handleUpdateSubmission}
-              >
-                <Text style={styles.confirmButtonText}>Update</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -384,8 +406,7 @@ export default function CampaignProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // Soft multi-stop gradient background (simulate with solid fallback)
-    backgroundColor: '#e0e7ff', // fallback for gradient
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -393,14 +414,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 18,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#fff',
     borderBottomWidth: 0,
     borderBottomColor: 'transparent',
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 2,
   },
   backButton: {
     padding: 4,
@@ -408,55 +429,55 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#312e81',
+    color: '#14b8a6',
     letterSpacing: 0.5,
   },
   campaignInfo: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#fff',
     padding: 18,
     marginBottom: 12,
     borderRadius: 18,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 2,
   },
   campaignName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#312e81',
+    color: '#14b8a6',
     marginBottom: 4,
   },
   campaignDesc: {
     fontSize: 15,
-    color: '#6366f1',
+    color: '#64748b',
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#f0fdfa',
     margin: 16,
     padding: 20,
     borderRadius: 22,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
     alignItems: 'center',
   },
   summaryTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4f46e5',
+    color: '#14b8a6',
     marginBottom: 16,
     letterSpacing: 0.5,
   },
   progressBar: {
     height: 16,
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#f1f5f9',
     borderRadius: 8,
     marginBottom: 12,
     width: '100%',
@@ -464,12 +485,12 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: '#14b8a6',
     borderRadius: 8,
   },
   progressText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: '#14b8a6',
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -480,20 +501,20 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4f46e5',
+    color: '#14b8a6',
     marginBottom: 16,
     letterSpacing: 0.5,
   },
   progressCard: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#fff',
     padding: 18,
     borderRadius: 18,
     marginBottom: 16,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -504,16 +525,16 @@ const styles = StyleSheet.create({
   contentType: {
     fontSize: 17,
     fontWeight: 'bold',
-    color: '#312e81',
+    color: '#14b8a6',
   },
   progressCount: {
     fontSize: 15,
-    color: '#6366f1',
+    color: '#14b8a6',
     fontWeight: 'bold',
   },
   scheduleText: {
     fontSize: 13,
-    color: '#6366f1',
+    color: '#ca8a04',
     marginTop: 6,
     fontWeight: '500',
   },
@@ -523,19 +544,19 @@ const styles = StyleSheet.create({
   submissionsTitle: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#4f46e5',
+    color: '#14b8a6',
     marginBottom: 8,
   },
   submissionItem: {
-    backgroundColor: 'rgba(236, 239, 255, 0.7)',
+    backgroundColor: '#f1f5f9',
     padding: 14,
     borderRadius: 12,
     marginBottom: 10,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   submissionHeader: {
     flexDirection: 'row',
@@ -545,7 +566,7 @@ const styles = StyleSheet.create({
   },
   submissionDate: {
     fontSize: 13,
-    color: '#6366f1',
+    color: '#64748b',
     fontWeight: '500',
   },
   statusBadge: {
@@ -554,19 +575,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 16,
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#f0fdfa',
     minWidth: 80,
     justifyContent: 'center',
   },
   statusText: {
     fontSize: 12,
-    color: '#312e81',
+    color: '#14b8a6',
     fontWeight: 'bold',
     marginLeft: 4,
   },
   contentUrl: {
     fontSize: 13,
-    color: '#312e81',
+    color: '#14b8a6',
     marginBottom: 4,
     fontWeight: '500',
   },
@@ -588,17 +609,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#f0fdfa',
     marginRight: 8,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.03,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   actionButtonText: {
     fontSize: 13,
-    color: '#4f46e5',
+    color: '#14b8a6',
     marginLeft: 4,
     fontWeight: 'bold',
   },
@@ -613,16 +634,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#6366f1',
+    backgroundColor: '#14b8a6',
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 10,
     marginTop: 14,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
   },
   submitButtonText: {
     color: 'white',
@@ -639,7 +660,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#6366f1',
+    color: '#14b8a6',
     fontWeight: '600',
   },
   errorContainer: {
@@ -650,20 +671,20 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: '#14b8a6',
     textAlign: 'center',
     marginTop: 12,
     marginBottom: 16,
     fontWeight: 'bold',
   },
   retryButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#14b8a6',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.07,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -679,44 +700,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: '#fff',
     borderRadius: 18,
     padding: 28,
     margin: 32,
     width: '92%',
     maxWidth: 420,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4f46e5',
+    color: '#14b8a6',
     marginBottom: 18,
     letterSpacing: 0.5,
   },
   modalLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#312e81',
+    color: '#14b8a6',
     marginBottom: 6,
   },
   modalValue: {
     fontSize: 15,
-    color: '#6366f1',
+    color: '#14b8a6',
     marginBottom: 14,
     fontWeight: '500',
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#a5b4fc',
+    borderColor: '#99f6e4',
     borderRadius: 10,
     padding: 14,
     fontSize: 15,
-    color: '#312e81',
+    color: '#14b8a6',
     backgroundColor: '#f1f5f9',
     marginBottom: 18,
     fontWeight: '500',
@@ -730,32 +751,32 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cancelButton: {
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#f0fdfa',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
     marginRight: 8,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.03,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   cancelButtonText: {
-    color: '#4f46e5',
+    color: '#14b8a6',
     fontWeight: 'bold',
     fontSize: 15,
   },
   confirmButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#14b8a6',
     paddingHorizontal: 22,
     paddingVertical: 10,
     borderRadius: 8,
-    shadowColor: '#6366f1',
+    shadowColor: '#14b8a6',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   confirmButtonText: {
     color: 'white',

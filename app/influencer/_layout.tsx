@@ -49,6 +49,15 @@ export default function InfluencerLayout() {
         }}
       />
       <Tabs.Screen
+        name="campaign-progress"
+        options={{
+          title: 'Progress',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
           title: 'Account',

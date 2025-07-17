@@ -41,7 +41,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="account"
+        name="influencer/ratings"
+        options={{
+          title: 'Ratings',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="star.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="influencer/campaign-progress"
+        options={{
+          title: 'Progress',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="influencer/account"
         options={{
           title: 'Account',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,

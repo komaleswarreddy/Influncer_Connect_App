@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useInfluencerStore } from '@/store/influencer-store';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function InfluencerDashboard() {
   const { user } = useAuthStore();
@@ -278,344 +279,287 @@ export default function InfluencerDashboard() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>Your Stats</Text>
-            <Text style={styles.headerSubtitle}>
-              Welcome back, {user?.firstName}!
-            </Text>
-          </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {/* Header Section */}
+        <View style={{
+          borderRadius: 24,
+          marginBottom: 24,
+          paddingVertical: 18,
+          paddingHorizontal: 20,
+          backgroundColor: '#fff',
+          shadowColor: '#14b8a6',
+          shadowOpacity: 0.07,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
+          <Text style={{
+            fontSize: 28,
+            fontWeight: 'bold',
+            color: '#14b8a6',
+            textAlign: 'left',
+            marginBottom: 4,
+          }}>Your Stats</Text>
+          <TouchableOpacity style={{
+            alignSelf: 'flex-end',
+            backgroundColor: '#f0fdfa',
+            borderRadius: 20,
+            paddingHorizontal: 20,
+            paddingVertical: 8,
+          }}>
+            <Text style={{ color: '#14b8a6', fontWeight: 'bold' }}>More Details</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* --- Account Details Section --- */}
+        {/* Media Kit Card */}
+        {isMediaKitReady && (
+          <View style={{
+            backgroundColor: '#f0fdfa',
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 16,
+            shadowColor: '#14b8a6',
+            shadowOpacity: 0.06,
+            shadowRadius: 4,
+            elevation: 1,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ backgroundColor: '#bbf7d0', padding: 12, borderRadius: 24, marginRight: 12 }}>
+                <Ionicons name="document-text-outline" size={28} color="#14b8a6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 18, color: '#14b8a6' }}>Your Media Kit is Ready!</Text>
+                <Text style={{ color: '#64748b', fontSize: 14 }}>View your combined social media analytics in one place.</Text>
+              </View>
+              <TouchableOpacity
+                style={{ backgroundColor: '#2dd4bf', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 }}
+                onPress={() => router.push('/account-screens/media-kit')}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>View Media Kit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Stats Section */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
           {/* Potential Progress */}
           <View style={{ alignItems: 'center', flex: 1 }}>
-            <View style={{ width: 90, height: 90, marginBottom: 8, alignItems: 'center', justifyContent: 'center' }}>
-              {/* Static circle */}
-              <View style={{ width: 90, height: 90, borderRadius: 45, borderWidth: 8, borderColor: '#10B981', borderRightColor: '#E5E7EB', borderBottomColor: '#E5E7EB', borderLeftColor: '#E5E7EB', borderTopColor: '#10B981', backgroundColor: isDark ? '#222' : '#fff', position: 'absolute', top: 0, left: 0 }} />
-              {/* Centered percentage text using absolute fill */}
-              <View style={{ position: 'absolute', top: 0, left: 0, width: 90, height: 90, alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-                <Text style={{ fontSize: 22, fontWeight: 'bold', color: isDark ? '#fff' : '#222' }}>{stats.potential}%</Text>
-                <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>POTENTIAL</Text>
-              </View>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#e0f2fe', justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 2, borderColor: '#bae6fd' }}>
+              <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#14b8a6' }}>{stats.potential}%</Text>
             </View>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>POTENTIAL</Text>
           </View>
-          {/* Account Card */}
-          <View style={{ flex: 1, marginLeft: 12, backgroundColor: '#F472B6', borderRadius: 12, padding: 12, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Account</Text>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>**** {stats.accountNumber}</Text>
+          {/* Viewers */}
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="eye-outline" size={32} color="#0ea5e9" />
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0ea5e9' }}>{stats.viewers}</Text>
+            </View>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>Viewers</Text>
           </View>
-        </View>
-        {/* Stats Cards */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-          <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 12, marginRight: 6, alignItems: 'center', elevation: 2 }}>
-            <Text style={{ color: '#888', fontSize: 13 }}>Viewers</Text>
-            <Text style={{ fontWeight: 'bold', fontSize: 16, marginTop: 4 }}>{stats.viewers} views</Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 12, marginLeft: 6, alignItems: 'center', elevation: 2 }}>
-            <Text style={{ color: '#888', fontSize: 13 }}>Engagement</Text>
-            <Text style={{ fontWeight: 'bold', fontSize: 16, marginTop: 4 }}>{stats.engagement} focused</Text>
+          {/* Engagement */}
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="chatbubble-ellipses-outline" size={32} color="#ec4899" />
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#ec4899' }}>{stats.engagement}</Text>
+            </View>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>Engagement</Text>
           </View>
         </View>
 
-        {/* --- Actions Performed Section --- */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>Actions Performed</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch' }}>
+        {/* Monthly Goal Progress */}
+        <View style={{ backgroundColor: '#fefce8', borderRadius: 16, padding: 16, marginBottom: 16, alignItems: 'center', shadowColor: '#facc15', shadowOpacity: 0.06, shadowRadius: 2, elevation: 1 }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#ca8a04', marginBottom: 4 }}>Monthly Goal</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#fde68a', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 18, color: '#ca8a04' }}>{stats.monthlyGoal.progress}%</Text>
+            </View>
+            <Text style={{ color: '#ca8a04', fontWeight: 'bold', fontSize: 16 }}>{stats.monthlyGoal.points} Points</Text>
+          </View>
+          <View style={{ height: 8, width: '100%', backgroundColor: '#fde68a', borderRadius: 4, overflow: 'hidden' }}>
+            <View style={{ height: 8, width: `${stats.monthlyGoal.progress}%`, backgroundColor: '#ca8a04', borderRadius: 4 }} />
+          </View>
+        </View>
+
+        {/* Social Media Points */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, alignItems: 'center', marginRight: 4 }}>
+            <Ionicons name="logo-instagram" size={28} color="#db2777" />
+            <Text style={{ fontWeight: 'bold', color: '#db2777', fontSize: 16 }}>{stats.socialMedia.instagram.points}</Text>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>Instagram</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 4 }}>
+            <Ionicons name="logo-twitter" size={28} color="#2563eb" />
+            <Text style={{ fontWeight: 'bold', color: '#2563eb', fontSize: 16 }}>{stats.socialMedia.twitter.points}</Text>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>Twitter</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, alignItems: 'center', marginLeft: 4 }}>
+            <Ionicons name="logo-youtube" size={28} color="#dc2626" />
+            <Text style={{ fontWeight: 'bold', color: '#dc2626', fontSize: 16 }}>{stats.socialMedia.youtube.points}</Text>
+            <Text style={{ color: '#64748b', fontSize: 12 }}>YouTube</Text>
+          </View>
+        </View>
+
+        {/* Actions Performed */}
+        <View style={{ backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#0f172a', marginBottom: 8 }}>Actions Performed</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
             {stats.actions.map((action, idx) => (
-              <View
-                key={idx}
-                style={{
-                  backgroundColor: action.color,
-                  borderRadius: 10,
-                  paddingVertical: 10,
-                  paddingHorizontal: 4,
-                  alignItems: 'center',
-                  flex: 1,
-                  marginLeft: idx === 0 ? 0 : 6,
-                  marginRight: idx === stats.actions.length - 1 ? 0 : 0,
-                  minWidth: 0,
-                }}
-              >
-                <Text style={{ fontSize: 18 }}>{action.icon}</Text>
-                <Text style={{ fontSize: 11, marginTop: 4, fontWeight: '500', textAlign: 'center' }}>{action.title}</Text>
+              <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 8, padding: 8, marginBottom: 8, minWidth: '48%', marginRight: idx % 2 === 0 ? 8 : 0 }}>
+                <Text style={{ fontSize: 20, marginRight: 8 }}>{action.icon}</Text>
+                <Text style={{ fontSize: 14, color: '#0f172a' }}>{action.title}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* --- Feature Cards Section --- */}
-        <View style={{ flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-          {/* Mobile App Sync */}
-          <View style={{ backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 6 }}>Mobile App Sync</Text>
-            <Text style={{ fontSize: 12, color: '#B45309', marginBottom: 8, textAlign: 'center' }}>Keep your stats in sync with the mobile app.</Text>
-            <Text style={{ fontSize: 32 }}>📱</Text>
-          </View>
-          {/* Influence Ranking */}
-          <View style={{ backgroundColor: '#CCFBF1', borderRadius: 12, padding: 14, alignItems: 'center' }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 6 }}>Influence Ranking</Text>
-            <Text style={{ fontSize: 12, color: '#0F766E', marginBottom: 8, textAlign: 'center' }}>Your current rank among influencers.</Text>
-            <View style={{ backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6, marginTop: 4 }}>
-              <Text style={{ color: '#0D9488', fontWeight: 'bold', fontSize: 18 }}>#11</Text>
+        {/* Media Kit Connection Cards (Instagram, YouTube, Twitter) */}
+        {/* Instagram */}
+        <View style={{ backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ backgroundColor: '#fce7f3', borderRadius: 20, padding: 8, marginRight: 12 }}>
+              <Ionicons name="logo-instagram" size={24} color="#db2777" />
             </View>
-          </View>
-        </View>
-
-        {/* --- User Profile Card Section --- */}
-        <View style={{ backgroundColor: isDark ? '#222' : '#fff', borderRadius: 14, padding: 18, marginBottom: 18, alignItems: 'center', elevation: 2 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#5EEAD4', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-              <Text style={{ fontSize: 28, color: '#134E4A', fontWeight: 'bold' }}>{user?.firstName?.[0] || 'D'}</Text>
-            </View>
-            <View>
-              <Text style={{ fontWeight: 'bold', fontSize: 17 }}>{user?.firstName || 'David'} {user?.lastName || 'Jones'}</Text>
-              <Text style={{ color: '#888', fontSize: 13 }}>Influencer</Text>
-            </View>
-          </View>
-          {/* Monthly Goal */}
-          <View style={{ width: '100%', marginBottom: 10 }}>
-            <Text style={{ fontWeight: '500', fontSize: 14, marginBottom: 4 }}>Monthly Goal</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#A7F3D0', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                <Text style={{ color: '#0D9488', fontWeight: 'bold', fontSize: 15 }}>{stats.monthlyGoal.progress}%</Text>
-              </View>
-              <Text style={{ color: '#888', fontSize: 13 }}>{stats.monthlyGoal.points} Points</Text>
-            </View>
-          </View>
-          {/* Social Media Points */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={{ color: '#E11D48', fontWeight: 'bold', fontSize: 15 }}>{stats.socialMedia.instagram.points}</Text>
-              <Text style={{ color: '#E11D48', fontSize: 12 }}>Instagram</Text>
-            </View>
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={{ color: '#2563EB', fontWeight: 'bold', fontSize: 15 }}>{stats.socialMedia.twitter.points}</Text>
-              <Text style={{ color: '#2563EB', fontSize: 12 }}>Twitter</Text>
-            </View>
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={{ color: '#DC2626', fontWeight: 'bold', fontSize: 15 }}>{stats.socialMedia.youtube.points}</Text>
-              <Text style={{ color: '#DC2626', fontSize: 12 }}>YouTube</Text>
-            </View>
-          </View>
-        </View>
-
-        {isMediaKitReady && (
-          <View style={styles.mediaKitCard}>
-            <View style={styles.mediaKitHeader}>
-              <View style={[styles.mediaKitIcon, { backgroundColor: '#34C759' }]}>
-                <Ionicons name="document-text" size={20} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.mediaKitTitle}>Your Media Kit is Ready!</Text>
-                <Text style={styles.mediaKitDescription}>
-                  View your combined social media analytics in one place.
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.connectButton}>
-              <Text style={styles.connectButtonText}>View Media Kit</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Instagram Connection */}
-        <View style={styles.mediaKitCard}>
-          <View style={styles.mediaKitHeader}>
-            <View style={[styles.mediaKitIcon, { backgroundColor: '#E4405F' }]}>
-              <Ionicons name="logo-instagram" size={20} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.mediaKitTitle}>Instagram Analytics</Text>
-              <Text style={styles.mediaKitDescription}>
-                {isConnected
-                  ? 'Instagram account is connected.'
-                  : 'Connect your Instagram to generate your media kit.'}
-              </Text>
-            </View>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#db2777', flex: 1 }}>Instagram Analytics</Text>
             {isConnected ? (
-              <View style={styles.connectedStatus}>
-                <View style={styles.connectedDot} />
-                <Text style={styles.connectedText}>Connected</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e', marginRight: 6 }} />
+                <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>Connected</Text>
               </View>
             ) : (
               <TouchableOpacity
-                style={styles.connectButton}
+                style={{ backgroundColor: '#db2777', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 }}
                 onPress={() => setShowInstagramInput(true)}
-                disabled={isLoading}
               >
-                <Text style={styles.connectButtonText}>Connect</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Connect Instagram</Text>
               </TouchableOpacity>
             )}
           </View>
-
           {showInstagramInput && (
-            <View style={styles.inputContainer}>
-              <View style={styles.inputHeader}>
-                <Text style={styles.inputLabel}>Enter your Instagram username:</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setShowInstagramInput(false);
-                    setInstagramUsername('');
-                  }}
-                >
-                  <Ionicons name="close" size={20} color={isDark ? '#fff' : '#000'} />
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontWeight: 'bold', color: '#db2777' }}>Enter your Instagram username:</Text>
+                <TouchableOpacity onPress={() => setShowInstagramInput(false)}>
+                  <Ionicons name="close" size={20} color="#db2777" />
                 </TouchableOpacity>
               </View>
               <TextInput
-                style={styles.input}
                 value={instagramUsername}
                 onChangeText={setInstagramUsername}
-                placeholder="@username"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                autoCapitalize="none"
+                placeholder="username"
+                style={{ backgroundColor: '#f3f4f6', borderRadius: 6, padding: 10, marginBottom: 8, color: '#db2777' }}
+                placeholderTextColor="#db2777"
+                onSubmitEditing={handleConnectInstagram}
               />
               <TouchableOpacity
-                style={styles.inputButton}
+                style={{ backgroundColor: '#db2777', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
                 onPress={handleConnectInstagram}
-                disabled={isLoading || !instagramUsername.trim()}
               >
-                <Text style={styles.inputButtonText}>
-                  {isLoading ? 'Connecting...' : 'Connect'}
-                </Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{isLoading ? 'Connecting...' : 'Connect'}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* YouTube Connection */}
-        <View style={styles.mediaKitCard}>
-          <View style={styles.mediaKitHeader}>
-            <View style={[styles.mediaKitIcon, { backgroundColor: '#FF0000' }]}>
-              <Ionicons name="logo-youtube" size={20} color="#fff" />
+        {/* YouTube */}
+        <View style={{ backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ backgroundColor: '#fee2e2', borderRadius: 20, padding: 8, marginRight: 12 }}>
+              <Ionicons name="logo-youtube" size={24} color="#dc2626" />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.mediaKitTitle}>YouTube Analytics</Text>
-              <Text style={styles.mediaKitDescription}>
-                {isYtConnected
-                  ? 'YouTube account is connected.'
-                  : 'Connect your YouTube account to enhance your media kit.'}
-              </Text>
-            </View>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#dc2626', flex: 1 }}>YouTube Analytics</Text>
             {isYtConnected ? (
-              <View style={styles.connectedStatus}>
-                <View style={styles.connectedDot} />
-                <Text style={styles.connectedText}>Connected</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e', marginRight: 6 }} />
+                <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>Connected</Text>
               </View>
             ) : (
               <TouchableOpacity
-                style={styles.connectButton}
+                style={{ backgroundColor: '#dc2626', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 }}
                 onPress={() => setShowYoutubeInput(true)}
-                disabled={isLoading}
               >
-                <Text style={styles.connectButtonText}>Connect</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Connect YouTube</Text>
               </TouchableOpacity>
             )}
           </View>
-
           {showYoutubeInput && (
-            <View style={styles.inputContainer}>
-              <View style={styles.inputHeader}>
-                <Text style={styles.inputLabel}>Enter your YouTube username:</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setShowYoutubeInput(false);
-                    setYoutubeUsername('');
-                  }}
-                >
-                  <Ionicons name="close" size={20} color={isDark ? '#fff' : '#000'} />
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontWeight: 'bold', color: '#dc2626' }}>Enter your YouTube username:</Text>
+                <TouchableOpacity onPress={() => setShowYoutubeInput(false)}>
+                  <Ionicons name="close" size={20} color="#dc2626" />
                 </TouchableOpacity>
               </View>
               <TextInput
-                style={styles.input}
                 value={youtubeUsername}
                 onChangeText={setYoutubeUsername}
                 placeholder="username"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                autoCapitalize="none"
+                style={{ backgroundColor: '#f3f4f6', borderRadius: 6, padding: 10, marginBottom: 8, color: '#dc2626' }}
+                placeholderTextColor="#dc2626"
+                onSubmitEditing={handleConnectYouTube}
               />
               <TouchableOpacity
-                style={styles.inputButton}
+                style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
                 onPress={handleConnectYouTube}
-                disabled={isLoading || !youtubeUsername.trim()}
               >
-                <Text style={styles.inputButtonText}>
-                  {isLoading ? 'Connecting...' : 'Connect'}
-                </Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{isLoading ? 'Connecting...' : 'Connect'}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Twitter Connection */}
-        <View style={styles.mediaKitCard}>
-          <View style={styles.mediaKitHeader}>
-            <View style={[styles.mediaKitIcon, { backgroundColor: '#1DA1F2' }]}>
-              <Ionicons name="logo-twitter" size={20} color="#fff" />
+        {/* Twitter */}
+        <View style={{ backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <View style={{ backgroundColor: '#e0e7ff', borderRadius: 20, padding: 8, marginRight: 12 }}>
+              <Ionicons name="logo-twitter" size={24} color="#2563eb" />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.mediaKitTitle}>Twitter Analytics</Text>
-              <Text style={styles.mediaKitDescription}>
-                {isTwitterConnected
-                  ? 'Twitter account is connected.'
-                  : 'Connect your Twitter to enhance your media kit.'}
-              </Text>
-            </View>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#2563eb', flex: 1 }}>Twitter Analytics</Text>
             {isTwitterConnected ? (
-              <View style={styles.connectedStatus}>
-                <View style={styles.connectedDot} />
-                <Text style={styles.connectedText}>Connected</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e', marginRight: 6 }} />
+                <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>Connected</Text>
               </View>
             ) : (
               <TouchableOpacity
-                style={styles.connectButton}
+                style={{ backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 }}
                 onPress={() => setShowTwitterInput(true)}
-                disabled={isLoading}
               >
-                <Text style={styles.connectButtonText}>Connect</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Connect Twitter</Text>
               </TouchableOpacity>
             )}
           </View>
-
           {showTwitterInput && (
-            <View style={styles.inputContainer}>
-              <View style={styles.inputHeader}>
-                <Text style={styles.inputLabel}>Enter your Twitter username:</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => {
-                    setShowTwitterInput(false);
-                    setTwitterUsername('');
-                  }}
-                >
-                  <Ionicons name="close" size={20} color={isDark ? '#fff' : '#000'} />
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontWeight: 'bold', color: '#2563eb' }}>Enter your Twitter username:</Text>
+                <TouchableOpacity onPress={() => setShowTwitterInput(false)}>
+                  <Ionicons name="close" size={20} color="#2563eb" />
                 </TouchableOpacity>
               </View>
               <TextInput
-                style={styles.input}
                 value={twitterUsername}
                 onChangeText={setTwitterUsername}
                 placeholder="@username"
-                placeholderTextColor={isDark ? '#666' : '#999'}
-                autoCapitalize="none"
+                style={{ backgroundColor: '#f3f4f6', borderRadius: 6, padding: 10, marginBottom: 8, color: '#2563eb' }}
+                placeholderTextColor="#2563eb"
+                onSubmitEditing={handleConnectTwitter}
               />
               <TouchableOpacity
-                style={styles.inputButton}
+                style={{ backgroundColor: '#2563eb', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
                 onPress={handleConnectTwitter}
-                disabled={isLoading || !twitterUsername.trim()}
               >
-                <Text style={styles.inputButtonText}>
-                  {isLoading ? 'Connecting...' : 'Connect'}
-                </Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{isLoading ? 'Connecting...' : 'Connect'}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
+
+        {/* Loading Indicator */}
+        {isLoading && (
+          <ActivityIndicator size="large" color="#14b8a6" style={{ marginTop: 32 }} />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
