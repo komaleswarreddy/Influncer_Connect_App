@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
-import { useCampaignStore } from '../../../store/campaign-store';
+import { useCampaignStore } from '../../../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CampaignDetailsScreen from '../../../components/influencer/CampaignDetails';
-import CampaignFilters from '../../../components/influencer/CampaignFilters';
-import { api } from '../../../lib/api';
+import CampaignDetailsScreen from '../../../../components/influencer/CampaignDetails';
+import CampaignFilters from '../../../../components/influencer/CampaignFilters';
+import { api } from '../../../../lib/api';
 import { useRouter } from 'expo-router';
 
 const TABS = [
@@ -73,9 +73,32 @@ export default function InfluencerCampaignsScreen() {
 
   const handleJoin = async (campaignId: string) => {
     try {
-      await joinCampaign(campaignId);
-      Alert.alert('Success', 'You have joined the campaign!');
-      fetchParticipations();
+      const response = await joinCampaign(campaignId);
+      Alert.alert(
+        'Campaign Applied Successfully!',
+        'You have applied for the campaign. Please review and sign the contract.',
+        [
+          {
+            text: 'View Contract',
+            onPress: () => {
+              // Navigate to contract page with participation ID
+              if (response && response.id) {
+                router.push({
+                  pathname: '/influencer/contract',
+                  params: { participationId: response.id }
+                });
+              }
+            }
+          },
+          {
+            text: 'Later',
+            style: 'cancel',
+            onPress: () => {
+              fetchParticipations();
+            }
+          }
+        ]
+      );
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to join campaign');
     }
@@ -89,6 +112,48 @@ export default function InfluencerCampaignsScreen() {
   const handleCloseCampaignDetails = () => {
     setShowCampaignDetails(false);
     setSelectedCampaignId(null);
+  };
+
+  const handleApplySuccess = (participation: any) => {
+    // Close the modal first
+    setShowCampaignDetails(false);
+    setSelectedCampaignId(null);
+    
+    // Navigate directly to contract page without showing alert first
+    if (participation && participation.id) {
+      setTimeout(() => {
+        try {
+          // Try href approach first
+          router.push(`/influencer/contract?participationId=${participation.id}`);
+        } catch (error) {
+          console.error('Navigation error:', error);
+          // Fallback to pathname/params approach
+          try {
+            router.replace({
+              pathname: '/influencer/contract',
+              params: { participationId: participation.id }
+            });
+          } catch (fallbackError) {
+            console.error('Fallback navigation error:', fallbackError);
+          }
+        }
+      }, 100); // Small delay to ensure modal is closed
+    } else {
+      console.error('No participation ID found:', participation);
+      // Fallback: show alert
+      Alert.alert(
+        'Campaign Applied Successfully!',
+        'You have applied for the campaign. Please review and sign the contract.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              fetchParticipations();
+            }
+          }
+        ]
+      );
+    }
   };
 
   const handleFilterChange = (newFilters: typeof filters) => {
@@ -173,7 +238,21 @@ export default function InfluencerCampaignsScreen() {
       {status === 'applied' && (
         <View style={styles.appliedContainer}>
           <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
-          <Text style={styles.appliedMessage}>Email is sent for contact agreement</Text>
+          <Text style={styles.appliedMessage}>Please review and sign the contract</Text>
+          <TouchableOpacity 
+            style={styles.contractButton}
+            onPress={() => {
+              const participation = participations.find(p => p.campaignId === campaign.id && p.status === 'applied');
+              if (participation) {
+                router.push({
+                  pathname: '/influencer/contract',
+                  params: { participationId: participation.id }
+                });
+              }
+            }}
+          >
+            <Text style={styles.contractButtonText}>View & Sign Contract</Text>
+          </TouchableOpacity>
         </View>
       )}
       {status === 'joined' && (
@@ -266,7 +345,8 @@ export default function InfluencerCampaignsScreen() {
           {selectedCampaignId && (
             <CampaignDetailsScreen 
               campaignId={selectedCampaignId} 
-              onClose={handleCloseCampaignDetails} 
+              onClose={handleCloseCampaignDetails}
+              onApplySuccess={handleApplySuccess}
             />
           )}
         </View>
@@ -441,5 +521,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  contractButton: {
+    marginTop: 8,
+    backgroundColor: '#14b8a6',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  contractButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 }); 

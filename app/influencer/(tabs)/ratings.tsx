@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useCampaignStore } from '../../store/campaign-store';
-import { useInfluencerStore } from '../../store/influencer-store';
-import { useAuthStore } from '../../store/auth-store';
+import { useCampaignStore } from '../../../store/campaign-store';
+import { useInfluencerStore } from '../../../store/influencer-store';
+import { useAuthStore } from '../../../store/auth-store';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 function StarRatingDisplay({ rating }: { rating: number }) {
@@ -371,8 +371,11 @@ export default function RatingsScreen() {
               adminRatings[adminModalParticipation.id].map((r, idx) => (
                 <View key={r.id || idx} style={styles.adminRatingCard}>
                   <StarRatingDisplay rating={r.overallRating} />
-                  {r.review && <Text style={styles.adminRatingText}>{r.review}</Text>}
-                  <Text style={[styles.adminRatingText, { fontSize: 12, marginTop: 2 }]}>Status: {r.status}</Text>
+                  {r.review && (
+                    <Text style={[styles.adminRatingText, { marginTop: 8, fontStyle: 'italic' }]}>
+                      "{r.review}"
+                    </Text>
+                  )}
                 </View>
               ))
             ) : (

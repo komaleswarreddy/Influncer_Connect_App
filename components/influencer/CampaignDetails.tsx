@@ -2,13 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useCampaignStore } from '../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 interface CampaignDetailsProps {
   campaignId?: string;
   onClose?: () => void;
+  onApplySuccess?: (participation: any) => void;
 }
 
-export default function CampaignDetailsScreen({ campaignId, onClose }: CampaignDetailsProps) {
+export default function CampaignDetailsScreen({ campaignId, onClose, onApplySuccess }: CampaignDetailsProps) {
+  const router = useRouter();
   const {
     fetchCampaign,
     fetchParticipations,
@@ -64,10 +67,28 @@ export default function CampaignDetailsScreen({ campaignId, onClose }: CampaignD
 
   const handleApply = async () => {
     try {
-      await joinCampaign(campaignId as string);
-      Alert.alert('Success', 'You have successfully joined the campaign!');
-      if (onClose) onClose();
+      const participation = await joinCampaign(campaignId as string);
+      
+      // Call the callback to pass participation data to parent
+      if (onApplySuccess) {
+        onApplySuccess(participation);
+      } else {
+        // Fallback: show alert and close modal
+        Alert.alert(
+          'Success', 
+          'You have successfully applied for the campaign! Please review and sign the contract.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onClose) onClose();
+              }
+            }
+          ]
+        );
+      }
     } catch (e: any) {
+      console.error('Error in handleApply:', e);
       Alert.alert('Error', e.message || 'Failed to join campaign');
     }
   };

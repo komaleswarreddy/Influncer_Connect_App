@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/auth-store';
+import { useAuthStore } from '../../../store/auth-store';
 
 const ACCOUNT_LINKS = [
   { key: 'media-kit', label: 'Media Kit', icon: 'document-text-outline', path: '/account-screens/media-kit' },

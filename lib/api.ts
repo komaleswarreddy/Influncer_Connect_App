@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use the user's local IP address for backend API calls
-const API_URL = 'http://10.4.10.203:3000';
+const API_URL = 'http://10.30.117.235:3000';
 
 class ApiClient {
   async getToken() {
@@ -18,9 +18,15 @@ class ApiClient {
 
   async request(endpoint: string, options: RequestInit = {}) {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
+    
+    // Only set Content-Type if not FormData
+    const isFormData = options.body instanceof FormData;
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
     const token = await this.getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -68,10 +74,18 @@ class ApiClient {
   }
 
   async post(endpoint: string, data: any, options: RequestInit = {}) {
+    // Check if data is FormData
+    const isFormData = data instanceof FormData;
+    
     return this.request(endpoint, {
       ...options,
       method: 'POST',
-      body: JSON.stringify(data),
+      body: isFormData ? data : JSON.stringify(data),
+      headers: {
+        ...(options.headers as Record<string, string> || {}),
+        // Don't set Content-Type for FormData, let the browser set it with boundary
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      },
     });
   }
 

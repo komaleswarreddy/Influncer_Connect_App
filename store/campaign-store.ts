@@ -62,7 +62,7 @@ interface CampaignState {
   error: string | null;
   fetchCampaigns: () => Promise<void>;
   fetchCampaign: (id: string) => Promise<Campaign | null>;
-  joinCampaign: (campaignId: string) => Promise<void>;
+  joinCampaign: (campaignId: string) => Promise<CampaignParticipation>;
   fetchParticipations: () => Promise<void>;
   acceptContract: (participationId: string, signature: string) => Promise<void>;
   clearError: () => void;
@@ -99,8 +99,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   joinCampaign: async (campaignId: string) => {
     set({ isLoading: true, error: null });
     try {
-      await api.post(`/api/campaigns/${campaignId}/join`, {});
+      const response = await api.post(`/api/campaigns/${campaignId}/join`, {});
       set({ isLoading: false });
+      return response as CampaignParticipation;
     } catch (error: any) {
       set({ error: error.message || 'Failed to join campaign', isLoading: false });
       throw error;

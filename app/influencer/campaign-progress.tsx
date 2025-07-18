@@ -144,6 +144,19 @@ export default function CampaignProgressScreen() {
     }
   };
 
+  const getStatusTextColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return '#ffffff'; // White text for green background
+      case 'rejected':
+        return '#ffffff'; // White text for red background
+      case 'pending':
+        return '#ffffff'; // White text for orange background
+      default:
+        return '#14b8a6'; // Teal text for gray background
+    }
+  };
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'approved':
@@ -190,7 +203,7 @@ export default function CampaignProgressScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="information-circle" size={48} color="#14b8a6" />
-          <Text style={styles.errorText}>No progress data found for this campaign.<br/>You may need to join the campaign first.</Text>
+          <Text style={styles.errorText}>No progress data found for this campaign.{'\n'}You may need to join the campaign first.</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/influencer/campaigns')}>
             <Text style={styles.retryButtonText}>Go to Campaigns</Text>
           </TouchableOpacity>
@@ -269,7 +282,7 @@ export default function CampaignProgressScreen() {
                           {new Date(submission.submissionDate).toLocaleDateString()}
                         </Text>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(submission.status) }]}>
-                          <Text style={styles.statusText}>{getStatusText(submission.status)}</Text>
+                          <Text style={[styles.statusText, { color: getStatusTextColor(submission.status) }]}>{getStatusText(submission.status)}</Text>
                         </View>
                       </View>
                       
@@ -383,12 +396,12 @@ export default function CampaignProgressScreen() {
                 onPress={() => {
                   setShowSubmitModal(false);
                   setContentUrl('');
+                  setContentType('');
                   setSelectedProgress(null);
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity 
                 style={styles.confirmButton}
                 onPress={handleSubmitContent}
@@ -413,159 +426,140 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingVertical: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 0,
-    borderBottomColor: 'transparent',
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#14b8a6',
-    letterSpacing: 0.5,
   },
   campaignInfo: {
     backgroundColor: '#fff',
-    padding: 18,
-    marginBottom: 12,
-    borderRadius: 18,
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: 16,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   campaignName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#14b8a6',
+    color: '#0f172a',
     marginBottom: 4,
   },
   campaignDesc: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#64748b',
+    lineHeight: 20,
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: '#fff',
     margin: 16,
-    padding: 20,
-    borderRadius: 22,
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
-    alignItems: 'center',
   },
   summaryTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#14b8a6',
-    marginBottom: 16,
-    letterSpacing: 0.5,
+    marginBottom: 12,
   },
   progressBar: {
-    height: 16,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    marginBottom: 12,
-    width: '100%',
+    height: 8,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
     overflow: 'hidden',
+    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#14b8a6',
-    borderRadius: 8,
+    borderRadius: 4,
   },
   progressText: {
-    fontSize: 16,
-    color: '#14b8a6',
+    fontSize: 14,
+    color: '#64748b',
     textAlign: 'center',
-    fontWeight: '600',
   },
   section: {
     marginHorizontal: 16,
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#14b8a6',
-    marginBottom: 16,
-    letterSpacing: 0.5,
+    marginBottom: 12,
   },
   progressCard: {
     backgroundColor: '#fff',
-    padding: 18,
-    borderRadius: 18,
-    marginBottom: 16,
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   contentType: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#14b8a6',
+    color: '#0f172a',
   },
   progressCount: {
-    fontSize: 15,
-    color: '#14b8a6',
+    fontSize: 14,
     fontWeight: 'bold',
+    color: '#14b8a6',
   },
   scheduleText: {
-    fontSize: 13,
-    color: '#ca8a04',
-    marginTop: 6,
+    fontSize: 12,
+    color: '#f59e0b',
+    marginTop: 4,
     fontWeight: '500',
   },
   submissionsContainer: {
-    marginTop: 14,
+    marginTop: 12,
   },
   submissionsTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#14b8a6',
     marginBottom: 8,
   },
   submissionItem: {
-    backgroundColor: '#f1f5f9',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   submissionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   submissionDate: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748b',
     fontWeight: '500',
   },
