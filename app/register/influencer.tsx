@@ -67,15 +67,62 @@ export default function InfluencerRegisterScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Join as Influencer</Text>
-      <TextInput style={styles.input} placeholder="Full Name" value={form.fullName} onChangeText={v => setForm(f => ({ ...f, fullName: v }))} />
-      <TextInput style={styles.input} placeholder="Email" value={form.email} onChangeText={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" autoCapitalize="none" />
-      <TextInput style={styles.input} placeholder="Password" value={form.password} onChangeText={v => setForm(f => ({ ...f, password: v }))} secureTextEntry={!showPassword} />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Full Name" 
+        placeholderTextColor="#666"
+        value={form.fullName} 
+        onChangeText={v => setForm(f => ({ ...f, fullName: v }))} 
+      />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Email" 
+        placeholderTextColor="#666"
+        value={form.email} 
+        onChangeText={v => setForm(f => ({ ...f, email: v }))} 
+        keyboardType="email-address" 
+        autoCapitalize="none" 
+      />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Password" 
+        placeholderTextColor="#666"
+        value={form.password} 
+        onChangeText={v => setForm(f => ({ ...f, password: v }))} 
+        secureTextEntry={!showPassword} 
+      />
       <TouchableOpacity onPress={() => setShowPassword(s => !s)}><Text style={styles.toggle}>{showPassword ? 'Hide' : 'Show'} Password</Text></TouchableOpacity>
-      <TextInput style={styles.input} placeholder="Confirm Password" value={form.confirmPassword} onChangeText={v => setForm(f => ({ ...f, confirmPassword: v }))} secureTextEntry={!showConfirmPassword} />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Confirm Password" 
+        placeholderTextColor="#666"
+        value={form.confirmPassword} 
+        onChangeText={v => setForm(f => ({ ...f, confirmPassword: v }))} 
+        secureTextEntry={!showConfirmPassword} 
+      />
       <TouchableOpacity onPress={() => setShowConfirmPassword(s => !s)}><Text style={styles.toggle}>{showConfirmPassword ? 'Hide' : 'Show'} Confirm Password</Text></TouchableOpacity>
-      <TextInput style={styles.input} placeholder="Phone" value={form.phone} onChangeText={v => setForm(f => ({ ...f, phone: v }))} keyboardType="phone-pad" />
-      <TextInput style={styles.input} placeholder="Instagram Profile URL" value={form.instagram} onChangeText={v => setForm(f => ({ ...f, instagram: v }))} />
-      <TextInput style={styles.input} placeholder="YouTube Profile URL" value={form.youtube} onChangeText={v => setForm(f => ({ ...f, youtube: v }))} />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Phone" 
+        placeholderTextColor="#666"
+        value={form.phone} 
+        onChangeText={v => setForm(f => ({ ...f, phone: v }))} 
+        keyboardType="phone-pad" 
+      />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Instagram Profile URL" 
+        placeholderTextColor="#666"
+        value={form.instagram} 
+        onChangeText={v => setForm(f => ({ ...f, instagram: v }))} 
+      />
+      <TextInput 
+        style={styles.input} 
+        placeholder="YouTube Profile URL" 
+        placeholderTextColor="#666"
+        value={form.youtube} 
+        onChangeText={v => setForm(f => ({ ...f, youtube: v }))} 
+      />
       <Text style={styles.label}>Niche</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
         {NICHES.map(niche => (
@@ -92,7 +139,15 @@ export default function InfluencerRegisterScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <TextInput style={[styles.input, { height: 80 }]} placeholder="Bio (optional, max 500 chars)" value={form.bio} onChangeText={v => setForm(f => ({ ...f, bio: v }))} multiline maxLength={500} />
+      <TextInput 
+        style={[styles.input, { height: 80 }]} 
+        placeholder="Bio (optional, max 500 chars)" 
+        placeholderTextColor="#666"
+        value={form.bio} 
+        onChangeText={v => setForm(f => ({ ...f, bio: v }))} 
+        multiline 
+        maxLength={500} 
+      />
       <View style={styles.checkboxRow}>
         <TouchableOpacity onPress={() => setForm(f => ({ ...f, agreedToTerms: !f.agreedToTerms }))} style={styles.checkbox}>
           <Text>{form.agreedToTerms ? '☑' : '☐'}</Text>
@@ -108,9 +163,18 @@ export default function InfluencerRegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 24, backgroundColor: '#fff', flexGrow: 1 },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginBottom: 12 },
-  label: { fontWeight: 'bold', marginBottom: 4 },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16, textAlign: 'center', color: '#333' },
+  input: { 
+    borderWidth: 1, 
+    borderColor: '#ccc', 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 12,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#fff'
+  },
+  label: { fontWeight: 'bold', marginBottom: 4, color: '#333' },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#ccc', marginRight: 8 },
   chipSelected: { backgroundColor: '#00b894', borderColor: '#00b894' },
   chipText: { color: '#333' },

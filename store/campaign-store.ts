@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { mockCampaigns, mockParticipations } from '../lib/mock-data';
 
 interface Campaign {
   id: string;
@@ -77,8 +78,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   fetchCampaigns: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get('/api/campaigns');
-      set({ campaigns: response as Campaign[], isLoading: false });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Use mock data instead of API call
+      set({ campaigns: mockCampaigns, isLoading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch campaigns', isLoading: false });
     }
@@ -87,9 +91,13 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   fetchCampaign: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get(`/api/campaigns/${id}`);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Find campaign in mock data
+      const campaign = mockCampaigns.find(c => c.id === id);
       set({ isLoading: false });
-      return response as Campaign;
+      return campaign || null;
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch campaign', isLoading: false });
       return null;
@@ -99,9 +107,28 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   joinCampaign: async (campaignId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post(`/api/campaigns/${campaignId}/join`, {});
-      set({ isLoading: false });
-      return response as CampaignParticipation;
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Create mock participation
+      const newParticipation: CampaignParticipation = {
+        id: `part-${Date.now()}`,
+        campaignId,
+        influencerId: '1',
+        status: 'pending',
+        joinedAt: new Date().toISOString(),
+        promotionalLinks: [],
+        promotionalCodes: [],
+        influencer_signature: null
+      };
+      
+      // Add to participations
+      set(state => ({
+        participations: [...state.participations, newParticipation],
+        isLoading: false
+      }));
+      
+      return newParticipation;
     } catch (error: any) {
       set({ error: error.message || 'Failed to join campaign', isLoading: false });
       throw error;
@@ -111,8 +138,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   fetchParticipations: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get('/api/campaigns/participations');
-      set({ participations: response as CampaignParticipation[], isLoading: false });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Use mock data instead of API call
+      set({ participations: mockParticipations, isLoading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch participations', isLoading: false });
     }
@@ -121,8 +151,18 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   acceptContract: async (participationId: string, signature: string) => {
     set({ isLoading: true, error: null });
     try {
-      await api.post(`/api/campaigns/${participationId}/accept-contract`, { signature });
-      set({ isLoading: false });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Update participation with signature
+      set(state => ({
+        participations: state.participations.map(p => 
+          p.id === participationId 
+            ? { ...p, influencer_signature: signature, status: 'active' }
+            : p
+        ),
+        isLoading: false
+      }));
     } catch (error: any) {
       set({ error: error.message || 'Failed to accept contract', isLoading: false });
       throw error;

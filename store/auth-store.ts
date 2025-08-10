@@ -23,6 +23,7 @@ interface AuthState {
   logout: () => Promise<void>;
   setAuth: (token: string, user: User) => Promise<void>;
   loadAuth: () => Promise<void>;
+  mockLogin: (email: string, password: string) => Promise<void>; // Mock login for testing
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -55,6 +56,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  // Mock login for testing without backend
+  mockLogin: async (email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+      
+      // Mock successful login
+      const mockUser = {
+        id: '1',
+        email: email,
+        firstName: 'Test',
+        lastName: 'User',
+        role: { roleName: 'influencer' },
+        tenantId: 'mock-tenant-1'
+      };
+      
+      const mockToken = 'mock-jwt-token-' + Date.now();
+      
+      await get().setAuth(mockToken, mockUser);
+      console.log('Mock login successful for user:', email);
+    } catch (error: any) {
+      console.error('Mock login error:', error);
+      set({ error: error.message || 'Login failed', isLoading: false });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
@@ -69,6 +109,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Password must be at least 6 characters long');
       }
       
+      // Check if we're using mock API
+      const apiUrl = await api.getToken(); // This will help us determine if we should use mock
+      
+      // For now, use mock login since backend isn't ready
+      return await get().mockLogin(email, password);
+      
+      // Uncomment this when backend is ready:
+      /*
       const data = await api.post('/api/auth/login', { email, password }) as { user: any, tenant?: any, token: string };
       console.log('Login API response:', data);
       
@@ -85,6 +133,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = { ...data.user, tenantId };
       await get().setAuth(data.token, user);
       console.log('Login successful for user:', user.email);
+      */
     } catch (error: any) {
       console.error('Login error:', error);
       set({ error: error.message || 'Login failed', isLoading: false });
@@ -97,6 +146,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (formData) => {
     set({ isLoading: true, error: null });
     try {
+      // For now, use mock registration
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const mockUser = {
+        id: '2',
+        email: formData.email,
+        firstName: formData.firstName || 'New',
+        lastName: formData.lastName || 'User',
+        role: { roleName: 'influencer' },
+        tenantId: 'mock-tenant-2'
+      };
+      
+      const mockToken = 'mock-jwt-token-' + Date.now();
+      
+      await get().setAuth(mockToken, mockUser);
+      
+      // Uncomment this when backend is ready:
+      /*
       const data = await api.post('/api/influencers/register', formData) as { user: any, tenant?: any, token: string };
       if (!data || !data.user || !data.token) {
         throw new Error('Invalid registration response from server');
@@ -110,6 +177,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       const user = { ...data.user, tenantId };
       await get().setAuth(data.token, user);
+      */
     } catch (error: any) {
       set({ error: error.message || 'Registration failed' });
     } finally {

@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/auth-store';
+import Constants from 'expo-constants';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -17,7 +18,15 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-const API_URL = 'http://10.126.155.236:3000'; // Changed from localhost to local IP for network access
+// Get API URL from environment or use development URL
+const getApiUrl = () => {
+  const devApiUrl = Constants.expoConfig?.extra?.apiUrl;
+  const mockApiUrl = 'https://jsonplaceholder.typicode.com'; // Temporary mock API
+  const prodApiUrl = 'https://your-railway-app.railway.app'; // Will be used later
+  return devApiUrl || mockApiUrl;
+};
+
+const API_URL = getApiUrl();
 
 export default function LoginScreen() {
   const theme = useTheme();
@@ -111,6 +120,7 @@ export default function LoginScreen() {
                   error={!!errors.email}
                   style={styles.input}
                   disabled={loading}
+                  placeholderTextColor="#666"
                 />
               )}
             />
@@ -130,6 +140,7 @@ export default function LoginScreen() {
                   error={!!errors.password}
                   style={styles.input}
                   disabled={loading}
+                  placeholderTextColor="#666"
                 />
               )}
             />
@@ -205,6 +216,7 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 style={styles.input}
                 disabled={resetLoading}
+                placeholderTextColor="#666"
               />
               {resetMsg && <Text style={styles.error}>{resetMsg}</Text>}
             </Dialog.Content>

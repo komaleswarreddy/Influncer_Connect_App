@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { 
+  mockInstagramAnalytics, 
+  mockYouTubeAnalytics, 
+  mockTwitterAnalytics,
+  mockRatings,
+  mockAdminRatings
+} from '../lib/mock-data';
 
 interface InfluencerAnalytics {
   id: string;
@@ -77,10 +84,12 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   connectInstagram: async (username: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post('/api/influencers/connect-instagram', { username });
-      const { analytics } = response as { analytics: InfluencerAnalytics };
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Use mock data
       set({
-        instagramAnalytics: analytics,
+        instagramAnalytics: mockInstagramAnalytics,
         isConnected: true,
         isLoading: false
       });
@@ -94,33 +103,29 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   fetchInstagramAnalytics: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get('/api/influencers/instagram-analytics');
-      const { analytics } = response as { analytics?: InfluencerAnalytics };
-      if (analytics) {
-        set({
-          instagramAnalytics: analytics,
-          isConnected: true,
-          isLoading: false
-        });
-      } else {
-        set({ isConnected: false, isLoading: false });
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Use mock data
+      set({
+        instagramAnalytics: mockInstagramAnalytics,
+        isConnected: true,
+        isLoading: false
+      });
     } catch (error: any) {
-      if (error.message !== 'Instagram not connected') {
-        set({ error: 'Failed to fetch Instagram analytics.', isLoading: false });
-      } else {
-        set({ isConnected: false, isLoading: false });
-      }
+      set({ error: 'Failed to fetch Instagram analytics.', isLoading: false });
     }
   },
 
   connectYouTube: async (username: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post('/api/influencers/connect-youtube', { username });
-      const { analytics } = response as { analytics: InfluencerAnalytics };
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Use mock data
       set({
-        youtubeAnalytics: analytics,
+        youtubeAnalytics: mockYouTubeAnalytics,
         isYtConnected: true,
         isLoading: false
       });
@@ -134,33 +139,29 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   fetchYouTubeAnalytics: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get('/api/influencers/youtube-analytics');
-      const { analytics } = response as { analytics?: InfluencerAnalytics };
-      if (analytics) {
-        set({
-          youtubeAnalytics: analytics,
-          isYtConnected: true,
-          isLoading: false
-        });
-      } else {
-        set({ isYtConnected: false, isLoading: false });
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Use mock data
+      set({
+        youtubeAnalytics: mockYouTubeAnalytics,
+        isYtConnected: true,
+        isLoading: false
+      });
     } catch (error: any) {
-      if (error.message !== 'YouTube not connected') {
-        set({ error: 'Failed to fetch YouTube analytics.', isLoading: false });
-      } else {
-        set({ isYtConnected: false, isLoading: false });
-      }
+      set({ error: 'Failed to fetch YouTube analytics.', isLoading: false });
     }
   },
 
   connectTwitter: async (username: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post('/api/influencers/connect-twitter', { username });
-      const { analytics } = response as { analytics: InfluencerAnalytics };
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Use mock data
       set({
-        twitterAnalytics: analytics,
+        twitterAnalytics: mockTwitterAnalytics,
         isTwitterConnected: true,
         isLoading: false
       });
@@ -174,32 +175,32 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   fetchTwitterAnalytics: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get('/api/influencers/twitter-analytics');
-      const { analytics } = response as { analytics?: InfluencerAnalytics };
-      if (analytics) {
-        set({
-          twitterAnalytics: analytics,
-          isTwitterConnected: true,
-          isLoading: false
-        });
-      } else {
-        set({ isTwitterConnected: false, isLoading: false });
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Use mock data
+      set({
+        twitterAnalytics: mockTwitterAnalytics,
+        isTwitterConnected: true,
+        isLoading: false
+      });
     } catch (error: any) {
-      if (error.message !== 'Twitter not connected') {
-        set({ error: 'Failed to fetch Twitter analytics.', isLoading: false });
-      } else {
-        set({ isTwitterConnected: false, isLoading: false });
-      }
+      set({ error: 'Failed to fetch Twitter analytics.', isLoading: false });
     }
   },
 
   fetchRatings: async (participationId: string) => {
     set({ ratingsLoading: true, ratingsError: null });
     try {
-      const response = await api.get(`/api/ratings?participationId=${participationId}&ratingType=influencer_to_campaign`);
-      const rating = Array.isArray(response) ? response.find((r: any) => r.participationId === participationId) : undefined;
-      set((state) => ({ ratings: { ...state.ratings, [participationId]: rating }, ratingsLoading: false }));
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Find rating in mock data
+      const rating = mockRatings.find(r => r.participationId === participationId);
+      set((state) => ({ 
+        ratings: { ...state.ratings, [participationId]: rating }, 
+        ratingsLoading: false 
+      }));
     } catch (error: any) {
       set({ ratingsError: error.message || 'Failed to fetch ratings', ratingsLoading: false });
     }
@@ -208,14 +209,28 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   submitRating: async (participationId: string, overallRating: number, review?: string) => {
     set({ ratingsLoading: true, ratingsError: null });
     try {
-      await api.post('/api/ratings/create', {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Create new rating
+      const newRating: CampaignRating = {
+        id: `rating-${Date.now()}`,
         participationId,
+        campaignId: '1', // Mock campaign ID
+        reviewerId: '1',
+        ratedEntityId: '1',
+        ratingType: 'influencer_to_campaign',
         overallRating,
         review,
-        ratingType: 'influencer_to_campaign',
-      });
-      await get().fetchRatings(participationId);
-      set({ ratingsLoading: false });
+        status: 'approved',
+        createdAt: new Date().toISOString()
+      };
+      
+      // Update ratings
+      set((state) => ({
+        ratings: { ...state.ratings, [participationId]: newRating },
+        ratingsLoading: false
+      }));
     } catch (error: any) {
       set({ ratingsError: error.message || 'Failed to submit rating', ratingsLoading: false });
       throw error;
@@ -225,9 +240,15 @@ export const useInfluencerStore = create<InfluencerState & RatingsState>((set, g
   fetchAdminRatings: async (influencerId: string, campaignId: string, participationId: string) => {
     set({ ratingsLoading: true, ratingsError: null });
     try {
-      const response = await api.get(`/api/ratings/influencer/${influencerId}?campaignId=${campaignId}`);
-      const { ratings } = response as { ratings?: CampaignRating[] };
-      set((state) => ({ adminRatings: { ...state.adminRatings, [participationId]: ratings || [] }, ratingsLoading: false }));
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Use mock admin ratings
+      const adminRatings = mockAdminRatings.filter(r => r.participationId === participationId);
+      set((state) => ({ 
+        adminRatings: { ...state.adminRatings, [participationId]: adminRatings }, 
+        ratingsLoading: false 
+      }));
     } catch (error: any) {
       set({ ratingsError: error.message || 'Failed to fetch admin ratings', ratingsLoading: false });
     }

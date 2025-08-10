@@ -43,32 +43,55 @@ export default function InfluencerCampaignsScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchCampaigns();
-    fetchParticipations();
-    fetchTenants();
+    const loadData = async () => {
+      try {
+        await fetchCampaigns();
+        await fetchParticipations();
+        await fetchTenants();
+      } catch (error) {
+        console.error('Error loading data:', error);
+      }
+    };
+    loadData();
   }, []);
 
   const fetchTenants = async () => {
     try {
       const response = await api.get('/api/tenants');
-      setTenants(response as Array<{
-        id: string;
-        tenantName: string;
-        domain: string;
-        subdomain: string;
-        status: string;
-      }>);
+      if (response && Array.isArray(response)) {
+        setTenants(response);
+      } else {
+        // Use mock tenants if API fails
+        setTenants([
+          { id: 'tenant-1', tenantName: 'Fashion Forward', domain: 'fashionforward.com', subdomain: 'fashion', status: 'active' },
+          { id: 'tenant-2', tenantName: 'TechZone', domain: 'techzone.com', subdomain: 'tech', status: 'active' },
+          { id: 'tenant-3', tenantName: 'FitLife', domain: 'fitlife.com', subdomain: 'fitness', status: 'active' },
+          { id: 'tenant-4', tenantName: 'HomeStyle', domain: 'homestyle.com', subdomain: 'home', status: 'active' }
+        ]);
+      }
     } catch (error) {
       console.error('Error fetching tenants:', error);
+      // Use mock tenants as fallback
+      setTenants([
+        { id: 'tenant-1', tenantName: 'Fashion Forward', domain: 'fashionforward.com', subdomain: 'fashion', status: 'active' },
+        { id: 'tenant-2', tenantName: 'TechZone', domain: 'techzone.com', subdomain: 'tech', status: 'active' },
+        { id: 'tenant-3', tenantName: 'FitLife', domain: 'fitlife.com', subdomain: 'fitness', status: 'active' },
+        { id: 'tenant-4', tenantName: 'HomeStyle', domain: 'homestyle.com', subdomain: 'home', status: 'active' }
+      ]);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchCampaigns();
-    await fetchParticipations();
-    await fetchTenants();
-    setRefreshing(false);
+    try {
+      await fetchCampaigns();
+      await fetchParticipations();
+      await fetchTenants();
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleJoin = async (campaignId: string) => {
@@ -105,8 +128,13 @@ export default function InfluencerCampaignsScreen() {
   };
 
   const handleViewCampaign = (campaignId: string) => {
-    setSelectedCampaignId(campaignId);
-    setShowCampaignDetails(true);
+    try {
+      setSelectedCampaignId(campaignId);
+      setShowCampaignDetails(true);
+    } catch (error) {
+      console.error('Error viewing campaign:', error);
+      Alert.alert('Error', 'Failed to load campaign details');
+    }
   };
 
   const handleCloseCampaignDetails = () => {
@@ -115,44 +143,48 @@ export default function InfluencerCampaignsScreen() {
   };
 
   const handleApplySuccess = (participation: any) => {
-    // Close the modal first
-    setShowCampaignDetails(false);
-    setSelectedCampaignId(null);
-    
-    // Navigate directly to contract page without showing alert first
-    if (participation && participation.id) {
-      setTimeout(() => {
-        try {
-          // Try href approach first
-          router.push(`/influencer/contract?participationId=${participation.id}`);
-        } catch (error) {
-          console.error('Navigation error:', error);
-          // Fallback to pathname/params approach
+    try {
+      // Close the modal first
+      setShowCampaignDetails(false);
+      setSelectedCampaignId(null);
+      
+      // Navigate directly to contract page without showing alert first
+      if (participation && participation.id) {
+        setTimeout(() => {
           try {
-            router.replace({
-              pathname: '/influencer/contract',
-              params: { participationId: participation.id }
-            });
-          } catch (fallbackError) {
-            console.error('Fallback navigation error:', fallbackError);
-          }
-        }
-      }, 100); // Small delay to ensure modal is closed
-    } else {
-      console.error('No participation ID found:', participation);
-      // Fallback: show alert
-      Alert.alert(
-        'Campaign Applied Successfully!',
-        'You have applied for the campaign. Please review and sign the contract.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              fetchParticipations();
+            // Try href approach first
+            router.push(`/influencer/contract?participationId=${participation.id}`);
+          } catch (error) {
+            console.error('Navigation error:', error);
+            // Fallback to pathname/params approach
+            try {
+              router.replace({
+                pathname: '/influencer/contract',
+                params: { participationId: participation.id }
+              });
+            } catch (fallbackError) {
+              console.error('Fallback navigation error:', fallbackError);
             }
           }
-        ]
-      );
+        }, 100); // Small delay to ensure modal is closed
+      } else {
+        console.error('No participation ID found:', participation);
+        // Fallback: show alert
+        Alert.alert(
+          'Campaign Applied Successfully!',
+          'You have applied for the campaign. Please review and sign the contract.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                fetchParticipations();
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error handling apply success:', error);
     }
   };
 
@@ -171,102 +203,141 @@ export default function InfluencerCampaignsScreen() {
 
   // Filter campaigns based on current filters
   const filterCampaigns = (campaignsToFilter: any[]) => {
+    if (!Array.isArray(campaignsToFilter)) {
+      return [];
+    }
+    
     return campaignsToFilter.filter(campaign => {
-      // Age group filter
-      if (filters.targetAudienceAgeGroup !== 'all' && 
-          campaign.targetAudienceAgeGroup !== filters.targetAudienceAgeGroup) {
-        return false;
-      }
-      // Niche filter - case insensitive comparison
-      if (filters.requiredNiche !== 'all' && 
-          campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
-        return false;
-      }
-      // Tenant filter
-      if (filters.tenantId !== 'all' && 
-          campaign.tenantId !== filters.tenantId) {
-        return false;
-      }
-      // Date range filtering (only if both from and to are set)
-      if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
-        const campaignStartDate = new Date(campaign.startDate);
-        const campaignEndDate = new Date(campaign.endDate);
-        const filterStart = new Date(filters.dateRange.from);
-        const filterEnd = new Date(filters.dateRange.to);
-        campaignStartDate.setHours(0, 0, 0, 0);
-        campaignEndDate.setHours(23, 59, 59, 999);
-        filterStart.setHours(0, 0, 0, 0);
-        filterEnd.setHours(23, 59, 59, 999);
-        if (campaignStartDate < filterStart || campaignEndDate > filterEnd) {
+      if (!campaign) return false;
+      
+      try {
+        // Age group filter
+        if (filters.targetAudienceAgeGroup !== 'all' && 
+            campaign.targetAudienceAgeGroup !== filters.targetAudienceAgeGroup) {
           return false;
         }
+        // Niche filter - case insensitive comparison
+        if (filters.requiredNiche !== 'all' && 
+            campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
+          return false;
+        }
+        // Tenant filter
+        if (filters.tenantId !== 'all' && 
+            campaign.tenantId !== filters.tenantId) {
+          return false;
+        }
+        // Date range filtering (only if both from and to are set)
+        if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
+          const campaignStartDate = new Date(campaign.startDate);
+          const campaignEndDate = new Date(campaign.endDate);
+          const filterStart = new Date(filters.dateRange.from);
+          const filterEnd = new Date(filters.dateRange.to);
+          campaignStartDate.setHours(0, 0, 0, 0);
+          campaignEndDate.setHours(23, 59, 59, 999);
+          filterStart.setHours(0, 0, 0, 0);
+          filterEnd.setHours(23, 59, 59, 999);
+          if (campaignStartDate < filterStart || campaignEndDate > filterEnd) {
+            return false;
+          }
+        }
+        return true;
+      } catch (error) {
+        console.error('Error filtering campaign:', error);
+        return false;
       }
-      return true;
     });
   };
 
-  // Partition campaigns
-  const joinedIds = participations.filter(p => p.status === 'joined').map(p => p.campaignId);
-  const appliedIds = participations.filter(p => p.status === 'applied').map(p => p.campaignId);
-  const availableCampaigns = filterCampaigns(campaigns.filter(c => !joinedIds.includes(c.id) && !appliedIds.includes(c.id)));
-  const myCampaigns = filterCampaigns(campaigns.filter(c => joinedIds.includes(c.id) || appliedIds.includes(c.id)));
+  // Partition campaigns safely
+  const joinedIds = Array.isArray(participations) ? participations.filter(p => p && p.status === 'joined').map(p => p.campaignId) : [];
+  const appliedIds = Array.isArray(participations) ? participations.filter(p => p && p.status === 'applied').map(p => p.campaignId) : [];
+  const availableCampaigns = filterCampaigns(Array.isArray(campaigns) ? campaigns.filter(c => c && !joinedIds.includes(c.id) && !appliedIds.includes(c.id)) : []);
+  const myCampaigns = filterCampaigns(Array.isArray(campaigns) ? campaigns.filter(c => c && (joinedIds.includes(c.id) || appliedIds.includes(c.id))) : []);
 
-  const renderCampaignCard = (campaign: any, status: 'available' | 'applied' | 'joined') => (
-    <View key={campaign.id} style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{campaign.name}</Text>
-        <Text style={styles.cardStatus}>{campaign.status}</Text>
-      </View>
-      <Text style={styles.cardDesc} numberOfLines={3}>{campaign.description}</Text>
-      <View style={styles.cardInfoRow}>
-        <Text style={styles.cardInfo}>Type: <Text style={styles.cardValue}>{campaign.type}</Text></Text>
-        <Text style={styles.cardInfo}>Commission: <Text style={styles.cardValue}>{campaign.commissionRate ? `${campaign.commissionRate}%` : 'N/A'}</Text></Text>
-      </View>
-      {campaign.tenant && (
-        <View style={styles.cardInfoRow}>
-          <Text style={styles.cardInfo}>Brand: <Text style={styles.cardValue}>{campaign.tenant.tenantName}</Text></Text>
+  const renderCampaignCard = (campaign: any, status: 'available' | 'applied' | 'joined') => {
+    if (!campaign) return null;
+    
+    try {
+      return (
+        <View key={campaign.id} style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{campaign.name || 'Untitled Campaign'}</Text>
+            <Text style={styles.cardStatus}>{campaign.status || 'Unknown'}</Text>
+          </View>
+          <Text style={styles.cardDesc} numberOfLines={3}>{campaign.description || 'No description available'}</Text>
+          <View style={styles.cardInfoRow}>
+            <Text style={styles.cardInfo}>Type: <Text style={styles.cardValue}>{campaign.type || 'N/A'}</Text></Text>
+            <Text style={styles.cardInfo}>Commission: <Text style={styles.cardValue}>{campaign.commissionRate ? `${campaign.commissionRate}%` : 'N/A'}</Text></Text>
+          </View>
+          {campaign.tenant && (
+            <View style={styles.cardInfoRow}>
+              <Text style={styles.cardInfo}>Brand: <Text style={styles.cardValue}>{campaign.tenant.tenantName || 'Unknown'}</Text></Text>
+            </View>
+          )}
+          <View style={styles.cardInfoRow}>
+            <Text style={styles.cardInfo}>Start: <Text style={styles.cardValue}>{campaign.startDate?.slice(0, 10) || 'TBD'}</Text></Text>
+            <Text style={styles.cardInfo}>End: <Text style={styles.cardValue}>{campaign.endDate?.slice(0, 10) || 'Ongoing'}</Text></Text>
+          </View>
+          <View style={styles.cardInfoRow}>
+            <Text style={styles.cardInfo}>Niche: <Text style={styles.cardValue}>{campaign.requiredInfluencerNiche || 'Any'}</Text></Text>
+            <Text style={styles.cardInfo}>Age: <Text style={styles.cardValue}>{campaign.targetAudienceAgeGroup || 'All'}</Text></Text>
+          </View>
+          {status === 'applied' && (
+            <View style={styles.appliedContainer}>
+              <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
+              <Text style={styles.appliedMessage}>Please review and sign the contract</Text>
+              <TouchableOpacity 
+                style={styles.contractButton}
+                onPress={() => {
+                  try {
+                    const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'applied') : null;
+                    if (participation) {
+                      router.push({
+                        pathname: '/influencer/contract',
+                        params: { participationId: participation.id }
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error navigating to contract:', error);
+                  }
+                }}
+              >
+                <Text style={styles.contractButtonText}>View & Sign Contract</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {status === 'joined' && (
+            <TouchableOpacity 
+              style={styles.joinBtn} 
+              onPress={() => {
+                try {
+                  const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'joined') : null;
+                  if (participation) {
+                    router.push({ 
+                      pathname: '/influencer/campaign-progress', 
+                      params: { participationId: participation.id, campaignId: campaign.id } 
+                    });
+                  }
+                } catch (error) {
+                  console.error('Error navigating to progress:', error);
+                }
+              }}
+            >
+              <Text style={styles.joinBtnText}>Track Progress</Text>
+            </TouchableOpacity>
+          )}
+          {status === 'available' && (
+            <TouchableOpacity style={styles.joinBtn} onPress={() => handleViewCampaign(campaign.id)}>
+              <Text style={styles.joinBtnText}>View & Apply</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
-      <View style={styles.cardInfoRow}>
-        <Text style={styles.cardInfo}>Start: <Text style={styles.cardValue}>{campaign.startDate?.slice(0, 10)}</Text></Text>
-        <Text style={styles.cardInfo}>End: <Text style={styles.cardValue}>{campaign.endDate?.slice(0, 10) || 'Ongoing'}</Text></Text>
-      </View>
-      <View style={styles.cardInfoRow}>
-        <Text style={styles.cardInfo}>Niche: <Text style={styles.cardValue}>{campaign.requiredInfluencerNiche}</Text></Text>
-        <Text style={styles.cardInfo}>Age: <Text style={styles.cardValue}>{campaign.targetAudienceAgeGroup}</Text></Text>
-      </View>
-      {status === 'applied' && (
-        <View style={styles.appliedContainer}>
-          <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
-          <Text style={styles.appliedMessage}>Please review and sign the contract</Text>
-          <TouchableOpacity 
-            style={styles.contractButton}
-            onPress={() => {
-              const participation = participations.find(p => p.campaignId === campaign.id && p.status === 'applied');
-              if (participation) {
-                router.push({
-                  pathname: '/influencer/contract',
-                  params: { participationId: participation.id }
-                });
-              }
-            }}
-          >
-            <Text style={styles.contractButtonText}>View & Sign Contract</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {status === 'joined' && (
-        <TouchableOpacity style={styles.joinBtn} onPress={() => router.push({ pathname: '/influencer/campaign-progress', params: { participationId: participations.find(p => p.campaignId === campaign.id && p.status === 'joined')?.id, campaignId: campaign.id } })}>
-          <Text style={styles.joinBtnText}>Track Progress</Text>
-        </TouchableOpacity>
-      )}
-      {status === 'available' && (
-        <TouchableOpacity style={styles.joinBtn} onPress={() => handleViewCampaign(campaign.id)}>
-          <Text style={styles.joinBtnText}>View & Apply</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+      );
+    } catch (error) {
+      console.error('Error rendering campaign card:', error);
+      return null;
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
