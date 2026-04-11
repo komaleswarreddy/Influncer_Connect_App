@@ -1,8 +1,17 @@
 import { Stack } from 'expo-router';
+import { appShell } from '@/theme';
 
 export default function CampaignsLayout() {
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: appShell.canvas },
+        headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: appShell.textPrimary },
+        headerTintColor: appShell.cta,
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: appShell.canvas },
+      }}
+    >
       <Stack.Screen
         name="index"
         options={{
@@ -19,4 +28,4 @@ export default function CampaignsLayout() {
       />
     </Stack>
   );
-} 
+}

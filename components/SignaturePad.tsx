@@ -43,7 +43,7 @@ export default function SignaturePad({ value, onChange }: SignaturePadProps) {
               <Text style={styles.signatureText}>Signature captured</Text>
             ) : (
               <Text style={styles.placeholderText}>
-                Tap "Draw Signature" to open signature pad
+                Tap Draw Signature to open signature pad
               </Text>
             )}
           </View>

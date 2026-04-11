@@ -1,20 +1,58 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { useMockApi } from './auth-config';
 
-// Get API URL from environment or use development URL
-const getApiUrl = () => {
-  // For development, you can set this in app.json under expo.extra
-  const devApiUrl = Constants.expoConfig?.extra?.apiUrl;
-  
-  // For now, use a mock/development URL - you can change this later
-  const mockApiUrl = 'https://jsonplaceholder.typicode.com'; // Temporary mock API
-  const prodApiUrl = 'https://your-railway-app.railway.app'; // Will be used later
-  
-  // Use development URL if available, otherwise mock URL
-  return devApiUrl || mockApiUrl;
-};
+const MOCK_HOSTS = ['jsonplaceholder.typicode.com', 'your-railway-app.railway.app'];
 
-const API_URL = getApiUrl();
+/**
+ * Public base URL (no trailing slash). Default Fastify: port 3000.
+ * Mirrors Financial-Accounting `finance-app/constants/config.ts`: Expo Go on a device cannot use
+ * `localhost` (that is the phone). Use Metro's host IP from Constants.
+ */
+export function getApiBaseUrl(): string {
+  const env = process.env.EXPO_PUBLIC_API_URL?.trim();
+  const ex = (Constants.expoConfig?.extra as { apiUrl?: string })?.apiUrl?.trim();
+  let raw = env || ex || '';
+
+  const executionEnvironment = (Constants as { executionEnvironment?: string }).executionEnvironment;
+  const isExpoGo = executionEnvironment === 'storeClient';
+
+  const isLoopbackHost = /localhost/i.test(raw) || /127\.0\.0\.1/.test(raw);
+
+  if (raw && isLoopbackHost) {
+    if (isExpoGo) {
+      const hostUriCandidates = [
+        Constants.expoConfig?.hostUri,
+        (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost,
+        (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } }).manifest2?.extra
+          ?.expoClient?.hostUri,
+      ];
+      const hostUri = hostUriCandidates.find((v) => typeof v === 'string' && v.length > 0) as
+        | string
+        | undefined;
+      if (hostUri) {
+        const host = hostUri.replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0];
+        if (host) {
+          const portMatch = raw.match(/:(\d+)/);
+          const port = portMatch ? portMatch[1] : '3000';
+          raw = `http://${host}:${port}`;
+        }
+      }
+    } else if (Platform.OS === 'android') {
+      // Android emulator: host loopback → special alias for dev machine
+      raw = raw.replace(/127\.0\.0\.1|localhost/i, '10.0.2.2');
+    }
+  }
+
+  return raw.replace(/\/$/, '');
+}
+
+function shouldUseMockResponses(baseUrl: string): boolean {
+  if (useMockApi) return true;
+  if (!baseUrl) return false;
+  return MOCK_HOSTS.some((h) => baseUrl.includes(h));
+}
 
 // Mock response handler to prevent 404 errors
 const handleMockResponse = (endpoint: string, method: string, data?: any) => {
@@ -46,7 +84,62 @@ const handleMockResponse = (endpoint: string, method: string, data?: any) => {
     },
     '/api/auth/reset-password': {
       message: 'Password reset email sent successfully'
-    }
+    },
+    '/api/auth/kinde/mobile-token-login': {
+      token: 'mock-kinde-app-jwt',
+      user: {
+        id: 'mock-kinde-user-1',
+        email: 'mock@example.com',
+        firstName: 'Mock',
+        lastName: 'User',
+        isAffiliate: false,
+      },
+      tenant: { id: 'mock-tenant' },
+      role: { id: 'mock-role', roleName: 'potential_influencer' },
+      nextStep: 'COMPLETE_INFLUENCER_PROFILE',
+    },
+    '/api/auth/me': {
+      user: {
+        id: 'mock-kinde-user-1',
+        email: 'mock@example.com',
+        firstName: 'Mock',
+        lastName: 'User',
+        phone: null,
+        countryCode: 'US',
+        timezone: 'UTC',
+        language: 'en',
+        isAffiliate: false,
+        role: 'potential_influencer',
+        tenantId: 'mock-tenant',
+        influencerStatus: 'pending',
+        profileCompleted: false,
+        nextStep: 'COMPLETE_INFLUENCER_PROFILE',
+      },
+      tenant: { id: 'mock-tenant' },
+      role: { id: 'mock-role', roleName: 'potential_influencer' },
+    },
+    '/api/influencers/profile': {
+      success: true,
+      id: 'mock-inf',
+      userId: 'mock-kinde-user-1',
+      niche: 'general',
+      country: 'US',
+      bio: '',
+      socialMedia: {},
+      status: 'pending',
+      metrics: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      user: {
+        id: 'mock-kinde-user-1',
+        email: 'mock@example.com',
+        firstName: 'Mock',
+        lastName: 'User',
+        phone: '',
+        countryCode: 'US',
+        tenantId: 'mock-tenant',
+      },
+    },
   };
 
   // Return mock response if endpoint exists
@@ -90,15 +183,22 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
+    const API_URL = getApiBaseUrl();
+
+    if (!API_URL) {
+      throw new Error(
+        'API base URL is not set. Copy mobile/.env.example to mobile/.env and set EXPO_PUBLIC_API_URL.'
+      );
+    }
+
     console.log(`Making ${options.method || 'GET'} request to: ${API_URL}${endpoint}`);
-    
+
     try {
-      // For development/mock mode, return mock responses instead of making real API calls
-      if (API_URL.includes('jsonplaceholder.typicode.com') || API_URL.includes('your-railway-app')) {
+      if (shouldUseMockResponses(API_URL)) {
         console.log('Using mock response for:', endpoint);
         return await handleMockResponse(endpoint, options.method || 'GET', options.body);
       }
-      
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers,
@@ -126,11 +226,6 @@ class ApiClient {
       return data;
     } catch (error: any) {
       console.error('Network error:', error);
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        // If network fails, return mock response
-        console.log('Network failed, using mock response');
-        return await handleMockResponse(endpoint, options.method || 'GET', options.body);
-      }
       throw error;
     }
   }

@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { appShell } from '@/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -184,7 +185,7 @@ export default function CampaignFilters({
             onPress={() => handleFilterChange('targetAudienceAgeGroup', 'all')}
             style={styles.chipClose}
           >
-            <Ionicons name="close" size={14} color="#14b8a6" />
+            <Ionicons name="close" size={14} color={appShell.cta} />
           </TouchableOpacity>
         </View>
       );
@@ -198,7 +199,7 @@ export default function CampaignFilters({
             onPress={() => handleFilterChange('requiredNiche', 'all')}
             style={styles.chipClose}
           >
-            <Ionicons name="close" size={14} color="#14b8a6" />
+            <Ionicons name="close" size={14} color={appShell.cta} />
           </TouchableOpacity>
         </View>
       );
@@ -212,7 +213,7 @@ export default function CampaignFilters({
             onPress={() => handleFilterChange('tenantId', 'all')}
             style={styles.chipClose}
           >
-            <Ionicons name="close" size={14} color="#14b8a6" />
+            <Ionicons name="close" size={14} color={appShell.cta} />
           </TouchableOpacity>
         </View>
       );
@@ -226,7 +227,7 @@ export default function CampaignFilters({
             onPress={() => handleFilterChange('dateRange', null)}
             style={styles.chipClose}
           >
-            <Ionicons name="close" size={14} color="#14b8a6" />
+            <Ionicons name="close" size={14} color={appShell.cta} />
           </TouchableOpacity>
         </View>
       );
@@ -239,7 +240,7 @@ export default function CampaignFilters({
     <View style={styles.container}>
       {/* Filter Button */}
       <TouchableOpacity style={styles.filterButton} onPress={toggleFilters}>
-        <Ionicons name="filter" size={20} color="#14b8a6" />
+        <Ionicons name="filter" size={20} color={appShell.cta} />
         <Text style={styles.filterButtonText}>Filters</Text>
         {hasActiveFilters && <View style={styles.activeIndicator} />}
       </TouchableOpacity>
@@ -285,7 +286,7 @@ export default function CampaignFilters({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter Campaigns</Text>
               <TouchableOpacity onPress={toggleFilters} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#14b8a6" />
+                <Ionicons name="close" size={24} color={appShell.cta} />
               </TouchableOpacity>
             </View>
 
@@ -298,7 +299,7 @@ export default function CampaignFilters({
                   onPress={() => setShowAgeGroupPicker(true)}
                 >
                   <Text style={styles.pickerButtonText}>{getAgeGroupLabel()}</Text>
-                  <Ionicons name="chevron-down" size={20} color="#64748b" />
+                  <Ionicons name="chevron-down" size={20} color={appShell.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -310,7 +311,7 @@ export default function CampaignFilters({
                   onPress={() => setShowNichePicker(true)}
                 >
                   <Text style={styles.pickerButtonText}>{getNicheLabel()}</Text>
-                  <Ionicons name="chevron-down" size={20} color="#64748b" />
+                  <Ionicons name="chevron-down" size={20} color={appShell.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -322,7 +323,7 @@ export default function CampaignFilters({
                   onPress={() => setShowTenantPicker(true)}
                 >
                   <Text style={styles.pickerButtonText}>{getTenantLabel()}</Text>
-                  <Ionicons name="business" size={20} color="#64748b" />
+                  <Ionicons name="business" size={20} color={appShell.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -334,7 +335,7 @@ export default function CampaignFilters({
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Text style={styles.pickerButtonText}>{getDateRangeText()}</Text>
-                  <Ionicons name="calendar" size={20} color="#64748b" />
+                  <Ionicons name="calendar" size={20} color={appShell.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -364,7 +365,7 @@ export default function CampaignFilters({
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Age Group</Text>
               <TouchableOpacity onPress={() => setShowAgeGroupPicker(false)}>
-                <Ionicons name="close" size={24} color="#14b8a6" />
+                <Ionicons name="close" size={24} color={appShell.cta} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.pickerList}>
@@ -389,7 +390,7 @@ export default function CampaignFilters({
                     {option.label}
                   </Text>
                   {filters.targetAudienceAgeGroup === option.value && (
-                    <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                    <Ionicons name="checkmark" size={20} color={appShell.cta} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -410,7 +411,7 @@ export default function CampaignFilters({
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Niche</Text>
               <TouchableOpacity onPress={() => setShowNichePicker(false)}>
-                <Ionicons name="close" size={24} color="#14b8a6" />
+                <Ionicons name="close" size={24} color={appShell.cta} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.pickerList}>
@@ -435,7 +436,7 @@ export default function CampaignFilters({
                     {option.label}
                   </Text>
                   {filters.requiredNiche === option.value && (
-                    <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                    <Ionicons name="checkmark" size={20} color={appShell.cta} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -456,7 +457,7 @@ export default function CampaignFilters({
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Choose the Brand</Text>
               <TouchableOpacity onPress={() => setShowTenantPicker(false)}>
-                <Ionicons name="close" size={24} color="#14b8a6" />
+                <Ionicons name="close" size={24} color={appShell.cta} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.pickerList}>
@@ -479,7 +480,7 @@ export default function CampaignFilters({
                   All Brands
                 </Text>
                 {filters.tenantId === 'all' && (
-                  <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                  <Ionicons name="checkmark" size={20} color={appShell.cta} />
                 )}
               </TouchableOpacity>
               {tenants?.map((tenant) => (
@@ -503,7 +504,7 @@ export default function CampaignFilters({
                     {tenant.tenantName}
                   </Text>
                   {filters.tenantId === tenant.id && (
-                    <Ionicons name="checkmark" size={20} color="#14b8a6" />
+                    <Ionicons name="checkmark" size={20} color={appShell.cta} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -524,7 +525,7 @@ export default function CampaignFilters({
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Date Range</Text>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Ionicons name="close" size={24} color="#14b8a6" />
+                <Ionicons name="close" size={24} color={appShell.cta} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.pickerList}>
@@ -600,13 +601,13 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#14b8a6',
+    borderColor: appShell.cta,
   },
   filterButtonText: {
     marginLeft: 8,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#14b8a6',
+    color: appShell.cta,
   },
   activeIndicator: {
     position: 'absolute',
@@ -635,7 +636,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    color: '#14b8a6',
+    color: appShell.cta,
     fontWeight: '600',
     marginRight: 4,
   },
@@ -673,9 +674,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#14b8a6',
+    color: appShell.cta,
   },
   closeButton: {
     padding: 4,
@@ -687,7 +688,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   filterLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
@@ -704,7 +705,7 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
   },
   pickerButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#374151',
   },
   actionButtons: {
@@ -721,7 +722,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resetButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#6b7280',
   },
@@ -729,12 +730,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
     borderRadius: 8,
     alignItems: 'center',
   },
   applyButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#fff',
   },
@@ -759,9 +760,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   pickerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#14b8a6',
+    color: appShell.cta,
   },
   pickerList: {
     padding: 20,
@@ -779,15 +780,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0f2f1',
   },
   pickerItemText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#374151',
   },
   pickerItemTextSelected: {
-    color: '#14b8a6',
+    color: appShell.cta,
     fontWeight: '600',
   },
   dateHelperText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     textAlign: 'center',
     marginBottom: 16,
@@ -803,7 +804,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   dateOptionText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#374151',
   },
 }); 

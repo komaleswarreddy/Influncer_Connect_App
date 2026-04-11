@@ -1,0 +1,6 @@
+/** Loaded in root `_layout` via `@expo-google-fonts/inter` */
+export const fonts = {
+  regular: 'Inter_400Regular',
+  semiBold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;

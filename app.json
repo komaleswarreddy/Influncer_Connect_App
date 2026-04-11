@@ -48,7 +48,12 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "https://jsonplaceholder.typicode.com",
+      "apiUrl": "",
+      "useMockAuth": false,
+      "useMockApi": false,
+      "kindeDomain": "",
+      "kindeClientId": "",
+      "kindeConnectionId": "",
       "router": {},
       "eas": {
         "projectId": "d3840417-c495-4426-aa7e-c1567e0079f4"

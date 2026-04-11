@@ -1,62 +1,62 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import { PremiumTabBar } from '@/components/PremiumTabBar';
+import { appShell } from '@/theme';
 
 export default function InfluencerTabsLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
+      tabBar={(props) => <PremiumTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: colorScheme === 'dark' ? '#fff' : '#000',
-        tabBarInactiveTintColor: colorScheme === 'dark' ? '#666' : '#999',
-        tabBarStyle: {
-          backgroundColor: colorScheme === 'dark' ? '#1a1a1a' : '#fff',
-          borderTopColor: colorScheme === 'dark' ? '#333' : '#e5e5e5',
+        headerShown: true,
+        headerTitleStyle: {
+          fontFamily: 'Inter_700Bold',
+          fontSize: 18,
+          color: appShell.textPrimary,
         },
         headerStyle: {
-          backgroundColor: colorScheme === 'dark' ? '#1a1a1a' : '#fff',
+          backgroundColor: appShell.canvas,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
         },
-        headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+        headerTintColor: appShell.cta,
+        tabBarShowLabel: true,
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
+          title: 'Home',
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="campaigns"
         options={{
           title: 'Campaigns',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="megaphone" size={size} color={color} />
-          ),
+          tabBarLabel: 'Campaigns',
+          tabBarIcon: ({ color, size }) => <Ionicons name="layers-outline" size={size} color={color} />,
           headerShown: false,
         }}
       />
       <Tabs.Screen
         name="ratings"
         options={{
-          title: 'Ratings',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="star" size={size} color={color} />
-          ),
+          title: 'Analytics',
+          tabBarLabel: 'Analytics',
+          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
-          title: 'Account',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle" size={size} color={color} />
-          ),
+          title: 'Settings',
+          tabBarLabel: 'Settings',
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />
     </Tabs>
   );
-} 
+}

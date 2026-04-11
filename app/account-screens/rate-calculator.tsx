@@ -1,8 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Platform as RNPlatform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Platform as RNPlatform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FontAwesome } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  PremiumTextInput,
+  ScrollScreen,
+  SectionHeader,
+  PremiumSegmentedControl,
+  type PremiumSegment,
+} from '@/components/ui';
+import { appShell, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { fonts } from '@/components/ui/typography';
+
+type PlatformKey = 'instagram' | 'youtube' | 'twitter';
 
 // --- Multipliers and base rates (copied from web) ---
 const platformBaseRates = {
@@ -33,20 +44,20 @@ const engagementRateMultipliers = {
   youtube: { excellent: 1.3, good: 1.2, average: 1.0, below_average: 0.7 },
   twitter: { excellent: 1.2, good: 1.1, average: 1.0, below_average: 0.6 },
 };
-const contentTypeMultipliers = {
+const contentTypeMultipliers: Record<string, number> = {
   'Standard Post': 1.0,
   'Video/Reel': 1.35,
   'Story': 0.8,
   'Carousel': 1.1,
   'Tweet': 1.0,
 };
-const usageRightsMultipliers = {
+const usageRightsMultipliers: Record<string, number> = {
   'Standard': 1.0,
   '3 months ads': 1.3,
   '6 months ads': 1.6,
   '1 year ads': 2.0,
 };
-const nicheMultipliers = {
+const nicheMultipliers: Record<string, number> = {
   'Finance/Investment': 1.8,
   'Technology/SaaS': 1.6,
   'Healthcare/Medical': 1.5,
@@ -79,12 +90,15 @@ const platformConfig = {
   },
 };
 
-function getPlatformRate(platform, followers, currency) {
+const PLATFORM_KEYS: PlatformKey[] = ['instagram', 'youtube', 'twitter'];
+
+function getPlatformRate(platform: PlatformKey, followers: number, currency: 'usd' | 'inr') {
   const rates = platformBaseRates[platform];
   const tier = rates.find(r => followers >= r.followers_min && followers <= r.followers_max);
   if (!tier) {
     if (followers > 0 && followers < 1000) {
       const nanoTier = rates.find(r => r.tier === 'Nano');
+      if (!nanoTier) return { min: 0, max: 0 };
       if (currency === 'usd') {
         return { min: nanoTier.rate_usd_min, max: nanoTier.rate_usd_max };
       } else {
@@ -99,7 +113,7 @@ function getPlatformRate(platform, followers, currency) {
     return { min: tier.rate_inr_min, max: tier.rate_inr_max };
   }
 }
-function getEngagementMultiplier(platform, engagementRate) {
+function getEngagementMultiplier(platform: PlatformKey, engagementRate: number) {
   const multipliers = engagementRateMultipliers[platform];
   if (engagementRate > 5) return multipliers.excellent;
   if (engagementRate >= 3) return multipliers.good;
@@ -113,6 +127,13 @@ function calculateRate({
   nicheMultiplier,
   contentTypeMultiplier,
   usageRightsMultiplier,
+}: {
+  platform: PlatformKey;
+  followers: number;
+  engagementRate: number;
+  nicheMultiplier: number;
+  contentTypeMultiplier: number;
+  usageRightsMultiplier: number;
 }) {
   if (followers <= 0) return { usd_min: 0, usd_max: 0, inr_min: 0, inr_max: 0 };
   const ratePer1kUSD = getPlatformRate(platform, followers, 'usd');
@@ -135,13 +156,23 @@ function calculateRate({
 }
 
 export default function InfluencerRateCalculator() {
-  const [platform, setPlatform] = useState('instagram');
+  const [platform, setPlatform] = useState<PlatformKey>('instagram');
   const [followers, setFollowers] = useState(50000);
   const [engagementRate, setEngagementRate] = useState(3.5);
   const [niche, setNiche] = useState('Lifestyle');
   const [contentType, setContentType] = useState('Standard Post');
   const [usageRights, setUsageRights] = useState('3 months ads');
   const [result, setResult] = useState({ usd_min: 0, usd_max: 0, inr_min: 0, inr_max: 0 });
+
+  const platformSegments: PremiumSegment[] = useMemo(
+    () =>
+      PLATFORM_KEYS.map((p) => ({
+        key: p,
+        label: p === 'youtube' ? 'YouTube' : p.charAt(0).toUpperCase() + p.slice(1),
+        icon: platformConfig[p].icon,
+      })),
+    []
+  );
 
   useEffect(() => {
     const calculatedRates = calculateRate({
@@ -155,7 +186,6 @@ export default function InfluencerRateCalculator() {
     setResult(calculatedRates);
   }, [platform, followers, engagementRate, niche, contentType, usageRights]);
 
-  // Update content type if platform changes
   useEffect(() => {
     if (!platformConfig[platform].contentTypes.includes(contentType)) {
       setContentType(platformConfig[platform].contentTypes[0]);
@@ -163,211 +193,206 @@ export default function InfluencerRateCalculator() {
   }, [platform, contentType]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <ScrollView contentContainerStyle={{ padding: 18 }}>
-        <Text style={styles.header}>Influencer Rate Calculator</Text>
-        {/* Platform selection */}
-        <View style={styles.platformTabs}>
-          {Object.keys(platformConfig).map((p) => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.tab, platform === p && styles.tabActive]}
-              onPress={() => setPlatform(p)}
-            >
-              {platformConfig[p].icon}
-              <Text style={[styles.tabText, platform === p && styles.tabTextActive]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-            </TouchableOpacity>
-          ))}
+    <ScrollScreen safeAreaEdges={['left', 'right', 'bottom']} padH={spacing.md} scrollProps={{ showsVerticalScrollIndicator: false }}>
+      <SectionHeader
+        overline="Tools"
+        title="Rate calculator"
+        subtitle="Estimate collaboration rates from reach, engagement, and usage."
+        comfortable
+      />
+      <PremiumSegmentedControl
+        segments={platformSegments}
+        value={platform}
+        onChange={(key) => setPlatform(key as PlatformKey)}
+        style={styles.platformSegments}
+      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Followers / Subscribers</Text>
+        <PremiumTextInput
+          style={styles.input}
+          keyboardType="numeric"
+          value={followers.toString()}
+          onChangeText={(v) => setFollowers(Number(v.replace(/[^0-9]/g, '')))}
+          placeholder="e.g., 50000"
+        />
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Engagement Rate (%)</Text>
+        <PremiumTextInput
+          style={styles.input}
+          keyboardType="decimal-pad"
+          value={engagementRate.toString()}
+          onChangeText={(v) => setEngagementRate(Number(v.replace(/[^0-9.]/g, '')))}
+          placeholder="e.g., 3.5"
+        />
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Niche / Industry</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={niche}
+            onValueChange={setNiche}
+            style={styles.picker}
+          >
+            {Object.keys(nicheMultipliers).map((n) => (
+              <Picker.Item key={n} label={n} value={n} />
+            ))}
+          </Picker>
         </View>
-        {/* Inputs */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Followers / Subscribers</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="numeric"
-            value={followers.toString()}
-            onChangeText={v => setFollowers(Number(v.replace(/[^0-9]/g, '')))}
-            placeholder="e.g., 50000"
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Content Type</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={contentType}
+            onValueChange={setContentType}
+            style={styles.picker}
+          >
+            {platformConfig[platform].contentTypes.map((c) => (
+              <Picker.Item key={c} label={c} value={c} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Usage Rights</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={usageRights}
+            onValueChange={setUsageRights}
+            style={styles.picker}
+          >
+            {Object.keys(usageRightsMultipliers).map((u) => (
+              <Picker.Item key={u} label={u} value={u} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={styles.resultShell}>
+        <LinearGradient
+          colors={[...premiumNavy.base.colors]}
+          locations={[...premiumNavy.base.locations]}
+          start={premiumNavy.base.start}
+          end={premiumNavy.base.end}
+          style={styles.resultHeaderBand}
+        >
+          <LinearGradient
+            colors={[...premiumNavy.sheen.colors]}
+            locations={[...premiumNavy.sheen.locations]}
+            start={premiumNavy.sheen.start}
+            end={premiumNavy.sheen.end}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Engagement Rate (%)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="decimal-pad"
-            value={engagementRate.toString()}
-            onChangeText={v => setEngagementRate(Number(v.replace(/[^0-9.]/g, '')))}
-            placeholder="e.g., 3.5"
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Niche / Industry</Text>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={niche}
-              onValueChange={setNiche}
-              style={styles.picker}
-            >
-              {Object.keys(nicheMultipliers).map((n) => (
-                <Picker.Item key={n} label={n} value={n} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Content Type</Text>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={contentType}
-              onValueChange={setContentType}
-              style={styles.picker}
-            >
-              {platformConfig[platform].contentTypes.map((c) => (
-                <Picker.Item key={c} label={c} value={c} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Usage Rights</Text>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={usageRights}
-              onValueChange={setUsageRights}
-              style={styles.picker}
-            >
-              {Object.keys(usageRightsMultipliers).map((u) => (
-                <Picker.Item key={u} label={u} value={u} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-        {/* Result */}
-        <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Your Estimated Rate</Text>
+          <Text style={styles.resultTitleOnNavy}>Your estimated rate</Text>
+        </LinearGradient>
+        <View style={styles.resultBody}>
           <View style={styles.resultRow}>
             <View style={styles.resultBox}>
               <Text style={styles.resultLabel}>USD</Text>
-              <Text style={styles.resultValue}>${Math.round(result.usd_min).toLocaleString()} - ${Math.round(result.usd_max).toLocaleString()}</Text>
+              <Text style={styles.resultValue}>
+                ${Math.round(result.usd_min).toLocaleString()} – ${Math.round(result.usd_max).toLocaleString()}
+              </Text>
             </View>
             <View style={styles.resultBox}>
               <Text style={styles.resultLabel}>INR</Text>
-              <Text style={styles.resultValue}>₹{Math.round(result.inr_min).toLocaleString()} - ₹{Math.round(result.inr_max).toLocaleString()}</Text>
+              <Text style={styles.resultValue}>
+                ₹{Math.round(result.inr_min).toLocaleString()} – ₹{Math.round(result.inr_max).toLocaleString()}
+              </Text>
             </View>
           </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 18,
-    textAlign: 'center',
-    color: '#0f172a',
-  },
-  platformTabs: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 18,
-    gap: 8,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    marginHorizontal: 4,
-  },
-  tabActive: {
-    backgroundColor: '#bae6fd',
-  },
-  tabText: {
-    marginLeft: 6,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  tabTextActive: {
-    color: '#0284c7',
+  platformSegments: {
+    marginBottom: spacing.md,
   },
   inputGroup: {
     marginBottom: 14,
   },
   label: {
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
     marginBottom: 6,
-    color: '#334155',
+    color: appShell.textSecondary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    color: '#0f172a',
+    borderColor: appShell.borderSubtle,
+    padding: spacing.sm,
+    fontSize: 14,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderColor: appShell.borderSubtle,
+    borderRadius: radius.md,
+    backgroundColor: appShell.card,
     overflow: 'hidden',
     minHeight: 50,
   },
   picker: {
     height: RNPlatform.OS === 'ios' ? 120 : 50,
     width: '100%',
-    color: '#0f172a',
-    fontSize: 16,
-    backgroundColor: '#fff',
+    color: appShell.textPrimary,
+    fontSize: 14,
+    backgroundColor: appShell.card,
   },
-  resultCard: {
-    marginTop: 24,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+  resultShell: {
+    marginTop: spacing.md,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: appShell.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: appShell.cardBorder,
+    ...shadow.card,
+  },
+  resultHeaderBand: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  resultTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#0f172a',
+  resultTitleOnNavy: {
+    fontSize: 17,
+    fontFamily: fonts.bold,
+    color: '#F8FAFC',
+    letterSpacing: -0.3,
+    zIndex: 1,
+  },
+  resultBody: {
+    padding: spacing.md,
+    backgroundColor: appShell.card,
   },
   resultRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     width: '100%',
-    gap: 18,
+    gap: 12,
   },
   resultBox: {
     flex: 1,
     alignItems: 'center',
-    padding: 10,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 10,
-    marginHorizontal: 4,
+    padding: spacing.sm,
+    backgroundColor: appShell.iceBlue,
+    borderRadius: radius.md,
   },
   resultLabel: {
-    fontSize: 14,
-    color: '#64748b',
-    fontWeight: '600',
+    fontSize: 12,
+    color: appShell.textSecondary,
+    fontFamily: fonts.semiBold,
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   resultValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0284c7',
+    fontSize: 15,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
+    textAlign: 'center',
   },
-}); 
+});

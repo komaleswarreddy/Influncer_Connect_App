@@ -1,44 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/auth-store';
 import { useRouter } from 'expo-router';
 import ProfileSection from '../../components/influencer/ProfileSection';
 import PasswordSection from '../../components/influencer/PasswordSection';
 import NotificationSection from '../../components/influencer/NotificationSection';
+import { kindeConfigured } from '../../lib/auth-config';
+import { Screen, PremiumSegmentedControl, type PremiumSegment } from '@/components/ui';
+import { appShell, palette, spacing } from '@/theme';
 
-const TABS = [
+const ALL_TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'password', label: 'Password' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'logout', label: 'Logout' },
-];
+] as const;
 
 export default function InfluencerSettingsScreen() {
+  const tabs = useMemo(
+    () => (kindeConfigured ? ALL_TABS.filter((t) => t.key !== 'password') : [...ALL_TABS]),
+    []
+  );
+  const segments: PremiumSegment[] = useMemo(
+    () =>
+      tabs.map((tab) =>
+        tab.key === 'logout'
+          ? {
+              key: tab.key,
+              label: tab.label,
+              tone: 'danger' as const,
+              icon: <Ionicons name="log-out-outline" size={14} color={palette.error} />,
+            }
+          : { key: tab.key, label: tab.label }
+      ),
+    [tabs]
+  );
   const [activeTab, setActiveTab] = useState('profile');
   const { logout } = useAuthStore();
   const router = useRouter();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/login');
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/login');
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleTabPress = (tabKey: string) => {
@@ -50,71 +63,23 @@ export default function InfluencerSettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      {/* Segmented Control */}
-      <View style={styles.tabBar}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[
-              styles.tab, 
-              activeTab === tab.key && styles.activeTab,
-              tab.key === 'logout' && styles.logoutTab
-            ]}
-            onPress={() => handleTabPress(tab.key)}
-          >
-            <Text style={[
-              styles.tabLabel, 
-              activeTab === tab.key && styles.activeTabLabel,
-              tab.key === 'logout' && styles.logoutTabLabel
-            ]}>
-              {tab.key === 'logout' && <Ionicons name="log-out-outline" size={16} style={{ marginRight: 4 }} />}
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+    <Screen dotBackground safeAreaEdges={['top', 'left', 'right']} padH={0}>
+      <View style={styles.tabBarWrap}>
+        <PremiumSegmentedControl segments={segments} value={activeTab} onChange={handleTabPress} />
       </View>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 0 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: spacing.lg }} showsVerticalScrollIndicator={false}>
         {activeTab === 'profile' && <ProfileSection />}
         {activeTab === 'password' && <PasswordSection />}
         {activeTab === 'notifications' && <NotificationSection />}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#e0f2f1',
-    borderRadius: 12,
-    margin: 16,
-    marginBottom: 0,
-    overflow: 'hidden',
+  tabBarWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  activeTab: {
-    backgroundColor: '#14b8a6',
-  },
-  logoutTab: {
-    backgroundColor: '#fef2f2',
-  },
-  tabLabel: {
-    color: '#14b8a6',
-    fontWeight: 'bold',
-    fontSize: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  activeTabLabel: {
-    color: '#fff',
-  },
-  logoutTabLabel: {
-    color: '#dc2626',
-  },
-}); 
+});

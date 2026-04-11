@@ -1,16 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, RefreshControl, Modal, TextInput } from 'react-native';
 import { useCampaignStore } from '../../../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CampaignDetailsScreen from '../../../../components/influencer/CampaignDetails';
-import CampaignFilters from '../../../../components/influencer/CampaignFilters';
 import { api } from '../../../../lib/api';
 import { useRouter } from 'expo-router';
+import { PremiumCampaignFeedCard, PrimaryButton, type FeedMetaRow } from '@/components/ui';
+import { appShell, palette, radius, spacing } from '@/theme';
+import { fonts } from '@/components/ui/typography';
+import { Ionicons } from '@expo/vector-icons';
 
 const TABS = [
   { key: 'available', label: 'Available Campaigns' },
   { key: 'my-campaigns', label: 'My Campaigns' },
 ];
+
+const NICHE_CHIPS = [
+  { key: 'all', label: 'All' },
+  { key: 'fashion', label: 'Fashion' },
+  { key: 'beauty', label: 'Beauty' },
+  { key: 'technology', label: 'Tech' },
+  { key: 'fitness', label: 'Fitness' },
+  { key: 'lifestyle', label: 'Lifestyle' },
+];
+
+const DB_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+});
 
 export default function InfluencerCampaignsScreen() {
   const {
@@ -20,13 +38,13 @@ export default function InfluencerCampaignsScreen() {
     error,
     fetchCampaigns,
     fetchParticipations,
-    joinCampaign,
-    clearError,
   } = useCampaignStore();
   const [tab, setTab] = useState('available');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showCampaignDetails, setShowCampaignDetails] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     targetAudienceAgeGroup: 'all',
     requiredNiche: 'all',
@@ -94,39 +112,6 @@ export default function InfluencerCampaignsScreen() {
     }
   };
 
-  const handleJoin = async (campaignId: string) => {
-    try {
-      const response = await joinCampaign(campaignId);
-      Alert.alert(
-        'Campaign Applied Successfully!',
-        'You have applied for the campaign. Please review and sign the contract.',
-        [
-          {
-            text: 'View Contract',
-            onPress: () => {
-              // Navigate to contract page with participation ID
-              if (response && response.id) {
-                router.push({
-                  pathname: '/influencer/contract',
-                  params: { participationId: response.id }
-                });
-              }
-            }
-          },
-          {
-            text: 'Later',
-            style: 'cancel',
-            onPress: () => {
-              fetchParticipations();
-            }
-          }
-        ]
-      );
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to join campaign');
-    }
-  };
-
   const handleViewCampaign = (campaignId: string) => {
     try {
       setSelectedCampaignId(campaignId);
@@ -148,8 +133,8 @@ export default function InfluencerCampaignsScreen() {
       setShowCampaignDetails(false);
       setSelectedCampaignId(null);
       
-      // Navigate directly to contract page without showing alert first
-      if (participation && participation.id) {
+      // Navigate directly only when participation has a real DB UUID id.
+      if (participation && participation.id && DB_ID_REGEX.test(String(participation.id))) {
         setTimeout(() => {
           try {
             // Try href approach first
@@ -168,11 +153,10 @@ export default function InfluencerCampaignsScreen() {
           }
         }, 100); // Small delay to ensure modal is closed
       } else {
-        console.error('No participation ID found:', participation);
-        // Fallback: show alert
+        // Mock/local IDs like part-* should not call contract endpoint.
         Alert.alert(
           'Campaign Applied Successfully!',
-          'You have applied for the campaign. Please review and sign the contract.',
+          'You have applied for the campaign. Contract will be available once your participation syncs.',
           [
             {
               text: 'OK',
@@ -201,7 +185,14 @@ export default function InfluencerCampaignsScreen() {
     });
   };
 
-  // Filter campaigns based on current filters
+  const handleNicheChipPress = (niche: string) => {
+    setFilters(prev => ({
+      ...prev,
+      requiredNiche: prev.requiredNiche === niche ? 'all' : niche,
+    }));
+  };
+
+  // Filter campaigns based on current filters + search
   const filterCampaigns = (campaignsToFilter: any[]) => {
     if (!Array.isArray(campaignsToFilter)) {
       return [];
@@ -220,6 +211,15 @@ export default function InfluencerCampaignsScreen() {
         if (filters.requiredNiche !== 'all' && 
             campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
           return false;
+        }
+        if (searchQuery.trim().length > 0) {
+          const q = searchQuery.trim().toLowerCase();
+          const name = String(campaign.name || '').toLowerCase();
+          const brand = String(campaign.tenant?.tenantName || '').toLowerCase();
+          const niche = String(campaign.requiredInfluencerNiche || '').toLowerCase();
+          if (!name.includes(q) && !brand.includes(q) && !niche.includes(q)) {
+            return false;
+          }
         }
         // Tenant filter
         if (filters.tenantId !== 'all' && 
@@ -254,84 +254,111 @@ export default function InfluencerCampaignsScreen() {
   const availableCampaigns = filterCampaigns(Array.isArray(campaigns) ? campaigns.filter(c => c && !joinedIds.includes(c.id) && !appliedIds.includes(c.id)) : []);
   const myCampaigns = filterCampaigns(Array.isArray(campaigns) ? campaigns.filter(c => c && (joinedIds.includes(c.id) || appliedIds.includes(c.id))) : []);
 
+  const hasAdvancedFilters = useMemo(() => {
+    return (
+      filters.targetAudienceAgeGroup !== 'all' ||
+      filters.tenantId !== 'all' ||
+      !!filters.dateRange
+    );
+  }, [filters.targetAudienceAgeGroup, filters.tenantId, filters.dateRange]);
+
   const renderCampaignCard = (campaign: any, status: 'available' | 'applied' | 'joined') => {
     if (!campaign) return null;
     
     try {
-      return (
-        <View key={campaign.id} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{campaign.name || 'Untitled Campaign'}</Text>
-            <Text style={styles.cardStatus}>{campaign.status || 'Unknown'}</Text>
-          </View>
-          <Text style={styles.cardDesc} numberOfLines={3}>{campaign.description || 'No description available'}</Text>
-          <View style={styles.cardInfoRow}>
-            <Text style={styles.cardInfo}>Type: <Text style={styles.cardValue}>{campaign.type || 'N/A'}</Text></Text>
-            <Text style={styles.cardInfo}>Commission: <Text style={styles.cardValue}>{campaign.commissionRate ? `${campaign.commissionRate}%` : 'N/A'}</Text></Text>
-          </View>
-          {campaign.tenant && (
-            <View style={styles.cardInfoRow}>
-              <Text style={styles.cardInfo}>Brand: <Text style={styles.cardValue}>{campaign.tenant.tenantName || 'Unknown'}</Text></Text>
-            </View>
-          )}
-          <View style={styles.cardInfoRow}>
-            <Text style={styles.cardInfo}>Start: <Text style={styles.cardValue}>{campaign.startDate?.slice(0, 10) || 'TBD'}</Text></Text>
-            <Text style={styles.cardInfo}>End: <Text style={styles.cardValue}>{campaign.endDate?.slice(0, 10) || 'Ongoing'}</Text></Text>
-          </View>
-          <View style={styles.cardInfoRow}>
-            <Text style={styles.cardInfo}>Niche: <Text style={styles.cardValue}>{campaign.requiredInfluencerNiche || 'Any'}</Text></Text>
-            <Text style={styles.cardInfo}>Age: <Text style={styles.cardValue}>{campaign.targetAudienceAgeGroup || 'All'}</Text></Text>
-          </View>
-          {status === 'applied' && (
-            <View style={styles.appliedContainer}>
-              <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
-              <Text style={styles.appliedMessage}>Please review and sign the contract</Text>
-              <TouchableOpacity 
-                style={styles.contractButton}
-                onPress={() => {
-                  try {
-                    const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'applied') : null;
-                    if (participation) {
-                      router.push({
-                        pathname: '/influencer/contract',
-                        params: { participationId: participation.id }
-                      });
-                    }
-                  } catch (error) {
-                    console.error('Error navigating to contract:', error);
-                  }
-                }}
-              >
-                <Text style={styles.contractButtonText}>View & Sign Contract</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          {status === 'joined' && (
-            <TouchableOpacity 
-              style={styles.joinBtn} 
+      const formatDurationRange = (startDate?: string, endDate?: string) => {
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        const startValid = !!start && !Number.isNaN(start.getTime());
+        const endValid = !!end && !Number.isNaN(end.getTime());
+
+        if (startValid && endValid) {
+          return `${SHORT_MONTH_DAY.format(start)}-${SHORT_MONTH_DAY.format(end)}`;
+        }
+        if (startValid) {
+          return `Starts ${SHORT_MONTH_DAY.format(start)}`;
+        }
+        return 'TBD';
+      };
+
+      const metaRows: FeedMetaRow[] = [
+        { label: 'Brand', value: String(campaign.tenant?.tenantName || 'Unknown') },
+        { label: 'Commission', value: campaign.commissionRate != null ? `${campaign.commissionRate}%` : 'N/A' },
+        {
+          label: 'Duration',
+          value: formatDurationRange(campaign.startDate, campaign.endDate),
+        },
+      ];
+
+      let footer: React.ReactNode = null;
+      if (status === 'applied') {
+        footer = (
+          <>
+            <Text style={styles.appliedBadge}>Applied (Pending Contract)</Text>
+            <Text style={styles.appliedMessage}>Please review and sign the contract</Text>
+            <PrimaryButton
+              compact
+              label="View & Sign Contract"
               onPress={() => {
                 try {
-                  const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'joined') : null;
-                  if (participation) {
-                    router.push({ 
-                      pathname: '/influencer/campaign-progress', 
-                      params: { participationId: participation.id, campaignId: campaign.id } 
+                  const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'applied') : null;
+                  if (participation && DB_ID_REGEX.test(String(participation.id))) {
+                    router.push({
+                      pathname: '/influencer/contract',
+                      params: { participationId: participation.id }
                     });
+                  } else {
+                    Alert.alert(
+                      'Contract Not Ready',
+                      'Your participation is pending sync. Please refresh and try again shortly.'
+                    );
                   }
                 } catch (error) {
-                  console.error('Error navigating to progress:', error);
+                  console.error('Error navigating to contract:', error);
                 }
               }}
-            >
-              <Text style={styles.joinBtnText}>Track Progress</Text>
-            </TouchableOpacity>
-          )}
-          {status === 'available' && (
-            <TouchableOpacity style={styles.joinBtn} onPress={() => handleViewCampaign(campaign.id)}>
-              <Text style={styles.joinBtnText}>View & Apply</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            />
+          </>
+        );
+      } else if (status === 'joined') {
+        footer = (
+          <PrimaryButton
+            compact
+            label="Track Progress"
+            onPress={() => {
+              try {
+                const participation = Array.isArray(participations) ? participations.find(p => p && p.campaignId === campaign.id && p.status === 'joined') : null;
+                if (participation) {
+                  router.push({
+                    pathname: '/influencer/campaign-progress',
+                    params: { participationId: participation.id, campaignId: campaign.id }
+                  });
+                }
+              } catch (error) {
+                console.error('Error navigating to progress:', error);
+              }
+            }}
+          />
+        );
+      } else {
+        footer = <PrimaryButton compact label="View & Apply" onPress={() => handleViewCampaign(campaign.id)} />;
+      }
+
+      return (
+        <PremiumCampaignFeedCard
+          key={campaign.id}
+          style={[
+            styles.campaignCard,
+            status === 'available' && styles.availableCampaignCard,
+          ]}
+          overline={String(campaign.type || 'Campaign').replace('_', ' ')}
+          title={campaign.name || 'Untitled Campaign'}
+          statusLabel={String(campaign.status || 'Unknown').toUpperCase()}
+          description={undefined}
+          metaRows={metaRows}
+          metaLayout="columns"
+          footer={footer}
+        />
       );
     } catch (error) {
       console.error('Error rendering campaign card:', error);
@@ -340,16 +367,48 @@ export default function InfluencerCampaignsScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: appShell.canvas }}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Campaigns</Text>
+        <View style={styles.headerTopRow}>
+          <View>
+            <Text style={styles.headerTitle}>Campaigns</Text>
+            <Text style={styles.headerSubTitle}>Find premium partnerships for your niche</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.filterIconBtn, hasAdvancedFilters && styles.filterIconBtnActive]}
+            onPress={() => setShowAdvancedFilters(true)}
+          >
+            <Ionicons name="options-outline" size={18} color={hasAdvancedFilters ? palette.white : appShell.cta} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={16} color={appShell.textMuted} />
+          <TextInput
+            placeholder="Search brands..."
+            placeholderTextColor={appShell.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+          />
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nicheRow}>
+          {NICHE_CHIPS.map(chip => {
+            const active = filters.requiredNiche === chip.key || (chip.key === 'all' && filters.requiredNiche === 'all');
+            return (
+              <TouchableOpacity
+                key={chip.key}
+                style={[styles.nicheChip, active && styles.nicheChipActive]}
+                onPress={() => handleNicheChipPress(chip.key)}
+              >
+                <Text style={[styles.nicheChipText, active && styles.nicheChipTextActive]}>{chip.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
-      <CampaignFilters
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onReset={handleResetFilters}
-        tenants={tenants}
-      />
+
       <View style={styles.tabsRow}>
         {TABS.map(t => (
           <TouchableOpacity
@@ -365,10 +424,10 @@ export default function InfluencerCampaignsScreen() {
         <Text style={styles.error}>{error}</Text>
       ) : null}
       {isLoading && !refreshing ? (
-        <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={appShell.cta} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {tab === 'available' && (
@@ -401,12 +460,75 @@ export default function InfluencerCampaignsScreen() {
         </ScrollView>
       )}
       <Modal
+        visible={showAdvancedFilters}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAdvancedFilters(false)}
+      >
+        <View style={styles.filtersModalOverlay}>
+          <View style={styles.filtersModalCard}>
+            <View style={styles.filtersHeader}>
+              <Text style={styles.filtersTitle}>Advanced Filters</Text>
+              <TouchableOpacity onPress={() => setShowAdvancedFilters(false)}>
+                <Ionicons name="close" size={22} color={appShell.cta} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.filterLabel}>Audience Age Group</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineFilterRow}>
+              {['all', '13-17', '18-24', '25-34', '35-44', '45+'].map(age => {
+                const active = filters.targetAudienceAgeGroup === age;
+                return (
+                  <TouchableOpacity
+                    key={age}
+                    style={[styles.inlineFilterChip, active && styles.inlineFilterChipActive]}
+                    onPress={() => handleFilterChange({ ...filters, targetAudienceAgeGroup: age })}
+                  >
+                    <Text style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}>{age === 'all' ? 'All Ages' : age}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={styles.filterLabel}>Brand</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineFilterRow}>
+              <TouchableOpacity
+                style={[styles.inlineFilterChip, filters.tenantId === 'all' && styles.inlineFilterChipActive]}
+                onPress={() => handleFilterChange({ ...filters, tenantId: 'all' })}
+              >
+                <Text style={[styles.inlineFilterText, filters.tenantId === 'all' && styles.inlineFilterTextActive]}>All Brands</Text>
+              </TouchableOpacity>
+              {tenants.map(tenant => {
+                const active = filters.tenantId === tenant.id;
+                return (
+                  <TouchableOpacity
+                    key={tenant.id}
+                    style={[styles.inlineFilterChip, active && styles.inlineFilterChipActive]}
+                    onPress={() => handleFilterChange({ ...filters, tenantId: tenant.id })}
+                  >
+                    <Text style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}>{tenant.tenantName}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.filtersActionRow}>
+              <TouchableOpacity style={styles.resetFiltersBtn} onPress={handleResetFilters}>
+                <Text style={styles.resetFiltersText}>Reset</Text>
+              </TouchableOpacity>
+              <PrimaryButton compact label="Apply" onPress={() => setShowAdvancedFilters(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={showCampaignDetails}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={handleCloseCampaignDetails}
       >
-        <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+        <View style={{ flex: 1, backgroundColor: appShell.canvas }}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleCloseCampaignDetails} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
@@ -428,145 +550,146 @@ export default function InfluencerCampaignsScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    padding: 18,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderColor: '#e5e7eb',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    backgroundColor: appShell.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: appShell.borderSubtle,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 20,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
+  },
+  headerSubTitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: appShell.textSecondary,
+    fontFamily: fonts.regular,
+  },
+  filterIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: appShell.canvasAlt,
+  },
+  filterIconBtnActive: {
+    backgroundColor: appShell.cta,
+    borderColor: appShell.cta,
+  },
+  searchWrap: {
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: appShell.canvasAlt,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: appShell.textPrimary,
+    fontFamily: fonts.regular,
+  },
+  nicheRow: {
+    paddingTop: spacing.sm,
+    gap: 8,
+  },
+  nicheChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: appShell.canvasAlt,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
+  },
+  nicheChipActive: {
+    backgroundColor: appShell.cta,
+    borderColor: appShell.cta,
+  },
+  nicheChipText: {
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+    color: appShell.cta,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  nicheChipTextActive: {
+    color: palette.white,
   },
   tabsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    backgroundColor: '#e0f2f1',
-    paddingVertical: 8,
-    marginBottom: 2,
+    backgroundColor: appShell.canvas,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
   },
   tabBtn: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 10,
-    borderRadius: 8,
-    marginHorizontal: 4,
-    backgroundColor: '#e0f2f1',
+    borderRadius: radius.pill,
+    backgroundColor: appShell.canvasAlt,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
   },
   tabBtnActive: {
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
+    borderColor: appShell.cta,
   },
   tabBtnText: {
-    fontWeight: '600',
-    color: '#14b8a6',
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+    color: appShell.cta,
   },
   tabBtnTextActive: {
-    color: '#fff',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#e0f2f1',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: '#14b8a6',
-  },
-  cardStatus: {
-    fontSize: 13,
-    color: '#14b8a6',
-    fontWeight: '600',
-    backgroundColor: '#e0f2f1',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    overflow: 'hidden',
-  },
-  cardDesc: {
-    color: '#334155',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  cardInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  cardInfo: {
-    color: '#14b8a6',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  cardValue: {
-    color: '#0f172a',
-    fontWeight: 'bold',
-    fontSize: 13,
+    color: palette.white,
   },
   appliedBadge: {
-    backgroundColor: '#fef9c3',
-    color: '#b45309',
-    fontWeight: 'bold',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    fontSize: 13,
+    backgroundColor: appShell.iceBlue,
+    color: appShell.textPrimary,
+    fontFamily: fonts.semiBold,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 11,
     alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  joinedBadge: {
-    backgroundColor: '#d1fae5',
-    color: '#065f46',
-    fontWeight: 'bold',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    fontSize: 13,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  joinBtn: {
-    marginTop: 12,
-    backgroundColor: '#14b8a6',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  joinBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
+    overflow: 'hidden',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   error: {
-    color: '#dc2626',
+    color: palette.error,
     textAlign: 'center',
     marginVertical: 12,
   },
   emptyText: {
-    color: '#64748b',
+    color: appShell.textSecondary,
     textAlign: 'center',
-    marginTop: 32,
-    fontSize: 16,
+    marginTop: 24,
+    fontSize: 14,
   },
   modalHeader: {
-    padding: 18,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderColor: '#e5e7eb',
+    padding: spacing.md,
+    backgroundColor: appShell.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: appShell.borderSubtle,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -574,36 +697,104 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   closeButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 18,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 18,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
     marginLeft: 10,
   },
-  appliedContainer: {
-    marginTop: 4,
-  },
   appliedMessage: {
-    color: '#64748b',
-    fontSize: 12,
-    marginTop: 4,
+    color: appShell.textSecondary,
+    fontSize: 13,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
     fontStyle: 'italic',
+    lineHeight: 19,
   },
-  contractButton: {
-    marginTop: 8,
-    backgroundColor: '#14b8a6',
-    borderRadius: 8,
+  filtersModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(10, 17, 40, 0.4)',
+  },
+  filtersModalCard: {
+    backgroundColor: appShell.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  filtersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filtersTitle: {
+    fontFamily: fonts.bold,
+    color: appShell.textPrimary,
+    fontSize: 16,
+  },
+  filterLabel: {
+    marginTop: spacing.xs,
+    color: appShell.textSecondary,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  inlineFilterRow: {
+    gap: 8,
+    paddingVertical: spacing.xs,
+  },
+  inlineFilterChip: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    alignItems: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: appShell.canvasAlt,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
   },
-  contractButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+  inlineFilterChipActive: {
+    backgroundColor: appShell.cta,
+    borderColor: appShell.cta,
+  },
+  inlineFilterText: {
+    color: appShell.textPrimary,
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+  },
+  inlineFilterTextActive: {
+    color: palette.white,
+  },
+  filtersActionRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  resetFiltersBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: appShell.canvasAlt,
+    borderWidth: 1,
+    borderColor: appShell.cardBorder,
+  },
+  resetFiltersText: {
+    color: appShell.textSecondary,
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+  },
+  campaignCard: {
+    marginBottom: spacing.md,
+  },
+  availableCampaignCard: {
+    alignSelf: 'center',
+    width: '94%',
+    minHeight: 332,
   },
 }); 

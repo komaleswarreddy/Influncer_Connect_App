@@ -9,6 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
+import { appShell, palette, radius, shadow, spacing } from '@/theme';
+import { fonts } from '@/components/ui/typography';
 
 export default function ContractScreen() {
   const { participationId } = useLocalSearchParams<{ participationId: string }>();
@@ -584,7 +586,7 @@ export default function ContractScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#14b8a6" />
+          <ActivityIndicator size="large" color={appShell.cta} />
           <Text style={styles.loadingText}>Loading contract details...</Text>
         </View>
       </SafeAreaView>
@@ -1088,7 +1090,7 @@ export default function ContractScreen() {
           >
             {generatingPDF ? (
               <View style={styles.buttonContent}>
-                <ActivityIndicator size="small" color="#14b8a6" style={{ marginRight: 8 }} />
+                <ActivityIndicator size="small" color={appShell.cta} style={{ marginRight: 8 }} />
                 <Text style={styles.secondaryButtonText}>Generating PDF...</Text>
               </View>
             ) : (
@@ -1117,33 +1119,33 @@ export default function ContractScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: appShell.canvas,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    padding: spacing.md,
+    backgroundColor: appShell.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: appShell.borderSubtle,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
-    color: '#14b8a6',
-    fontSize: 16,
-    fontWeight: '600',
+    color: appShell.cta,
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -1152,8 +1154,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 14,
+    color: appShell.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -1162,31 +1164,27 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   errorIcon: {
-    fontSize: 48,
+    fontSize: 40,
     marginBottom: 16,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#dc2626',
+    fontSize: 17,
+    fontFamily: fonts.bold,
+    color: palette.error,
     marginBottom: 8,
   },
   errorMessage: {
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 14,
+    color: appShell.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   contractSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: appShell.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...shadow.cardLight,
     minHeight: 600,
   },
   sectionHeader: {
@@ -1196,70 +1194,66 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
     flex: 1,
   },
   switchModeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: appShell.canvasAlt,
     borderWidth: 1,
-    borderColor: '#14b8a6',
-    borderRadius: 6,
+    borderColor: appShell.cta,
+    borderRadius: radius.sm,
   },
   switchModeButtonText: {
     fontSize: 12,
-    color: '#14b8a6',
-    fontWeight: '600',
+    color: appShell.cta,
+    fontFamily: fonts.semiBold,
   },
   contractContent: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
+    borderColor: appShell.borderSubtle,
+    borderRadius: radius.md,
     overflow: 'hidden',
     flex: 1,
     minHeight: 500,
   },
   webView: {
     minHeight: 500,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: appShell.card,
+    borderRadius: radius.md,
     overflow: 'hidden',
   },
   webViewPlaceholder: {
     minHeight: 500,
-    backgroundColor: '#fff',
+    backgroundColor: appShell.card,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: radius.md,
   },
   placeholderText: {
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 14,
+    color: appShell.textSecondary,
   },
   plainTextContent: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#333',
-    padding: 20,
+    fontSize: 14,
+    lineHeight: 22,
+    color: appShell.textPrimary,
+    padding: spacing.md,
     textAlign: 'left',
   },
   signatureSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: appShell.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...shadow.cardLight,
   },
   signatureDescription: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 13,
+    color: appShell.textSecondary,
     marginBottom: 16,
   },
   signatureStatus: {
@@ -1267,7 +1261,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     padding: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: appShell.canvas,
     borderRadius: 8,
   },
   statusDot: {
@@ -1277,63 +1271,64 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   statusDotGreen: {
-    backgroundColor: '#10b981',
+    backgroundColor: appShell.success,
   },
   statusDotYellow: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: appShell.warning,
   },
   statusText: {
-    fontSize: 14,
-    color: '#374151',
+    fontSize: 13,
+    color: appShell.textPrimary,
+    fontFamily: fonts.regular,
     flex: 1,
   },
   statusTextGreen: {
-    fontSize: 14,
-    color: '#10b981',
-    fontWeight: '600',
+    fontSize: 13,
+    color: appShell.success,
+    fontFamily: fonts.semiBold,
   },
   uploadButton: {
     marginTop: 16,
     padding: 16,
     borderWidth: 2,
-    borderColor: '#14b8a6',
+    borderColor: appShell.cta,
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: radius.md,
     alignItems: 'center',
-    backgroundColor: '#f0fdfa',
+    backgroundColor: appShell.canvasAlt,
   },
   uploadButtonText: {
-    color: '#14b8a6',
-    fontSize: 16,
-    fontWeight: '600',
+    color: appShell.cta,
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
   },
   actionButtons: {
     gap: 12,
     marginBottom: 32,
   },
   primaryButton: {
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: radius.md,
     alignItems: 'center',
   },
   primaryButtonDisabled: {
-    backgroundColor: '#cbd5e1',
+    backgroundColor: appShell.textMuted,
   },
   primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: palette.white,
+    fontSize: 15,
+    fontFamily: fonts.bold,
   },
   secondaryButton: {
-    backgroundColor: '#fff',
+    backgroundColor: appShell.card,
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: radius.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#14b8a6',
+    borderColor: appShell.cta,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -1341,8 +1336,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: '#14b8a6',
-    fontSize: 16,
-    fontWeight: '600',
+    color: appShell.cta,
+    fontSize: 15,
+    fontFamily: fonts.semiBold,
   },
 }); 

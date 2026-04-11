@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { api } from '../../lib/api';
+import { appShell, shadow } from '@/theme';
 
 interface NotificationSectionProps {
   onUpdate?: () => void;
@@ -62,7 +63,7 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
           <Switch
             value={notifications.allowNotificationForCampaign}
             onValueChange={() => handleToggle('allowNotificationForCampaign')}
-            trackColor={{ false: '#d1d5db', true: '#14b8a6' }}
+            trackColor={{ false: '#d1d5db', true: appShell.cta }}
             thumbColor={notifications.allowNotificationForCampaign ? '#fff' : '#f4f3f4'}
             disabled={isLoading}
           />
@@ -78,7 +79,7 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
           <Switch
             value={notifications.allowNotificationForApproval}
             onValueChange={() => handleToggle('allowNotificationForApproval')}
-            trackColor={{ false: '#d1d5db', true: '#14b8a6' }}
+            trackColor={{ false: '#d1d5db', true: appShell.cta }}
             thumbColor={notifications.allowNotificationForApproval ? '#fff' : '#f4f3f4'}
             disabled={isLoading}
           />
@@ -149,7 +150,7 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#14b8a6" />
+          <ActivityIndicator size="large" color={appShell.cta} />
           <Text style={styles.loadingText}>Updating settings...</Text>
         </View>
       )}
@@ -160,25 +161,23 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'transparent',
   },
   section: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: appShell.card,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: appShell.cardBorder,
+    ...shadow.cardLight,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#14b8a6',
-    marginBottom: 16,
+    color: appShell.cta,
+    marginBottom: 12,
   },
   notificationItem: {
     flexDirection: 'row',
@@ -193,13 +192,13 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   notificationTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 4,
   },
   notificationDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -216,13 +215,13 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   channelTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 4,
   },
   channelDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -250,13 +249,13 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   frequencyTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 4,
   },
   frequencyDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
     lineHeight: 20,
   },
@@ -265,7 +264,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#14b8a6',
+    borderColor: appShell.cta,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -273,7 +272,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -287,7 +286,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
   },
 }); 

@@ -1,17 +1,56 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, ScrollView, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
 import { useAuthStore } from '../../store/auth-store';
 import { useRouter } from 'expo-router';
+import { KindeAuthButtons } from '../../components/KindeAuthButtons';
+import { kindeConfigured, useMockAuth } from '../../lib/auth-config';
+import { ScrollScreen, SectionHeader, PrimaryButton, PremiumTextInput } from '@/components/ui';
+import { appShell, palette, spacing, radius } from '@/theme';
+import { fonts } from '@/components/ui/typography';
 
 const NICHES = [
-  'Fashion', 'Beauty', 'Lifestyle', 'Fitness', 'Health', 'Food', 'Travel', 'Technology', 'Gaming', 'Education',
-  'Business', 'Finance', 'Entertainment', 'Sports', 'Music', 'Art', 'Photography', 'Parenting', 'Home & Decor', 'Automotive'
+  'Fashion',
+  'Beauty',
+  'Lifestyle',
+  'Fitness',
+  'Health',
+  'Food',
+  'Travel',
+  'Technology',
+  'Gaming',
+  'Education',
+  'Business',
+  'Finance',
+  'Entertainment',
+  'Sports',
+  'Music',
+  'Art',
+  'Photography',
+  'Parenting',
+  'Home & Decor',
+  'Automotive',
 ];
 const COUNTRIES = [
-  'United States', 'United Kingdom', 'Canada', 'Australia', 'India', 'Germany', 'France', 'Japan', 'Brazil', 'Other'
+  'United States',
+  'United Kingdom',
+  'Canada',
+  'Australia',
+  'India',
+  'Germany',
+  'France',
+  'Japan',
+  'Brazil',
+  'Other',
 ];
 
-export default function InfluencerRegisterScreen() {
+function LegacyMockRegisterForm() {
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -58,130 +97,212 @@ export default function InfluencerRegisterScreen() {
     try {
       await register(form);
       Alert.alert('Registration Successful', 'Your account is pending approval or has been created.');
-      router.replace('/dashboard');
-    } catch (e: any) {
-      Alert.alert('Registration Failed', e.message || 'Please try again later.');
+      router.replace('/influencer/dashboard');
+    } catch (e: unknown) {
+      Alert.alert('Registration Failed', e instanceof Error ? e.message : 'Please try again later.');
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Join as Influencer</Text>
-      <TextInput 
-        style={styles.input} 
-        placeholder="Full Name" 
-        placeholderTextColor="#666"
-        value={form.fullName} 
-        onChangeText={v => setForm(f => ({ ...f, fullName: v }))} 
+    <ScrollScreen scrollProps={{ contentContainerStyle: styles.container }}>
+      <SectionHeader title="Join as Influencer (dev)" subtitle="Mock registration — no Kinde. Disable with useMockAuth in app.json." />
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Full Name"
+        value={form.fullName}
+        onChangeText={(v) => setForm((f) => ({ ...f, fullName: v }))}
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="Email" 
-        placeholderTextColor="#666"
-        value={form.email} 
-        onChangeText={v => setForm(f => ({ ...f, email: v }))} 
-        keyboardType="email-address" 
-        autoCapitalize="none" 
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Email"
+        value={form.email}
+        onChangeText={(v) => setForm((f) => ({ ...f, email: v }))}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="Password" 
-        placeholderTextColor="#666"
-        value={form.password} 
-        onChangeText={v => setForm(f => ({ ...f, password: v }))} 
-        secureTextEntry={!showPassword} 
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Password"
+        value={form.password}
+        onChangeText={(v) => setForm((f) => ({ ...f, password: v }))}
+        secureTextEntry={!showPassword}
       />
-      <TouchableOpacity onPress={() => setShowPassword(s => !s)}><Text style={styles.toggle}>{showPassword ? 'Hide' : 'Show'} Password</Text></TouchableOpacity>
-      <TextInput 
-        style={styles.input} 
-        placeholder="Confirm Password" 
-        placeholderTextColor="#666"
-        value={form.confirmPassword} 
-        onChangeText={v => setForm(f => ({ ...f, confirmPassword: v }))} 
-        secureTextEntry={!showConfirmPassword} 
+      <TouchableOpacity onPress={() => setShowPassword((s) => !s)}>
+        <Text style={styles.toggle}>{showPassword ? 'Hide' : 'Show'} Password</Text>
+      </TouchableOpacity>
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Confirm Password"
+        value={form.confirmPassword}
+        onChangeText={(v) => setForm((f) => ({ ...f, confirmPassword: v }))}
+        secureTextEntry={!showConfirmPassword}
       />
-      <TouchableOpacity onPress={() => setShowConfirmPassword(s => !s)}><Text style={styles.toggle}>{showConfirmPassword ? 'Hide' : 'Show'} Confirm Password</Text></TouchableOpacity>
-      <TextInput 
-        style={styles.input} 
-        placeholder="Phone" 
-        placeholderTextColor="#666"
-        value={form.phone} 
-        onChangeText={v => setForm(f => ({ ...f, phone: v }))} 
-        keyboardType="phone-pad" 
+      <TouchableOpacity onPress={() => setShowConfirmPassword((s) => !s)}>
+        <Text style={styles.toggle}>{showConfirmPassword ? 'Hide' : 'Show'} Confirm Password</Text>
+      </TouchableOpacity>
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Phone"
+        value={form.phone}
+        onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
+        keyboardType="phone-pad"
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="Instagram Profile URL" 
-        placeholderTextColor="#666"
-        value={form.instagram} 
-        onChangeText={v => setForm(f => ({ ...f, instagram: v }))} 
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="Instagram Profile URL"
+        value={form.instagram}
+        onChangeText={(v) => setForm((f) => ({ ...f, instagram: v }))}
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="YouTube Profile URL" 
-        placeholderTextColor="#666"
-        value={form.youtube} 
-        onChangeText={v => setForm(f => ({ ...f, youtube: v }))} 
+      <PremiumTextInput
+        style={styles.input}
+        placeholder="YouTube Profile URL"
+        value={form.youtube}
+        onChangeText={(v) => setForm((f) => ({ ...f, youtube: v }))}
       />
       <Text style={styles.label}>Niche</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-        {NICHES.map(niche => (
-          <TouchableOpacity key={niche} style={[styles.chip, form.niche === niche && styles.chipSelected]} onPress={() => setForm(f => ({ ...f, niche }))}>
+        {NICHES.map((niche) => (
+          <TouchableOpacity
+            key={niche}
+            style={[styles.chip, form.niche === niche && styles.chipSelected]}
+            onPress={() => setForm((f) => ({ ...f, niche }))}
+          >
             <Text style={form.niche === niche ? styles.chipTextSelected : styles.chipText}>{niche}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
       <Text style={styles.label}>Country</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-        {COUNTRIES.map(country => (
-          <TouchableOpacity key={country} style={[styles.chip, form.country === country && styles.chipSelected]} onPress={() => setForm(f => ({ ...f, country }))}>
+        {COUNTRIES.map((country) => (
+          <TouchableOpacity
+            key={country}
+            style={[styles.chip, form.country === country && styles.chipSelected]}
+            onPress={() => setForm((f) => ({ ...f, country }))}
+          >
             <Text style={form.country === country ? styles.chipTextSelected : styles.chipText}>{country}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <TextInput 
-        style={[styles.input, { height: 80 }]} 
-        placeholder="Bio (optional, max 500 chars)" 
-        placeholderTextColor="#666"
-        value={form.bio} 
-        onChangeText={v => setForm(f => ({ ...f, bio: v }))} 
-        multiline 
-        maxLength={500} 
+      <PremiumTextInput
+        style={[styles.input, { height: 80 }]}
+        placeholder="Bio (optional, max 500 chars)"
+        value={form.bio}
+        onChangeText={(v) => setForm((f) => ({ ...f, bio: v }))}
+        multiline
+        maxLength={500}
       />
       <View style={styles.checkboxRow}>
-        <TouchableOpacity onPress={() => setForm(f => ({ ...f, agreedToTerms: !f.agreedToTerms }))} style={styles.checkbox}>
+        <TouchableOpacity
+          onPress={() => setForm((f) => ({ ...f, agreedToTerms: !f.agreedToTerms }))}
+          style={styles.checkbox}
+        >
           <Text>{form.agreedToTerms ? '☑' : '☐'}</Text>
         </TouchableOpacity>
         <Text style={{ marginLeft: 8 }}>I agree to the terms and conditions</Text>
       </View>
-      {isLoading ? <ActivityIndicator size="large" color="#00b894" /> : <Button title="Register" onPress={handleRegister} />}
+      <PrimaryButton label="Register" onPress={handleRegister} loading={isLoading} disabled={isLoading} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <TouchableOpacity onPress={() => router.push('/login')}><Text style={styles.link}>Already have an account? Sign in</Text></TouchableOpacity>
-    </ScrollView>
+      <TouchableOpacity onPress={() => router.push('/login')}>
+        <Text style={styles.link}>Already have an account? Sign in</Text>
+      </TouchableOpacity>
+    </ScrollScreen>
+  );
+}
+
+export default function InfluencerRegisterScreen() {
+  const router = useRouter();
+
+  if (kindeConfigured) {
+    return (
+      <>
+        <ScrollScreen>
+          <SectionHeader
+            title="Join as Influencer"
+            subtitle="Sign in with Kinde. You can complete your profile after login."
+          />
+          <KindeAuthButtons mode="register" />
+          {!useMockAuth ? (
+            <TouchableOpacity onPress={() => router.push('/login')} style={{ marginTop: spacing.lg }}>
+              <Text style={styles.link}>Already have an account? Sign in</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.sub, { marginTop: spacing.lg }]}>
+              Or use the legacy mock form below (development only).
+            </Text>
+          )}
+        </ScrollScreen>
+        {useMockAuth ? <LegacyMockRegisterForm /> : null}
+      </>
+    );
+  }
+
+  if (useMockAuth) {
+    return <LegacyMockRegisterForm />;
+  }
+
+  return (
+    <ScrollScreen scrollProps={{ contentContainerStyle: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing.xl } }}>
+      <SectionHeader title="Kinde not configured" subtitle="Set expo.extra.kindeDomain and kindeClientId in app.json, or set useMockAuth to true for local mock registration." />
+      <TouchableOpacity onPress={() => router.back()}>
+        <Text style={styles.link}>Go back</Text>
+      </TouchableOpacity>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, backgroundColor: '#fff', flexGrow: 1 },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16, textAlign: 'center', color: '#333' },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#ccc', 
-    borderRadius: 8, 
-    padding: 12, 
-    marginBottom: 12,
+  container: { paddingBottom: spacing.lg, flexGrow: 1 },
+  title: {
+    fontFamily: fonts.bold,
     fontSize: 16,
-    color: '#333',
-    backgroundColor: '#fff'
+    marginBottom: 12,
+    textAlign: 'center',
+    color: appShell.textPrimary,
   },
-  label: { fontWeight: 'bold', marginBottom: 4, color: '#333' },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#ccc', marginRight: 8 },
-  chipSelected: { backgroundColor: '#00b894', borderColor: '#00b894' },
-  chipText: { color: '#333' },
-  chipTextSelected: { color: '#fff' },
+  sub: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: appShell.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: appShell.borderSubtle,
+    borderRadius: radius.md,
+    padding: 10,
+    marginBottom: 10,
+    fontSize: 14,
+    color: appShell.textPrimary,
+    backgroundColor: appShell.card,
+    fontFamily: fonts.regular,
+  },
+  label: {
+    fontFamily: fonts.semiBold,
+    marginBottom: 4,
+    color: appShell.textPrimary,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: appShell.borderSubtle,
+    marginRight: 8,
+  },
+  chipSelected: { backgroundColor: appShell.cta, borderColor: appShell.cta },
+  chipText: { color: appShell.textPrimary, fontFamily: fonts.regular },
+  chipTextSelected: { color: palette.white, fontFamily: fonts.regular },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  checkbox: { width: 24, height: 24, borderWidth: 1, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
-  toggle: { color: '#0984e3', marginBottom: 8, textAlign: 'right' },
-  error: { color: 'red', marginTop: 8, textAlign: 'center' },
-  link: { color: '#0984e3', marginTop: 16, textAlign: 'center' },
-}); 
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 1,
+    borderColor: appShell.borderSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggle: { color: appShell.cta, marginBottom: 8, textAlign: 'right', fontFamily: fonts.regular },
+  error: { color: palette.error, marginTop: 8, textAlign: 'center', fontFamily: fonts.regular },
+  link: { color: appShell.cta, marginTop: 16, textAlign: 'center', fontFamily: fonts.semiBold },
+});

@@ -1,26 +1,24 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Semantic colors — aligned with `@/theme` (Influence Elite).
+ * Prefer importing `palette`, `appShell` from `@/theme` in new code.
  */
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+import { palette, appShell } from '@/theme';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: appShell.textPrimary,
+    background: appShell.canvas,
+    tint: appShell.cta,
+    icon: appShell.textSecondary,
+    tabIconDefault: appShell.textMuted,
+    tabIconSelected: appShell.cta,
   },
   dark: {
     text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
+    background: palette.secondary,
+    tint: appShell.cta,
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    tabIconSelected: appShell.cta,
   },
 };

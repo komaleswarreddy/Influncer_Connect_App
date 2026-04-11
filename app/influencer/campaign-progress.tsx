@@ -16,6 +16,8 @@ import { useProgressStore } from '../../store/progress-store';
 import { useCampaignStore } from '../../store/campaign-store';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { appShell, palette, radius, shadow, spacing } from '@/theme';
+import { fonts } from '@/components/ui/typography';
 
 export default function CampaignProgressScreen() {
   const { participationId, campaignId } = useLocalSearchParams();
@@ -33,12 +35,16 @@ export default function CampaignProgressScreen() {
   const progress = participationId ? progressData[participationId as string] : undefined;
   const campaign = campaigns.find(c => c.id === campaignId);
 
+  useEffect(() => {
+    if (participationId) fetchProgress(participationId as string);
+  }, [participationId, fetchProgress]);
+
   // If participationId is missing or invalid
   if (!participationId) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#ef4444" />
+          <Ionicons name="alert-circle" size={48} color={palette.error} />
           <Text style={styles.errorText}>No campaign participation selected.</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/influencer/campaigns')}>
             <Text style={styles.retryButtonText}>Go to Campaigns</Text>
@@ -47,10 +53,6 @@ export default function CampaignProgressScreen() {
       </SafeAreaView>
     );
   }
-
-  useEffect(() => {
-    if (participationId) fetchProgress(participationId as string);
-  }, [participationId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -134,26 +136,26 @@ export default function CampaignProgressScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
-        return '#10b981';
+        return appShell.success;
       case 'rejected':
-        return '#ef4444';
+        return palette.error;
       case 'pending':
-        return '#f59e0b';
+        return appShell.warning;
       default:
-        return '#6b7280';
+        return appShell.textMuted;
     }
   };
 
   const getStatusTextColor = (status: string) => {
     switch (status) {
       case 'approved':
-        return '#ffffff'; // White text for green background
+        return palette.white;
       case 'rejected':
-        return '#ffffff'; // White text for red background
+        return palette.white;
       case 'pending':
-        return '#ffffff'; // White text for orange background
+        return palette.white;
       default:
-        return '#14b8a6'; // Teal text for gray background
+        return appShell.cta; // Brand primary on gray background
     }
   };
 
@@ -174,7 +176,7 @@ export default function CampaignProgressScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#14b8a6" />
+          <ActivityIndicator size="large" color={appShell.cta} />
           <Text style={styles.loadingText}>Loading progress...</Text>
         </View>
       </SafeAreaView>
@@ -185,13 +187,13 @@ export default function CampaignProgressScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#ef4444" />
+          <Ionicons name="alert-circle" size={48} color={palette.error} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => fetchProgress(participationId as string)}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.retryButton, { marginTop: 12, backgroundColor: '#f0fdfa' }]} onPress={() => router.push('/influencer/campaigns')}>
-            <Text style={[styles.retryButtonText, { color: '#14b8a6' }]}>Go to Campaigns</Text>
+          <TouchableOpacity style={[styles.retryButton, { marginTop: 12, backgroundColor: appShell.canvasAlt }]} onPress={() => router.push('/influencer/campaigns')}>
+            <Text style={[styles.retryButtonText, { color: appShell.cta }]}>Go to Campaigns</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -202,7 +204,7 @@ export default function CampaignProgressScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="information-circle" size={48} color="#14b8a6" />
+          <Ionicons name="information-circle" size={48} color={appShell.cta} />
           <Text style={styles.errorText}>No progress data found for this campaign.{'\n'}You may need to join the campaign first.</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => router.push('/influencer/campaigns')}>
             <Text style={styles.retryButtonText}>Go to Campaigns</Text>
@@ -216,7 +218,7 @@ export default function CampaignProgressScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#3b82f6" />
+          <Ionicons name="arrow-back" size={24} color={appShell.cta} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Campaign Progress</Text>
         <View style={{ width: 24 }} />
@@ -336,7 +338,7 @@ export default function CampaignProgressScreen() {
                             }}
                             disabled={selectedSubmissionId !== null && selectedSubmissionId !== submission.id}
                           >
-                            <Ionicons name="pencil" size={16} color="#3b82f6" />
+                            <Ionicons name="pencil" size={16} color={appShell.cta} />
                             <Text style={styles.actionButtonText}>Edit</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -419,101 +421,93 @@ export default function CampaignProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: appShell.canvas,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: appShell.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: appShell.borderSubtle,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
   },
   campaignInfo: {
-    backgroundColor: '#fff',
-    padding: 16,
+    backgroundColor: appShell.card,
+    padding: spacing.md,
     marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: appShell.borderSubtle,
   },
   campaignName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: appShell.textPrimary,
     marginBottom: 4,
   },
   campaignDesc: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 13,
+    color: appShell.textSecondary,
     lineHeight: 20,
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
-    backgroundColor: '#fff',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: appShell.card,
+    margin: spacing.md,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    ...shadow.cardLight,
   },
   summaryTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#14b8a6',
-    marginBottom: 12,
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
+    marginBottom: 10,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
+    backgroundColor: appShell.borderSubtle,
+    borderRadius: radius.sm,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#14b8a6',
-    borderRadius: 4,
+    backgroundColor: appShell.cta,
+    borderRadius: radius.sm,
   },
   progressText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 13,
+    color: appShell.textSecondary,
     textAlign: 'center',
   },
   section: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#14b8a6',
-    marginBottom: 12,
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
+    marginBottom: 10,
   },
   progressCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: appShell.card,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    ...shadow.cardLight,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -522,34 +516,34 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   contentType: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a',
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: appShell.textPrimary,
   },
   progressCount: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
   },
   scheduleText: {
     fontSize: 12,
-    color: '#f59e0b',
+    color: appShell.warning,
     marginTop: 4,
-    fontWeight: '500',
+    fontFamily: fonts.semiBold,
   },
   submissionsContainer: {
     marginTop: 12,
   },
   submissionsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#14b8a6',
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
     marginBottom: 8,
   },
   submissionItem: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: appShell.canvas,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: radius.md,
     marginBottom: 8,
   },
   submissionHeader: {
@@ -560,8 +554,8 @@ const styles = StyleSheet.create({
   },
   submissionDate: {
     fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
+    color: appShell.textSecondary,
+    fontFamily: fonts.semiBold,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -569,28 +563,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 16,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: appShell.canvasAlt,
     minWidth: 80,
     justifyContent: 'center',
   },
   statusText: {
     fontSize: 12,
-    color: '#14b8a6',
-    fontWeight: 'bold',
+    color: appShell.cta,
+    fontFamily: fonts.bold,
     marginLeft: 4,
   },
   contentUrl: {
     fontSize: 13,
-    color: '#14b8a6',
+    color: appShell.cta,
     marginBottom: 4,
     fontWeight: '500',
   },
   feedbackText: {
     fontSize: 12,
-    color: '#ef4444',
+    color: palette.error,
     fontStyle: 'italic',
     marginBottom: 8,
-    fontWeight: '500',
+    fontFamily: fonts.semiBold,
   },
   submissionActions: {
     flexDirection: 'row',
@@ -602,10 +596,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#f0fdfa',
+    borderRadius: radius.md,
+    backgroundColor: appShell.canvasAlt,
     marginRight: 8,
-    shadowColor: '#14b8a6',
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 2,
@@ -613,36 +607,36 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 13,
-    color: '#14b8a6',
+    color: appShell.cta,
     marginLeft: 4,
-    fontWeight: 'bold',
+    fontFamily: fonts.bold,
   },
   deleteButton: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
   },
   deleteButtonText: {
-    color: '#ef4444',
-    fontWeight: 'bold',
+    color: palette.error,
+    fontFamily: fonts.bold,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
     paddingVertical: 14,
     paddingHorizontal: 18,
-    borderRadius: 10,
+    borderRadius: radius.md,
     marginTop: 14,
-    shadowColor: '#14b8a6',
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
     shadowRadius: 4,
     elevation: 2,
   },
   submitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: palette.white,
+    fontSize: 15,
+    fontFamily: fonts.bold,
     marginLeft: 8,
     letterSpacing: 0.2,
   },
@@ -653,9 +647,9 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#14b8a6',
-    fontWeight: '600',
+    fontSize: 14,
+    color: appShell.cta,
+    fontFamily: fonts.semiBold,
   },
   errorContainer: {
     flex: 1,
@@ -664,28 +658,28 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   errorText: {
-    fontSize: 16,
-    color: '#14b8a6',
+    fontSize: 14,
+    color: appShell.cta,
     textAlign: 'center',
     marginTop: 12,
     marginBottom: 16,
-    fontWeight: 'bold',
+    fontFamily: fonts.bold,
   },
   retryButton: {
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
-    shadowColor: '#14b8a6',
+    borderRadius: radius.md,
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
     shadowRadius: 4,
     elevation: 2,
   },
   retryButtonText: {
-    color: 'white',
+    color: palette.white,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: fonts.bold,
   },
   modalOverlay: {
     flex: 1,
@@ -694,47 +688,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 28,
-    margin: 32,
+    backgroundColor: appShell.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    margin: spacing.md,
     width: '92%',
     maxWidth: 420,
-    shadowColor: '#14b8a6',
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 2,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#14b8a6',
-    marginBottom: 18,
+    fontSize: 17,
+    fontFamily: fonts.bold,
+    color: appShell.cta,
+    marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
   modalLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#14b8a6',
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+    color: appShell.cta,
     marginBottom: 6,
   },
   modalValue: {
-    fontSize: 15,
-    color: '#14b8a6',
+    fontSize: 13,
+    color: appShell.cta,
     marginBottom: 14,
-    fontWeight: '500',
+    fontFamily: fonts.semiBold,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#99f6e4',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    color: '#14b8a6',
-    backgroundColor: '#f1f5f9',
+    borderColor: appShell.borderSubtle,
+    borderRadius: radius.md,
+    padding: 12,
+    fontSize: 14,
+    color: appShell.cta,
+    backgroundColor: appShell.canvasAlt,
     marginBottom: 18,
-    fontWeight: '500',
+    fontFamily: fonts.semiBold,
     width: '100%',
     minHeight: 48,
   },
@@ -745,36 +739,36 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cancelButton: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: appShell.canvasAlt,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: radius.md,
     marginRight: 8,
-    shadowColor: '#14b8a6',
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 2,
     elevation: 1,
   },
   cancelButtonText: {
-    color: '#14b8a6',
-    fontWeight: 'bold',
+    color: appShell.cta,
+    fontFamily: fonts.bold,
     fontSize: 15,
   },
   confirmButton: {
-    backgroundColor: '#14b8a6',
+    backgroundColor: appShell.cta,
     paddingHorizontal: 22,
     paddingVertical: 10,
-    borderRadius: 8,
-    shadowColor: '#14b8a6',
+    borderRadius: radius.md,
+    shadowColor: appShell.cta,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
   confirmButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: palette.white,
+    fontFamily: fonts.bold,
     fontSize: 15,
   },
 }); 

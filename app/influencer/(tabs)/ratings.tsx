@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TextInput,
   ActivityIndicator,
   Alert,
   RefreshControl,
@@ -15,8 +14,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCampaignStore } from '../../../store/campaign-store';
 import { useInfluencerStore } from '../../../store/influencer-store';
-import { useAuthStore } from '../../../store/auth-store';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import {
+  PremiumCampaignFeedCard,
+  PremiumTextInput,
+  PrimaryButton,
+  SecondaryButton,
+  type FeedMetaRow,
+} from '@/components/ui';
+import { appShell, palette, radius, shadow, spacing } from '@/theme';
+import { fonts } from '@/components/ui/typography';
+
+const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+});
 
 function StarRatingDisplay({ rating }: { rating: number }) {
   return (
@@ -26,7 +37,7 @@ function StarRatingDisplay({ rating }: { rating: number }) {
           key={i}
           name={i <= rating ? 'star' : 'star-outline'}
           size={18}
-          color={i <= rating ? '#FFD700' : '#ccc'}
+          color={i <= rating ? '#F59E0B' : appShell.textMuted}
         />
       ))}
     </View>
@@ -34,9 +45,6 @@ function StarRatingDisplay({ rating }: { rating: number }) {
 }
 
 export default function RatingsScreen() {
-  const { user } = useAuthStore();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const { participations, campaigns, fetchParticipations, fetchCampaigns, isLoading: campaignsLoading } = useCampaignStore();
   const {
     ratings,
@@ -109,95 +117,43 @@ export default function RatingsScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#f8fafc',
+      backgroundColor: appShell.canvas,
     },
     content: {
-      padding: 16,
+      padding: spacing.md,
+      paddingBottom: spacing.lg,
     },
-    card: {
-      backgroundColor: '#fff',
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 18,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.07,
-      shadowRadius: 4,
-      elevation: 2,
-      borderWidth: 1,
-      borderColor: '#e0f2f1',
+    pageTitle: {
+      fontSize: 18,
+      fontFamily: fonts.bold,
+      color: appShell.cta,
+      marginBottom: spacing.sm,
+      letterSpacing: -0.3,
     },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 6,
-    },
-    cardTitle: {
-      fontSize: 17,
-      fontWeight: 'bold',
-      color: '#14b8a6',
-    },
-    cardStatus: {
-      fontSize: 13,
-      color: '#14b8a6',
-      fontWeight: '600',
-      backgroundColor: '#e0f2f1',
-      borderRadius: 8,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      overflow: 'hidden',
-    },
-    cardDesc: {
-      color: '#334155',
-      fontSize: 14,
-      marginBottom: 8,
-    },
-    cardInfoRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 4,
-    },
-    cardInfo: {
-      color: '#14b8a6',
-      fontWeight: '600',
-      fontSize: 13,
-    },
-    cardValue: {
-      color: '#0f172a',
-      fontWeight: 'bold',
-      fontSize: 13,
-    },
-    rateButton: {
-      backgroundColor: '#14b8a6',
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: 'center',
-      marginTop: 12,
-      paddingHorizontal: 16,
-      alignSelf: 'flex-start',
-    },
-    rateButtonText: {
-      color: '#fff',
-      fontWeight: 'bold',
-    },
-    adminButton: {
-      backgroundColor: '#e0f2f1',
-      borderRadius: 8,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      alignItems: 'center',
-      marginTop: 8,
-      alignSelf: 'flex-start',
-    },
-    adminButtonText: {
-      color: '#14b8a6',
-      fontWeight: 'bold',
+    ratingBlock: {
+      backgroundColor: appShell.canvasAlt,
+      borderRadius: radius.md,
+      padding: spacing.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: appShell.borderSubtle,
     },
     ratingRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 8,
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    ratingLabel: {
+      color: appShell.textPrimary,
+      fontFamily: fonts.semiBold,
+      fontSize: 13,
+    },
+    reviewSnippet: {
+      marginTop: spacing.xs,
+      color: appShell.textSecondary,
+      fontFamily: fonts.regular,
+      fontSize: 13,
+      lineHeight: 19,
     },
     modalContainer: {
       flex: 1,
@@ -206,17 +162,21 @@ export default function RatingsScreen() {
       backgroundColor: 'rgba(0,0,0,0.4)',
     },
     modalContent: {
-      backgroundColor: '#fff',
-      borderRadius: 14,
-      padding: 24,
-      width: '85%',
+      backgroundColor: appShell.card,
+      borderRadius: radius.xl,
+      padding: spacing.md,
+      width: '88%',
+      maxWidth: 400,
       alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: appShell.cardBorder,
+      ...shadow.card,
     },
     modalTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: '#14b8a6',
-      marginBottom: 12,
+      fontSize: 17,
+      fontFamily: fonts.bold,
+      color: appShell.cta,
+      marginBottom: 10,
     },
     starRow: {
       flexDirection: 'row',
@@ -225,105 +185,119 @@ export default function RatingsScreen() {
     reviewInput: {
       width: '100%',
       minHeight: 60,
-      borderColor: '#e0f2f1',
-      borderWidth: 1,
-      borderRadius: 8,
-      padding: 8,
-      color: '#0f172a',
-      backgroundColor: '#f8fafc',
       marginBottom: 12,
     },
-    submitButton: {
-      backgroundColor: '#14b8a6',
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: 'center',
-      marginTop: 8,
-      paddingHorizontal: 20,
+    modalActions: {
+      alignSelf: 'stretch',
+      width: '100%',
+      marginTop: spacing.sm,
     },
-    submitButtonText: {
-      color: '#fff',
-      fontWeight: 'bold',
+    modalPrimaryCta: {
+      alignSelf: 'stretch',
+      width: '100%',
+      marginTop: spacing.md,
     },
-    closeButton: {
-      marginTop: 16,
-    },
-    closeButtonText: {
-      color: '#14b8a6',
-      fontWeight: 'bold',
+    cardSecondaryCtaCompact: {
+      paddingVertical: 9,
+      minHeight: 38,
     },
     adminRatingCard: {
-      backgroundColor: '#e0f2f1',
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 8,
+      backgroundColor: appShell.iceBlue,
+      borderRadius: radius.md,
+      padding: spacing.sm,
+      marginBottom: spacing.xs,
     },
     adminRatingText: {
-      color: '#0f172a',
+      color: appShell.textPrimary,
+      fontSize: 14,
+      lineHeight: 21,
+      fontFamily: fonts.regular,
     },
   });
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#14b8a6', marginBottom: 16 }}>
-          Campaign Ratings
-        </Text>
-        {(ratingsLoading || campaignsLoading) && <ActivityIndicator size="large" color="#14b8a6" style={{ marginVertical: 16 }} />}
-        {ratingsError && <Text style={{ color: 'red', marginBottom: 8 }}>{ratingsError}</Text>}
+        <Text style={styles.pageTitle}>Campaign Ratings</Text>
+        {(ratingsLoading || campaignsLoading) && <ActivityIndicator size="large" color={appShell.cta} style={{ marginVertical: 16 }} />}
+        {ratingsError && <Text style={{ color: palette.error, marginBottom: spacing.sm }}>{ratingsError}</Text>}
         {participations.length === 0 && !ratingsLoading && !campaignsLoading ? (
-          <Text>No campaign participations found.</Text>
+          <Text style={{ color: appShell.textSecondary, fontFamily: fonts.regular }}>No campaign participations found.</Text>
         ) : (
           participations.map((p) => {
             const campaign = campaigns.find(c => c.id === p.campaignId);
             const rating = ratings[p.id];
             if (!campaign) return null;
+            const formatDurationRange = (startDate?: string, endDate?: string) => {
+              const start = startDate ? new Date(startDate) : null;
+              const end = endDate ? new Date(endDate) : null;
+              const startValid = !!start && !Number.isNaN(start.getTime());
+              const endValid = !!end && !Number.isNaN(end.getTime());
+
+              if (startValid && endValid) {
+                return `${SHORT_MONTH_DAY.format(start)}-${SHORT_MONTH_DAY.format(end)}`;
+              }
+              if (startValid) {
+                return `Starts ${SHORT_MONTH_DAY.format(start)}`;
+              }
+              return 'TBD';
+            };
+
+            const metaRows: FeedMetaRow[] = [
+              { label: 'Brand', value: String(campaign.tenant?.tenantName ?? 'Unknown') },
+              { label: 'Commission', value: campaign.commissionRate != null ? `${campaign.commissionRate}%` : 'N/A' },
+              {
+                label: 'Duration',
+                value: formatDurationRange(campaign.startDate, campaign.endDate),
+              },
+            ];
+
             return (
-              <View key={p.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>{campaign.name}</Text>
-                  <Text style={styles.cardStatus}>{campaign.status}</Text>
-                </View>
-                <Text style={styles.cardDesc} numberOfLines={3}>{campaign.description}</Text>
-                <View style={styles.cardInfoRow}>
-                  <Text style={styles.cardInfo}>Type: <Text style={styles.cardValue}>{campaign.type}</Text></Text>
-                  <Text style={styles.cardInfo}>Commission: <Text style={styles.cardValue}>{campaign.commissionRate ? `${campaign.commissionRate}%` : 'N/A'}</Text></Text>
-                </View>
-                {campaign.tenant && (
-                  <View style={styles.cardInfoRow}>
-                    <Text style={styles.cardInfo}>Brand: <Text style={styles.cardValue}>{campaign.tenant.tenantName}</Text></Text>
+              <PremiumCampaignFeedCard
+                key={p.id}
+                style={{ marginBottom: spacing.sm }}
+                title={campaign.name}
+                statusLabel={String(campaign.status)}
+                description={undefined}
+                metaRows={metaRows}
+                bodyExtra={
+                  <View style={styles.ratingBlock}>
+                    <View style={styles.ratingRow}>
+                      <Text style={styles.ratingLabel}>Your rating</Text>
+                      {rating ? (
+                        <StarRatingDisplay rating={rating.overallRating} />
+                      ) : (
+                        <Text style={{ color: appShell.textMuted, fontFamily: fonts.regular, fontSize: 13 }}>Not rated yet</Text>
+                      )}
+                    </View>
+                    {rating?.review ? (
+                      <Text style={styles.reviewSnippet} numberOfLines={6}>
+                        {rating.review}
+                      </Text>
+                    ) : null}
                   </View>
-                )}
-                <View style={styles.cardInfoRow}>
-                  <Text style={styles.cardInfo}>Start: <Text style={styles.cardValue}>{campaign.startDate?.slice(0, 10)}</Text></Text>
-                  <Text style={styles.cardInfo}>End: <Text style={styles.cardValue}>{campaign.endDate?.slice(0, 10) || 'Ongoing'}</Text></Text>
-                </View>
-                <View style={styles.cardInfoRow}>
-                  <Text style={styles.cardInfo}>Niche: <Text style={styles.cardValue}>{campaign.requiredInfluencerNiche}</Text></Text>
-                  <Text style={styles.cardInfo}>Age: <Text style={styles.cardValue}>{campaign.targetAudienceAgeGroup}</Text></Text>
-                </View>
-                <View style={styles.ratingRow}>
-                  <Text style={{ marginRight: 8 }}>Your Rating:</Text>
-                  {rating ? (
-                    <StarRatingDisplay rating={rating.overallRating} />
-                  ) : (
-                    <Text style={{ color: '#888' }}>Not rated</Text>
-                  )}
-                </View>
-                {rating && rating.review && (
-                  <Text style={{ marginTop: 4, color: '#555' }}>
-                    "{rating.review}"
-                  </Text>
-                )}
-                {!rating && (
-                  <TouchableOpacity style={styles.rateButton} onPress={() => handleOpenRating(p)}>
-                    <Text style={styles.rateButtonText}>Rate Campaign</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.adminButton} onPress={() => handleOpenAdminRatings(p)}>
-                  <Text style={styles.adminButtonText}>View Admin Ratings</Text>
-                </TouchableOpacity>
-              </View>
+                }
+                footer={
+                  <>
+                    {!rating ? (
+                      <PrimaryButton compact label="Rate Campaign" onPress={() => handleOpenRating(p)} />
+                    ) : null}
+                    {rating ? (
+                      <PrimaryButton
+                        compact
+                        label="View Admin Ratings"
+                        onPress={() => handleOpenAdminRatings(p)}
+                      />
+                    ) : (
+                      <SecondaryButton
+                        style={styles.cardSecondaryCtaCompact}
+                        label="View Admin Ratings"
+                        onPress={() => handleOpenAdminRatings(p)}
+                      />
+                    )}
+                  </>
+                }
+              />
             );
           })
         )}
@@ -338,27 +312,26 @@ export default function RatingsScreen() {
                 <TouchableOpacity key={i} onPress={() => setRatingValue(i)}>
                   <Ionicons
                     name={i <= ratingValue ? 'star' : 'star-outline'}
-                    size={32}
-                    color={i <= ratingValue ? '#FFD700' : '#ccc'}
+                    size={28}
+                    color={i <= ratingValue ? '#F59E0B' : appShell.textMuted}
                   />
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput
+            <PremiumTextInput
               style={styles.reviewInput}
               placeholder="Write a review (optional)"
-              placeholderTextColor="#aaa"
               value={review}
               onChangeText={setReview}
               multiline
               maxLength={500}
             />
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmitRating}>
-              <Text style={styles.submitButtonText}>Submit Rating</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowRatingModal(false)}>
-              <Text style={styles.closeButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            <PrimaryButton style={styles.modalActions} label="Submit Rating" onPress={handleSubmitRating} />
+            <SecondaryButton
+              style={styles.modalActions}
+              label="Cancel"
+              onPress={() => setShowRatingModal(false)}
+            />
           </View>
         </View>
       </Modal>
@@ -371,19 +344,22 @@ export default function RatingsScreen() {
               adminRatings[adminModalParticipation.id].map((r, idx) => (
                 <View key={r.id || idx} style={styles.adminRatingCard}>
                   <StarRatingDisplay rating={r.overallRating} />
-                  {r.review && (
-                    <Text style={[styles.adminRatingText, { marginTop: 8, fontStyle: 'italic' }]}>
-                      "{r.review}"
-                    </Text>
+                  {r.review ? (
+                    <Text style={[styles.adminRatingText, { marginTop: 8, fontStyle: 'italic' }]}>{r.review}</Text>
+                  ) : (
+                    <Text style={[styles.adminRatingText, { marginTop: 8 }]}>No review text.</Text>
                   )}
                 </View>
               ))
             ) : (
               <Text style={styles.adminRatingText}>No admin ratings yet.</Text>
             )}
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowAdminModal(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+            <PrimaryButton
+              compact
+              style={styles.modalPrimaryCta}
+              label="Close"
+              onPress={() => setShowAdminModal(false)}
+            />
           </View>
         </View>
       </Modal>

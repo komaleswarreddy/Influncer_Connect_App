@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Linking, Alert, ActivityIndicator } from 'react-native';
-import { Text, TextInput, Button, Checkbox, Dialog, Portal, Provider, useTheme } from 'react-native-paper';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Linking,
+  ScrollView,
+  Text as RNText,
+  ActivityIndicator,
+  Text,
+} from 'react-native';
+import { TextInput, Button, Checkbox, Dialog, Portal } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/auth-store';
-import Constants from 'expo-constants';
+import { KindeAuthButtons } from '../components/KindeAuthButtons';
+import { LoginHeroLottie } from '../components/LoginHeroLottie';
+import { kindeConfigured, useMockAuth } from '../lib/auth-config';
+import { getApiBaseUrl } from '../lib/api';
+import { loginScreen, loginPremium, premiumButton } from '@/theme';
+
+const PILL = 999;
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -18,18 +37,16 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-// Get API URL from environment or use development URL
-const getApiUrl = () => {
-  const devApiUrl = Constants.expoConfig?.extra?.apiUrl;
-  const mockApiUrl = 'https://jsonplaceholder.typicode.com'; // Temporary mock API
-  const prodApiUrl = 'https://your-railway-app.railway.app'; // Will be used later
-  return devApiUrl || mockApiUrl;
+const inputThemeLight = {
+  colors: {
+    surface: loginScreen.background,
+    onSurface: loginScreen.textPrimary,
+    onSurfaceVariant: loginScreen.textSecondary,
+    outline: loginScreen.inputOutline,
+  },
 };
 
-const API_URL = getApiUrl();
-
 export default function LoginScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,21 +55,19 @@ export default function LoginScreen() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
-  const { login, isLoading, error: authError } = useAuthStore();
+  const { login, error: authError } = useAuthStore();
 
-  const { control, handleSubmit, setValue, formState: { errors, isValid } } = useForm<LoginFormData>({
+  const { control, handleSubmit, formState: { errors, isValid } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '', remember: false, tenant: '' },
-    mode: 'onChange', // Validate on change
+    mode: 'onChange',
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    // Additional validation check
     if (!data.email || !data.password) {
       setError('Please enter both email and password');
       return;
     }
-    
     if (data.password.length < 6) {
       setError('Password must be at least 6 characters long');
       return;
@@ -61,13 +76,11 @@ export default function LoginScreen() {
     setError(null);
     setLoading(true);
     try {
-      console.log('Attempting login with form data:', { email: data.email, password: data.password ? '***' : 'empty' });
       await login(data.email, data.password);
-      console.log('Login successful, navigating to dashboard');
       router.replace('/influencer/dashboard');
-    } catch (err: any) {
-      console.error('Login failed:', err);
-      setError(err.message || 'Login failed. Please check your credentials and try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed. Please check your credentials and try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -77,136 +90,229 @@ export default function LoginScreen() {
     setResetMsg(null);
     setResetLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+      const base = getApiBaseUrl();
+      if (!base) {
+        setResetMsg('API URL is not configured.');
+        return;
+      }
+      const res = await fetch(`${base}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail }),
       });
       if (!res.ok) throw new Error('Failed to send password reset email.');
       setResetMsg('Password reset email sent! Check your inbox.');
-    } catch (err: any) {
-      setResetMsg(err.message || 'Failed to send password reset email.');
+    } catch (err: unknown) {
+      setResetMsg(err instanceof Error ? err.message : 'Failed to send password reset email.');
     } finally {
       setResetLoading(false);
     }
   };
 
   return (
-    <Provider>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Affiliate Platform</Text>
-          {/* Mode toggle can be added here if needed */}
-        </View>
-        <View style={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Sign In</Text>
-            <Text style={styles.subtitle}>Enter your credentials to access your account</Text>
-            <View style={{ height: 16 }} />
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  label="Email"
-                  mode="outlined"
-                  value={value}
-                  onChangeText={onChange}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  error={!!errors.email}
-                  style={styles.input}
-                  disabled={loading}
-                  placeholderTextColor="#666"
-                />
-              )}
-            />
-            {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
-            <View style={{ height: 8 }} />
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  label="Password"
-                  mode="outlined"
-                  value={value}
-                  onChangeText={onChange}
-                  secureTextEntry={!showPassword}
-                  right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword(!showPassword)} />}
-                  error={!!errors.password}
-                  style={styles.input}
-                  disabled={loading}
-                  placeholderTextColor="#666"
-                />
-              )}
-            />
-            {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
-            <View style={styles.row}>
-              <Controller
-                control={control}
-                name="remember"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.checkboxRow}>
-                    <Checkbox
-                      status={value ? 'checked' : 'unchecked'}
-                      onPress={() => onChange(!value)}
-                      disabled={loading}
-                    />
-                    <Text style={styles.checkboxLabel}>Remember me</Text>
-                  </View>
-                )}
-              />
-              <TouchableOpacity onPress={() => setForgotVisible(true)} disabled={loading}>
-                <Text style={styles.forgot}>Forgot password?</Text>
-              </TouchableOpacity>
+    <>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
+        <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <View style={styles.hero}>
+                <RNText style={styles.eyebrow}>Affiliate Platform</RNText>
+                <RNText style={styles.welcome}>Welcome back</RNText>
+                <RNText style={styles.tagline}>Sign in to continue to your workspace</RNText>
+                <LoginHeroLottie />
+                <View style={styles.accentBar} />
+              </View>
+
+              <View style={styles.signInSection}>
+                <View style={styles.signInInner}>
+                  <RNText style={styles.signInTitle}>Sign in</RNText>
+                  {useMockAuth ? (
+                    <RNText style={styles.signInHint}>
+                      {kindeConfigured
+                        ? 'Development: mock email sign-in below.'
+                        : 'Enter your credentials to access your account'}
+                    </RNText>
+                  ) : null}
+
+                  {kindeConfigured ? (
+                    <>
+                      <View style={{ height: useMockAuth ? 20 : 12 }} />
+                      <KindeAuthButtons mode="login" appearance="premium" />
+                      {useMockAuth ? (
+                        <View style={styles.dividerRow}>
+                          <View style={styles.divider} />
+                          <RNText style={styles.dividerText}>Or mock sign-in</RNText>
+                          <View style={styles.divider} />
+                        </View>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {useMockAuth ? (
+                    <>
+                      <Controller
+                        control={control}
+                        name="email"
+                        render={({ field: { onChange, value } }) => (
+                          <TextInput
+                            label="Email"
+                            mode="outlined"
+                            value={value}
+                            onChangeText={onChange}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            error={!!errors.email}
+                            style={styles.input}
+                            disabled={loading}
+                            placeholderTextColor={loginScreen.textSecondary}
+                            theme={inputThemeLight}
+                            outlineColor={loginScreen.inputOutline}
+                            activeOutlineColor={loginScreen.inputOutlineActive}
+                            textColor={loginScreen.textPrimary}
+                          />
+                        )}
+                      />
+                      {errors.email ? (
+                        <RNText style={styles.fieldError}>{errors.email.message}</RNText>
+                      ) : null}
+                      <View style={{ height: 10 }} />
+                      <Controller
+                        control={control}
+                        name="password"
+                        render={({ field: { onChange, value } }) => (
+                          <TextInput
+                            label="Password"
+                            mode="outlined"
+                            value={value}
+                            onChangeText={onChange}
+                            secureTextEntry={!showPassword}
+                            right={
+                              <TextInput.Icon
+                                icon={showPassword ? 'eye-off' : 'eye'}
+                                onPress={() => setShowPassword(!showPassword)}
+                              />
+                            }
+                            error={!!errors.password}
+                            style={styles.input}
+                            disabled={loading}
+                            placeholderTextColor={loginScreen.textSecondary}
+                            theme={inputThemeLight}
+                            outlineColor={loginScreen.inputOutline}
+                            activeOutlineColor={loginScreen.inputOutlineActive}
+                            textColor={loginScreen.textPrimary}
+                          />
+                        )}
+                      />
+                      {errors.password ? (
+                        <RNText style={styles.fieldError}>{errors.password.message}</RNText>
+                      ) : null}
+                      <View style={styles.row}>
+                        <Controller
+                          control={control}
+                          name="remember"
+                          render={({ field: { onChange, value } }) => (
+                            <View style={styles.checkboxRow}>
+                              <Checkbox
+                                status={value ? 'checked' : 'unchecked'}
+                                onPress={() => onChange(!value)}
+                                disabled={loading}
+                                color={loginScreen.inputOutlineActive}
+                              />
+                              <RNText style={styles.checkboxLabel}>Remember me</RNText>
+                            </View>
+                          )}
+                        />
+                        <TouchableOpacity onPress={() => setForgotVisible(true)} disabled={loading}>
+                          <RNText style={styles.forgot}>Forgot password?</RNText>
+                        </TouchableOpacity>
+                      </View>
+                      {authError ? <RNText style={styles.fieldError}>{authError}</RNText> : null}
+                      {error ? <RNText style={styles.fieldError}>{error}</RNText> : null}
+
+                      <View style={styles.premiumBtnWrap}>
+                        <View style={styles.premiumBtnShadow}>
+                          <TouchableOpacity
+                            activeOpacity={0.88}
+                            onPress={handleSubmit(onSubmit)}
+                            disabled={loading || !isValid}
+                            style={[
+                              styles.premiumBtnTouchable,
+                              (loading || !isValid) && styles.premiumBtnDisabled,
+                            ]}
+                          >
+                            <View style={styles.premiumBtnClip}>
+                              <LinearGradient
+                                colors={[...premiumButton.baseGradient]}
+                                locations={[...premiumButton.baseLocations]}
+                                start={{ x: 0.5, y: 0 }}
+                                end={{ x: 0.5, y: 1 }}
+                                style={StyleSheet.absoluteFillObject}
+                              />
+                              <LinearGradient
+                                colors={[...premiumButton.glossGradient]}
+                                locations={[...premiumButton.glossLocations]}
+                                start={{ x: 0.5, y: 0 }}
+                                end={{ x: 0.5, y: 1 }}
+                                style={[styles.premiumBtnGloss, { height: premiumButton.glossHeightPercent }]}
+                                pointerEvents="none"
+                              />
+                              <View style={styles.premiumBtnRim} pointerEvents="none" />
+                              <View style={styles.premiumBtnContent}>
+                                {loading ? (
+                                  <ActivityIndicator color={premiumButton.labelColor} size="small" />
+                                ) : (
+                                  <RNText style={styles.premiumBtnLabel}>Sign in</RNText>
+                                )}
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </>
+                  ) : (
+                    !kindeConfigured && (
+                      <RNText style={styles.configError}>
+                        Set kindeDomain and kindeClientId in app config, or enable useMockAuth for local
+                        testing.
+                      </RNText>
+                    )
+                  )}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.footer}>
+              <RNText style={styles.footerText}>
+                © {new Date().getFullYear()} Affiliate Platform. All rights reserved.
+              </RNText>
+              <View style={styles.footerLinks}>
+                <TouchableOpacity onPress={() => Linking.openURL('https://your-terms-url.com')}>
+                  <RNText style={styles.footerLink}>Terms</RNText>
+                </TouchableOpacity>
+                <RNText style={styles.footerDot}>·</RNText>
+                <TouchableOpacity onPress={() => Linking.openURL('https://your-privacy-url.com')}>
+                  <RNText style={styles.footerLink}>Privacy</RNText>
+                </TouchableOpacity>
+              </View>
             </View>
-            {authError && <Text style={styles.error}>{authError}</Text>}
-            <Button
-              mode="contained"
-              onPress={handleSubmit(onSubmit)}
-              loading={loading}
-              style={styles.button}
-              contentStyle={{ paddingVertical: 8 }}
-              disabled={loading || !isValid}
-            >
-              Sign In
-            </Button>
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>Or</Text>
-              <View style={styles.divider} />
-            </View>
-            <Button
-              mode="outlined"
-              style={styles.button}
-              icon={() => <MaterialCommunityIcons name="account-plus" size={20} color={theme.colors.primary} />}
-              onPress={() => router.push('/register/influencer')}
-              disabled={loading}
-            >
-              Join as Influencer
-            </Button>
-            {/*
-            <Button
-              mode="outlined"
-              style={styles.button}
-              icon={() => <MaterialCommunityIcons name="star-outline" size={20} color={theme.colors.primary} />}
-              onPress={() => router.push('/rate-my-rate')}
-              disabled={loading}
-            >
-              Rate my Rate
-            </Button>
-            */}
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+
         <Portal>
-          <Dialog visible={forgotVisible} onDismiss={() => setForgotVisible(false)}>
+          <Dialog visible={forgotVisible} onDismiss={() => setForgotVisible(false)} style={styles.dialog}>
             <Dialog.Title>Reset Password</Dialog.Title>
             <Dialog.Content>
-              <Text>Enter your email to receive password reset instructions.</Text>
+              <Text style={{ color: loginScreen.textPrimary }}>
+                Enter your email to receive password reset instructions.
+              </Text>
               <TextInput
                 label="Email"
                 mode="outlined"
@@ -214,11 +320,15 @@ export default function LoginScreen() {
                 onChangeText={setResetEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                style={styles.input}
+                style={styles.inputDialog}
                 disabled={resetLoading}
-                placeholderTextColor="#666"
+                placeholderTextColor={loginScreen.textSecondary}
+                theme={inputThemeLight}
+                outlineColor={loginScreen.inputOutline}
+                activeOutlineColor={loginScreen.inputOutlineActive}
+                textColor={loginScreen.textPrimary}
               />
-              {resetMsg && <Text style={styles.error}>{resetMsg}</Text>}
+              {resetMsg ? <Text style={{ color: loginPremium.error }}>{resetMsg}</Text> : null}
             </Dialog.Content>
             <Dialog.Actions>
               <Button onPress={handlePasswordReset} loading={resetLoading} disabled={resetLoading}>
@@ -230,144 +340,257 @@ export default function LoginScreen() {
             </Dialog.Actions>
           </Dialog>
         </Portal>
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>&copy; {new Date().getFullYear()} Affiliate Platform. All rights reserved.</Text>
-          <View style={styles.footerLinks}>
-            <TouchableOpacity onPress={() => Linking.openURL('https://your-terms-url.com')}><Text style={styles.footerLink}>Terms</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => Linking.openURL('https://your-privacy-url.com')}><Text style={styles.footerLink}>Privacy</Text></TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Provider>
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#00796b',
-  },
-  container: {
+  root: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: loginScreen.background,
+  },
+  safe: {
+    flex: 1,
+    backgroundColor: loginScreen.background,
+  },
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+  hero: {
+    marginBottom: 18,
     alignItems: 'center',
-    backgroundColor: '#f0fdf6',
   },
-  card: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    alignItems: 'stretch',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#00796b',
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2.4,
+    color: loginScreen.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
+  welcome: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: loginScreen.textPrimary,
+    letterSpacing: -0.5,
     marginBottom: 8,
+    textAlign: 'center',
+  },
+  tagline: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: loginScreen.textSecondary,
+    fontWeight: '400',
+    maxWidth: 320,
+    textAlign: 'center',
+  },
+  accentBar: {
+    alignSelf: 'center',
+    marginTop: 14,
+    width: 56,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: loginScreen.accent,
+  },
+  signInSection: {
+    width: '100%',
+    alignItems: 'stretch',
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  signInInner: {
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+    width: '100%',
+  },
+  signInTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: loginScreen.textPrimary,
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  signInHint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: loginScreen.textSecondary,
+    lineHeight: 19,
+    textAlign: 'center',
   },
   input: {
     marginBottom: 0,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: loginScreen.background,
   },
-  error: {
-    color: 'red',
+  inputDialog: {
+    marginTop: 8,
+    marginBottom: 0,
+    backgroundColor: loginScreen.background,
+  },
+  fieldError: {
+    color: loginPremium.error,
     fontSize: 13,
-    marginBottom: 8,
-    marginTop: 2,
-    textAlign: 'left',
+    marginTop: 6,
+  },
+  configError: {
+    marginTop: 12,
+    color: loginPremium.error,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginVertical: 8,
+    marginVertical: 12,
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   checkboxLabel: {
-    marginLeft: 8,
-    fontSize: 15,
-    color: '#333',
+    marginLeft: 4,
+    fontSize: 14,
+    color: loginScreen.textSecondary,
   },
   forgot: {
-    color: '#00796b',
-    fontWeight: 'bold',
+    color: loginScreen.inputOutlineActive,
+    fontWeight: '600',
     fontSize: 14,
-  },
-  button: {
-    marginVertical: 4,
-    borderRadius: 8,
-  },
-  link: {
-    color: '#666',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  linkBold: {
-    color: '#00796b',
-    fontWeight: 'bold',
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 20,
   },
   divider: {
     flex: 1,
-    height: 1,
-    backgroundColor: '#eee',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: loginScreen.inputOutline,
   },
   dividerText: {
-    marginHorizontal: 8,
-    color: '#999',
-    fontSize: 13,
+    marginHorizontal: 12,
+    color: loginScreen.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  premiumBtnWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  premiumBtnShadow: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: PILL,
+    ...Platform.select({
+      ios: {
+        shadowColor: premiumButton.shadowColor,
+        shadowOffset: premiumButton.shadowOffset,
+        shadowOpacity: premiumButton.shadowOpacity,
+        shadowRadius: premiumButton.shadowRadius,
+      },
+      android: {
+        elevation: premiumButton.elevation,
+      },
+    }),
+  },
+  premiumBtnTouchable: {
+    width: '100%',
+    borderRadius: PILL,
+    borderWidth: 1,
+    borderColor: premiumButton.rimOuter,
+    overflow: 'hidden',
+  },
+  premiumBtnDisabled: {
+    opacity: 0.5,
+  },
+  premiumBtnClip: {
+    borderRadius: PILL,
+    minHeight: premiumButton.minHeight,
+    paddingVertical: premiumButton.padV,
+    paddingHorizontal: premiumButton.padH,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+  },
+  premiumBtnGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: PILL,
+    borderTopRightRadius: PILL,
+  },
+  premiumBtnRim: {
+    position: 'absolute',
+    top: 1,
+    left: '8%',
+    right: '8%',
+    height: 1,
+    backgroundColor: premiumButton.rimLine,
+    borderRadius: 1,
+    opacity: 0.95,
+  },
+  premiumBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  premiumBtnLabel: {
+    color: premiumButton.labelColor,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.35,
+    ...Platform.select({
+      ios: {
+        textShadowColor: 'rgba(0, 0, 0, 0.22)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+      },
+    }),
   },
   footer: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: loginScreen.footerBorder,
+    backgroundColor: loginScreen.background,
   },
   footerText: {
-    color: '#999',
-    fontSize: 13,
-    marginBottom: 4,
+    color: loginScreen.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
   },
   footerLinks: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
   },
   footerLink: {
-    color: '#00796b',
-    fontWeight: 'bold',
-    marginHorizontal: 8,
-    fontSize: 14,
+    color: loginScreen.textSecondary,
+    fontWeight: '600',
+    fontSize: 13,
   },
-}); 
+  footerDot: {
+    color: loginScreen.textSecondary,
+    fontSize: 13,
+  },
+  dialog: {
+    backgroundColor: loginScreen.background,
+    borderRadius: 12,
+  },
+});

@@ -2,12 +2,28 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { api } from '../../lib/api';
 import { Ionicons } from '@expo/vector-icons';
+import { kindeConfigured } from '../../lib/auth-config';
+import { appShell, shadow } from '@/theme';
 
 interface PasswordSectionProps {
   onUpdate?: () => void;
 }
 
-export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
+function KindePasswordMessage() {
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Password</Text>
+        <Text style={styles.kindeHint}>
+          You sign in with Google. Your password is managed by your Google account, so there is
+          nothing to change here.
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     currentPassword: '',
@@ -47,8 +63,9 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
         confirmPassword: '',
       });
       if (onUpdate) onUpdate();
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update password');
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to update password';
+      Alert.alert('Error', msg);
     } finally {
       setIsLoading(false);
     }
@@ -58,18 +75,18 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Change Password</Text>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Current Password</Text>
           <View style={styles.passwordInputRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={formData.currentPassword}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, currentPassword: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, currentPassword: text }))}
               placeholder="Enter your current password"
               secureTextEntry={!showCurrent}
             />
-            <TouchableOpacity onPress={() => setShowCurrent(v => !v)} style={styles.eyeIcon}>
+            <TouchableOpacity onPress={() => setShowCurrent((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showCurrent ? 'eye' : 'eye-off'} size={22} color="#888" />
             </TouchableOpacity>
           </View>
@@ -81,11 +98,11 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={formData.newPassword}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, newPassword: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, newPassword: text }))}
               placeholder="Enter your new password"
               secureTextEntry={!showNew}
             />
-            <TouchableOpacity onPress={() => setShowNew(v => !v)} style={styles.eyeIcon}>
+            <TouchableOpacity onPress={() => setShowNew((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showNew ? 'eye' : 'eye-off'} size={22} color="#888" />
             </TouchableOpacity>
           </View>
@@ -97,11 +114,11 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={formData.confirmPassword}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, confirmPassword: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, confirmPassword: text }))}
               placeholder="Confirm your new password"
               secureTextEntry={!showConfirm}
             />
-            <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={styles.eyeIcon}>
+            <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color="#888" />
             </TouchableOpacity>
           </View>
@@ -115,8 +132,8 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
+      <TouchableOpacity
+        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
         onPress={handleSave}
         disabled={isLoading}
       >
@@ -130,34 +147,39 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
   );
 }
 
+export default function PasswordSection(props: PasswordSectionProps) {
+  if (kindeConfigured) {
+    return <KindePasswordMessage />;
+  }
+  return <EmailPasswordForm {...props} />;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'transparent',
   },
   section: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: appShell.card,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: appShell.cardBorder,
+    ...shadow.cardLight,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#14b8a6',
-    marginBottom: 16,
+    color: appShell.cta,
+    marginBottom: 12,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 6,
@@ -168,7 +190,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: 14,
     backgroundColor: '#fff',
   },
   passwordRequirements: {
@@ -178,7 +200,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   requirementsTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#0c4a6e',
     marginBottom: 8,
@@ -189,11 +211,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   saveButton: {
-    backgroundColor: '#14b8a6',
-    marginHorizontal: 16,
-    marginVertical: 16,
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: appShell.cta,
+    marginHorizontal: 12,
+    marginVertical: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
     alignItems: 'center',
   },
   saveButtonDisabled: {
@@ -201,7 +223,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   passwordInputRow: {
@@ -212,4 +234,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-}); 
+  kindeHint: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 22,
+  },
+});
