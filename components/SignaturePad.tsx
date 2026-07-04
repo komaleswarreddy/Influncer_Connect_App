@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 
@@ -9,19 +9,6 @@ interface SignaturePadProps {
 
 export default function SignaturePad({ value, onChange }: SignaturePadProps) {
   const viewShotRef = useRef<ViewShot>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-
-  const captureSignature = async () => {
-    try {
-      if (viewShotRef.current?.capture) {
-        const uri = await viewShotRef.current.capture();
-        onChange(uri);
-      }
-    } catch (error) {
-      console.error('Error capturing signature:', error);
-      Alert.alert('Error', 'Failed to capture signature');
-    }
-  };
 
   const clearSignature = () => {
     onChange('');

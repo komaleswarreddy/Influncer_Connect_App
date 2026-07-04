@@ -14,15 +14,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProgressStore } from '../../store/progress-store';
 import { useCampaignStore } from '../../store/campaign-store';
+import { usePostAnalyzerStore } from '../../store/post-analyzer-store';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { appShell, palette, radius, shadow, spacing } from '@/theme';
 import { fonts } from '@/components/ui/typography';
+import { parsePostUrl, getPlatformColor, getPlatformLabel } from '../../lib/post-url-parser';
+import { PostMetricsCard } from '../../components/PostMetricsCard';
 
 export default function CampaignProgressScreen() {
+  const closeSubmitModal = () => {
+    setShowSubmitModal(false);
+    setContentUrl('');
+    setContentType('');
+    setAnalyzedUrl('');
+    setBulkUrlsInput('');
+    setSelectedProgress(null);
+    clearCurrentMetrics();
+    clearBulkResults();
+  };
+
   const { participationId, campaignId } = useLocalSearchParams();
   const router = useRouter();
-  const { progressData, isLoading, error, fetchProgress, submitContent, updateSubmission, deleteSubmission, clearError } = useProgressStore();
+  const { progressData, isLoading, error, fetchProgress, submitContent, updateSubmission, deleteSubmission } = useProgressStore();
   const { campaigns } = useCampaignStore();
   const [refreshing, setRefreshing] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -31,13 +45,38 @@ export default function CampaignProgressScreen() {
   const [editingContentUrl, setEditingContentUrl] = useState('');
   const [contentUrl, setContentUrl] = useState('');
   const [contentType, setContentType] = useState('');
+  const [analyzedUrl, setAnalyzedUrl] = useState('');
+  const {
+    analyzeUrl,
+    analyzeBulkUrls,
+    isAnalyzing,
+    isBulkAnalyzing,
+    currentMetrics,
+    currentAnalysisId,
+    currentPersistError,
+    analyzeError,
+    bulkResults,
+    bulkError,
+    clearCurrentMetrics,
+    clearBulkResults,
+  } = usePostAnalyzerStore();
+  const [bulkUrlsInput, setBulkUrlsInput] = useState('');
 
   const progress = participationId ? progressData[participationId as string] : undefined;
   const campaign = campaigns.find(c => c.id === campaignId);
+  const parsedUrl = contentUrl ? parsePostUrl(contentUrl) : null;
+  const isPlatformValid = parsedUrl?.isValid ?? false;
 
   useEffect(() => {
     if (participationId) fetchProgress(participationId as string);
   }, [participationId, fetchProgress]);
+
+  useEffect(() => {
+    if (contentUrl !== analyzedUrl) {
+      clearCurrentMetrics();
+      clearBulkResults();
+    }
+  }, [contentUrl, analyzedUrl, clearCurrentMetrics, clearBulkResults]);
 
   // If participationId is missing or invalid
   if (!participationId) {
@@ -61,6 +100,10 @@ export default function CampaignProgressScreen() {
   };
 
   const handleSubmitContent = async () => {
+    if (!currentMetrics) {
+      Alert.alert('Error', 'Please analyze the post URL before submitting.');
+      return;
+    }
     if (!contentUrl.trim() || !contentType.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -69,34 +112,38 @@ export default function CampaignProgressScreen() {
     try {
       await submitContent(participationId as string, {
         progressId: selectedProgress.id,
-        contentUrl: contentUrl.trim(),
-        contentType: contentType.trim(),
+        contentUrl: analyzedUrl.trim(),
+        contentType: currentMetrics.contentType || contentType.trim(),
+        analysisId: currentAnalysisId,
       });
       setShowSubmitModal(false);
       setContentUrl('');
       setContentType('');
+      setAnalyzedUrl('');
+      setBulkUrlsInput('');
       setSelectedProgress(null);
+      clearCurrentMetrics();
+      clearBulkResults();
       Alert.alert('Success', 'Content submitted successfully!');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to submit content');
     }
   };
 
-  const handleUpdateSubmission = async () => {
-    if (!contentUrl.trim()) {
-      Alert.alert('Error', 'Please enter a content URL');
+  const handleSubmitBatchProof = async (url: string, inferredContentType?: string) => {
+    if (!selectedProgress?.id) {
+      Alert.alert('Error', 'No requirement selected for submission.');
       return;
     }
-
     try {
-      await updateSubmission(selectedSubmissionId as string, {
-        contentUrl: contentUrl.trim(),
+      await submitContent(participationId as string, {
+        progressId: selectedProgress.id,
+        contentUrl: url.trim(),
+        contentType: inferredContentType || contentType.trim() || 'generic_post',
       });
-      setSelectedSubmissionId(null);
-      setContentUrl('');
-      Alert.alert('Success', 'Submission updated successfully!');
+      Alert.alert('Success', 'Batch URL submitted as campaign proof.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update submission');
+      Alert.alert('Error', error.message || 'Failed to submit batch URL proof');
     }
   };
 
@@ -125,12 +172,20 @@ export default function CampaignProgressScreen() {
   const openSubmitModal = (progressItem: any) => {
     setSelectedProgress(progressItem);
     setContentType(progressItem.contentType);
+    setContentUrl('');
+    setAnalyzedUrl('');
+    clearCurrentMetrics();
     setShowSubmitModal(true);
   };
 
-  const openEditModal = (submission: any) => {
-    setSelectedSubmissionId(submission.id);
-    setEditingContentUrl(submission.contentUrl);
+  const openFallbackSubmitModal = () => {
+    const fallback = {
+      id: '__fallback__',
+      contentType: 'generic_post',
+      requiredCount: 1000,
+      completedCount: 0,
+    };
+    openSubmitModal(fallback);
   };
 
   const getStatusColor = (status: string) => {
@@ -251,6 +306,18 @@ export default function CampaignProgressScreen() {
         {/* Content Requirements */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Content Requirements</Text>
+          {progress.progress.length === 0 ? (
+            <View style={styles.emptyProgressCard}>
+              <Text style={styles.emptyProgressTitle}>No requirements configured yet</Text>
+              <Text style={styles.emptyProgressText}>
+                You can still submit your campaign URL proof using Post Analyzer.
+              </Text>
+              <TouchableOpacity style={styles.submitButton} onPress={openFallbackSubmitModal}>
+                <Ionicons name="add-circle" size={20} color="white" />
+                <Text style={styles.submitButtonText}>Submit URL Proof</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {progress.progress.map((progressItem) => (
             <View key={progressItem.id} style={styles.progressCard}>
               <View style={styles.progressHeader}>
@@ -289,7 +356,7 @@ export default function CampaignProgressScreen() {
                       </View>
                       
                       {submission.id === selectedSubmissionId ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={styles.editRow}>
                           <TextInput
                             style={[styles.textInput, { flex: 1, marginBottom: 0 }]}
                             value={editingContentUrl}
@@ -328,26 +395,28 @@ export default function CampaignProgressScreen() {
                           </TouchableOpacity>
                         </View>
                       ) : (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={styles.readRow}>
                           <Text style={styles.contentUrl} numberOfLines={2}>{submission.contentUrl}</Text>
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => {
-                              setSelectedSubmissionId(submission.id);
-                              setEditingContentUrl(submission.contentUrl);
-                            }}
-                            disabled={selectedSubmissionId !== null && selectedSubmissionId !== submission.id}
-                          >
-                            <Ionicons name="pencil" size={16} color={appShell.cta} />
-                            <Text style={styles.actionButtonText}>Edit</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.actionButton, styles.deleteButton]}
-                            onPress={() => handleDeleteSubmission(submission)}
-                          >
-                            <Ionicons name="trash" size={16} color="#ef4444" />
-                            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
-                          </TouchableOpacity>
+                          <View style={styles.actionsRow}>
+                            <TouchableOpacity
+                              style={styles.actionButton}
+                              onPress={() => {
+                                setSelectedSubmissionId(submission.id);
+                                setEditingContentUrl(submission.contentUrl);
+                              }}
+                              disabled={selectedSubmissionId !== null && selectedSubmissionId !== submission.id}
+                            >
+                              <Ionicons name="pencil" size={16} color={appShell.cta} />
+                              <Text style={styles.actionButtonText}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.actionButton, styles.deleteButton]}
+                              onPress={() => handleDeleteSubmission(submission)}
+                            >
+                              <Ionicons name="trash" size={16} color={palette.white} />
+                              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       )}
                       
@@ -375,9 +444,15 @@ export default function CampaignProgressScreen() {
       </ScrollView>
 
       {/* Submit Content Modal */}
-      <Modal visible={showSubmitModal} animationType="slide" transparent>
+      <Modal visible={showSubmitModal} animationType="slide" transparent onRequestClose={closeSubmitModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
             <Text style={styles.modalTitle}>Submit Content</Text>
             
             <Text style={styles.modalLabel}>Content Type</Text>
@@ -391,26 +466,135 @@ export default function CampaignProgressScreen() {
               placeholder="Enter content URL (Instagram, YouTube, etc.)"
               multiline
             />
+            {contentUrl ? (
+              <View style={styles.validationWrap}>
+                {isPlatformValid && parsedUrl ? (
+                  <View
+                    style={[
+                      styles.platformBadge,
+                      { backgroundColor: getPlatformColor(parsedUrl.platform) },
+                    ]}
+                  >
+                    <Text style={styles.platformBadgeText}>
+                      {getPlatformLabel(parsedUrl.platform)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.validationError}>
+                    {parsedUrl?.error ?? 'Invalid URL'}
+                  </Text>
+                )}
+              </View>
+            ) : null}
 
-            <View style={styles.modalActions}>
+            {contentUrl && !currentMetrics ? (
+              <TouchableOpacity
+                style={[
+                  styles.analyzeButton,
+                  (!isPlatformValid || isAnalyzing) && styles.disabledButton,
+                ]}
+                onPress={async () => {
+                  if (!isPlatformValid) return;
+                  const metrics = await analyzeUrl(contentUrl.trim(), campaignId as string | undefined);
+                  if (metrics) {
+                    setAnalyzedUrl(contentUrl.trim());
+                  }
+                }}
+                disabled={!isPlatformValid || isAnalyzing}
+              >
+                <Text style={styles.analyzeButtonText}>
+                  {isAnalyzing ? 'Fetching post data...' : 'Analyze Post'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {analyzeError ? <Text style={styles.validationError}>{analyzeError}</Text> : null}
+            {currentPersistError ? (
+              <Text style={styles.persistWarningText}>
+                Analysis fetched successfully, but history save had an issue ({currentPersistError}).
+              </Text>
+            ) : null}
+
+            {currentMetrics ? (
+              <PostMetricsCard
+                metrics={currentMetrics}
+                onSubmit={handleSubmitContent}
+                submitLabel="Submit as Campaign Proof"
+                isSubmitting={isLoading}
+                showAuthenticitySignals={false}
+              />
+            ) : null}
+
+            <Text style={styles.modalLabel}>Analyze Multiple URLs (Batch)</Text>
+            <TextInput
+              style={[styles.textInput, { minHeight: 90 }]}
+              value={bulkUrlsInput}
+              onChangeText={setBulkUrlsInput}
+              placeholder="Paste one URL per line"
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.analyzeButton, (!bulkUrlsInput.trim() || isBulkAnalyzing) && styles.disabledButton]}
+              onPress={async () => {
+                const urls = bulkUrlsInput
+                  .split(/\r?\n/)
+                  .map((u) => u.trim())
+                  .filter(Boolean);
+                if (urls.length === 0) return;
+                await analyzeBulkUrls(urls, campaignId as string | undefined);
+              }}
+              disabled={!bulkUrlsInput.trim() || isBulkAnalyzing}
+            >
+              <Text style={styles.analyzeButtonText}>
+                {isBulkAnalyzing ? 'Analyzing batch...' : 'Analyze Batch URLs'}
+              </Text>
+            </TouchableOpacity>
+            {bulkError ? <Text style={styles.validationError}>{bulkError}</Text> : null}
+            {bulkResults ? (
+              <View style={{ marginBottom: 8 }}>
+                <Text style={styles.batchSummaryText}>
+                  Batch results: {bulkResults.summary.successful}/{bulkResults.summary.total} successful
+                </Text>
+                {bulkResults.results.slice(0, 5).map((item, idx) => (
+                  <View key={`${item.url}-${idx}`} style={{ marginBottom: 8 }}>
+                    <PostMetricsCard metrics={item} compact />
+                    <View style={styles.batchRowActions}>
+                      <TouchableOpacity
+                        style={styles.useResultButton}
+                        onPress={() => {
+                          setContentUrl(item.url);
+                          setAnalyzedUrl('');
+                          clearCurrentMetrics();
+                        }}
+                      >
+                        <Text style={styles.useResultButtonText}>Use in single analyzer</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.batchSubmitButton}
+                        onPress={() => handleSubmitBatchProof(item.url, item.contentType)}
+                      >
+                        <Text style={styles.batchSubmitButtonText}>Submit this proof</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                {bulkResults.errors.length > 0 ? (
+                  <Text style={styles.validationError}>
+                    {bulkResults.errors.length} URL(s) failed in batch. Fix and retry those URLs.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={[styles.modalActions, currentMetrics ? { marginTop: 0 } : null]}>
               <TouchableOpacity 
                 style={styles.cancelButton}
-                onPress={() => {
-                  setShowSubmitModal(false);
-                  setContentUrl('');
-                  setContentType('');
-                  setSelectedProgress(null);
-                }}
+                onPress={closeSubmitModal}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.confirmButton}
-                onPress={handleSubmitContent}
-              >
-                <Text style={styles.confirmButtonText}>Submit</Text>
-              </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -509,6 +693,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     ...shadow.cardLight,
   },
+  emptyProgressCard: {
+    backgroundColor: appShell.card,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    ...shadow.cardLight,
+  },
+  emptyProgressTitle: {
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    color: appShell.textPrimary,
+    marginBottom: 6,
+  },
+  emptyProgressText: {
+    fontSize: 13,
+    color: appShell.textSecondary,
+    marginBottom: 8,
+    lineHeight: 19,
+  },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -552,6 +755,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  readRow: {
+    width: '100%',
+  },
+  editRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  actionsRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   submissionDate: {
     fontSize: 12,
     color: appShell.textSecondary,
@@ -576,8 +796,9 @@ const styles = StyleSheet.create({
   contentUrl: {
     fontSize: 13,
     color: appShell.cta,
-    marginBottom: 4,
+    marginBottom: 2,
     fontWeight: '500',
+    flexShrink: 1,
   },
   feedbackText: {
     fontSize: 12,
@@ -612,10 +833,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
   },
   deleteButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    backgroundColor: palette.error,
   },
   deleteButtonText: {
-    color: palette.error,
+    color: palette.white,
     fontFamily: fonts.bold,
   },
   submitButton: {
@@ -700,6 +921,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  modalScroll: {
+    maxHeight: '85%',
+  },
+  modalScrollContent: {
+    paddingBottom: 10,
+  },
   modalTitle: {
     fontSize: 17,
     fontFamily: fonts.bold,
@@ -737,6 +964,88 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 10,
     gap: 12,
+  },
+  validationWrap: {
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  platformBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  platformBadgeText: {
+    color: palette.white,
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+  },
+  validationError: {
+    color: palette.error,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+    marginBottom: 8,
+  },
+  persistWarningText: {
+    color: appShell.warning,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+    marginBottom: 8,
+  },
+  batchSummaryText: {
+    color: appShell.textSecondary,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+    marginBottom: 8,
+  },
+  analyzeButton: {
+    backgroundColor: appShell.cta,
+    borderRadius: radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  analyzeButtonText: {
+    color: palette.white,
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
+  },
+  disabledButton: {
+    backgroundColor: appShell.textMuted,
+  },
+  useResultButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: appShell.canvasAlt,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  useResultButtonText: {
+    color: appShell.cta,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+  },
+  batchRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  batchSubmitButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: appShell.cta,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  batchSubmitButtonText: {
+    color: palette.white,
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
   },
   cancelButton: {
     backgroundColor: appShell.canvasAlt,

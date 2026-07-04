@@ -41,11 +41,13 @@ export default function InfluencerTabsLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen name="inbox" options={{ href: null }} />
       <Tabs.Screen
-        name="ratings"
+        name="my-stats"
         options={{
-          title: 'Analytics',
-          tabBarLabel: 'Analytics',
+          title: 'My Stats',
+          tabBarLabel: 'Stats',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
         }}
       />
@@ -57,6 +59,9 @@ export default function InfluencerTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen name="ugc-jobs" options={{ href: null }} />
+      <Tabs.Screen name="bookings" options={{ href: null }} />
+      <Tabs.Screen name="ratings" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -3,7 +3,14 @@ import { api } from '../lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMockAuth } from '../lib/auth-config';
 
-export type AuthNextStep = 'COMPLETE_INFLUENCER_PROFILE' | null;
+export type AuthNextStep = 'COMPLETE_INFLUENCER_PROFILE' | 'PENDING_PLATFORM_APPROVAL' | null;
+
+/** Where to send the user after sign-in (Kinde or password) based on server `nextStep`. */
+export function getInfluencerEntryPath(nextStep: AuthNextStep | null | undefined): string {
+  if (nextStep === 'PENDING_PLATFORM_APPROVAL') return '/influencer/pending-approval';
+  if (nextStep === 'COMPLETE_INFLUENCER_PROFILE') return '/account-screens/settings';
+  return '/influencer/dashboard';
+}
 
 export type User = {
   id: string;
@@ -67,7 +74,7 @@ type MobileTokenLoginResponse = {
   };
   role: { id: string; roleName: string };
   tenant?: { id: string };
-  nextStep?: AuthNextStep;
+  nextStep?: AuthNextStep | null;
 };
 
 function mapMeUser(u: MeResponse['user'], role?: { roleName: string }): User {
@@ -116,6 +123,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
           nextStep: nextStep || null,
         });
+        // Sync nextStep / role / profile with server (fixes stale AsyncStorage after approvals).
+        await get().refreshSession();
       } else {
         set({
           token: null,
@@ -176,23 +185,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const data = (await api.post('/api/auth/login', { email, password })) as {
-        user: any;
+        user: {
+          id: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+          isAffiliate?: boolean;
+          tenantId?: string;
+          role?: { roleName: string };
+        };
         tenant?: { id: string };
+        role?: { id: string; roleName: string };
         token: string;
       };
       if (!data?.user || !data.token) throw new Error('Invalid login response from server');
       const tenantId = data.user.tenantId || data.tenant?.id;
       if (!tenantId) throw new Error('Tenant ID not found in response');
+      const roleName = data.role?.roleName || data.user.role?.roleName || 'influencer';
       const user: User = {
         id: data.user.id,
         email: data.user.email,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
-        role: data.user.role || { roleName: 'influencer' },
+        role: { roleName: roleName },
         tenantId,
-        profileCompleted: data.user.profileCompleted ?? null,
+        profileCompleted: null,
       };
       await get().setAuth(data.token, user, null);
+      await get().refreshSession();
     } catch (error: any) {
       console.error('Login error:', error);
       set({ error: error.message || 'Login failed', isLoading: false });
@@ -213,6 +233,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       const tenantId = data.tenant?.id;
       if (!tenantId) throw new Error('Tenant ID not found in Kinde login response');
+      const nextStep = data.nextStep ?? null;
       const user: User = {
         id: data.user.id,
         email: data.user.email,
@@ -220,10 +241,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastName: data.user.lastName,
         role: { roleName: data.role.roleName },
         tenantId,
-        profileCompleted: data.nextStep ? false : true,
+        profileCompleted: nextStep ? false : true,
       };
-      const nextStep = data.nextStep ?? null;
       await get().setAuth(data.token, user, nextStep);
+      await get().refreshSession();
     } catch (error: any) {
       console.error('Kinde exchange error:', error);
       set({ error: error.message || 'Kinde sign-in failed', isLoading: false });
@@ -240,12 +261,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = (await api.get('/api/auth/me')) as MeResponse;
       if (!res?.user) return;
       const user = mapMeUser(res.user, res.role);
-      const nextStep = res.user.nextStep ?? null;
+      const nextStep = (res.user.nextStep ?? null) as AuthNextStep;
       await AsyncStorage.setItem('user', JSON.stringify(user));
       if (nextStep) await AsyncStorage.setItem(NEXT_STEP_KEY, nextStep);
       else await AsyncStorage.removeItem(NEXT_STEP_KEY);
       set({ user, nextStep });
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isAuthFailure =
+        /Token expired|Unauthorized|Invalid token|401/i.test(msg) || /status:\s*401/i.test(msg);
+      if (isAuthFailure) {
+        await get().logout();
+        return;
+      }
       console.warn('refreshSession skipped:', e);
     }
   },

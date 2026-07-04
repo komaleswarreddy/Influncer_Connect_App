@@ -80,7 +80,9 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
   });
 
   const needsTerms =
-    user?.profileCompleted === false || nextStep === 'COMPLETE_INFLUENCER_PROFILE';
+    user?.profileCompleted === false ||
+    nextStep === 'COMPLETE_INFLUENCER_PROFILE' ||
+    nextStep === 'PENDING_PLATFORM_APPROVAL';
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -164,7 +166,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Personal Information</Text>
 
@@ -175,6 +177,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             value={formData.firstName}
             onChangeText={(text) => setFormData((prev) => ({ ...prev, firstName: text }))}
             placeholder="Enter your first name"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
 
@@ -185,6 +189,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             value={formData.lastName}
             onChangeText={(text) => setFormData((prev) => ({ ...prev, lastName: text }))}
             placeholder="Enter your last name"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
 
@@ -197,6 +203,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
 
@@ -208,6 +216,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
             placeholder="Enter your phone number"
             keyboardType="phone-pad"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
       </View>
@@ -256,6 +266,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             numberOfLines={4}
             textAlignVertical="top"
             maxLength={500}
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
       </View>
@@ -276,6 +288,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             }
             placeholder="https://instagram.com/yourusername"
             autoCapitalize="none"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
 
@@ -292,6 +306,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             }
             placeholder="https://youtube.com/@yourchannel"
             autoCapitalize="none"
+            placeholderTextColor="#6b7280"
+            selectionColor={appShell.cta}
           />
         </View>
       </View>
@@ -345,7 +361,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: appShell.cta,
+    color: '#111827',
     marginBottom: 12,
   },
   inputGroup: {
@@ -354,7 +370,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
+    color: '#111827',
     marginBottom: 6,
   },
   input: {
@@ -365,6 +381,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     backgroundColor: '#fff',
+    color: '#111827',
   },
   textArea: {
     height: 100,
@@ -388,7 +405,7 @@ const styles = StyleSheet.create({
     borderColor: appShell.cta,
   },
   chipText: {
-    color: '#374151',
+    color: '#111827',
     fontSize: 13,
   },
   chipTextSelected: {

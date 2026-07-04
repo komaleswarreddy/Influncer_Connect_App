@@ -6,7 +6,10 @@ import { premiumButton, radius } from '@/theme';
 
 export type GlassSocialPlatform = 'instagram' | 'youtube' | 'twitter';
 
-const PLATFORM_GRADIENT: Record<GlassSocialPlatform, readonly string[]> = {
+const PLATFORM_GRADIENT: Record<
+  GlassSocialPlatform,
+  readonly [string, string, ...string[]]
+> = {
   instagram: ['#F58529', '#DD2A7B', '#8134AF'],
   youtube: ['#FF0000', '#B2071D'],
   twitter: ['#1DA1F2', '#0d8ecf'],

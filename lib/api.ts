@@ -1,48 +1,100 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { useMockApi } from './auth-config';
 
 const MOCK_HOSTS = ['jsonplaceholder.typicode.com', 'your-railway-app.railway.app'];
 
+/** Android emulator: host machine is reachable at 10.0.2.2. Physical devices must use LAN or adb reverse + 127.0.0.1. */
+function isLikelyAndroidEmulator(): boolean {
+  if (Platform.OS !== 'android') return false;
+  const c = Platform.constants as {
+    Fingerprint?: string;
+    Model?: string;
+  };
+  const fp = (c.Fingerprint ?? '').toLowerCase();
+  const model = (c.Model ?? '').toLowerCase();
+  return (
+    fp.includes('generic') ||
+    fp.includes('unknown') ||
+    fp.includes('test-keys') ||
+    fp.includes('sdk_gphone') ||
+    fp.includes('emulator') ||
+    fp.includes('ranchu') ||
+    fp.includes('goldfish') ||
+    model.includes('sdk_gphone') ||
+    model.includes('emulator')
+  );
+}
+
+/**
+ * Hostname of the machine serving the JS bundle (often LAN IP). Undefined if unavailable / loopback.
+ */
+function hostFromBundleScriptUrl(): string | undefined {
+  const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
+  if (!scriptURL || typeof scriptURL !== 'string') return undefined;
+  try {
+    const hostname = new URL(scriptURL).hostname;
+    if (/^(localhost|127\.0\.0\.1)$/i.test(hostname)) return undefined;
+    return hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve localhost / 127.0.0.1 API URL to the dev PC when running on a device (Expo Go or dev client).
+ * Order: Metro manifest host → bundle URL host (LAN) → Android: emulator uses 10.0.2.2; physical device uses
+ * 127.0.0.1 so `adb reverse tcp:<port> tcp:<port>` (see `npm run adb:reverse`) forwards to the host.
+ */
+function resolveLoopbackApiBase(raw: string): string {
+  const portMatch = raw.match(/:(\d+)/);
+  const port = portMatch ? portMatch[1] : '3000';
+
+  const hostUriCandidates = [
+    Constants.expoConfig?.hostUri,
+    (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost,
+    (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } }).manifest2?.extra
+      ?.expoClient?.hostUri,
+  ];
+  const hostUri = hostUriCandidates.find((v) => typeof v === 'string' && v.length > 0) as string | undefined;
+  if (hostUri) {
+    const host = hostUri.replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0];
+    if (host && !/^(localhost|127\.0\.0\.1)$/i.test(host)) {
+      return `http://${host}:${port}`;
+    }
+  }
+
+  const bundleHost = hostFromBundleScriptUrl();
+  if (bundleHost) {
+    return `http://${bundleHost}:${port}`;
+  }
+
+  if (__DEV__ && Platform.OS === 'android') {
+    if (isLikelyAndroidEmulator()) {
+      return raw.replace(/127\.0\.0\.1|localhost/i, '10.0.2.2');
+    }
+    // Physical Android + USB dev: Metro often reports 127.0.0.1; use loopback API + `adb reverse` for port.
+    return `http://127.0.0.1:${port}`;
+  }
+
+  return raw;
+}
+
 /**
  * Public base URL (no trailing slash). Default Fastify: port 3000.
- * Mirrors Financial-Accounting `finance-app/constants/config.ts`: Expo Go on a device cannot use
- * `localhost` (that is the phone). Use Metro's host IP from Constants.
+ * `localhost` in EXPO_PUBLIC_API_URL is rewritten: LAN from Metro when possible; else Android emulator
+ * uses 10.0.2.2, physical Android uses 127.0.0.1 (pair with `npm run adb:reverse` for API port).
  */
 export function getApiBaseUrl(): string {
   const env = process.env.EXPO_PUBLIC_API_URL?.trim();
   const ex = (Constants.expoConfig?.extra as { apiUrl?: string })?.apiUrl?.trim();
   let raw = env || ex || '';
 
-  const executionEnvironment = (Constants as { executionEnvironment?: string }).executionEnvironment;
-  const isExpoGo = executionEnvironment === 'storeClient';
-
   const isLoopbackHost = /localhost/i.test(raw) || /127\.0\.0\.1/.test(raw);
 
   if (raw && isLoopbackHost) {
-    if (isExpoGo) {
-      const hostUriCandidates = [
-        Constants.expoConfig?.hostUri,
-        (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost,
-        (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } }).manifest2?.extra
-          ?.expoClient?.hostUri,
-      ];
-      const hostUri = hostUriCandidates.find((v) => typeof v === 'string' && v.length > 0) as
-        | string
-        | undefined;
-      if (hostUri) {
-        const host = hostUri.replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0];
-        if (host) {
-          const portMatch = raw.match(/:(\d+)/);
-          const port = portMatch ? portMatch[1] : '3000';
-          raw = `http://${host}:${port}`;
-        }
-      }
-    } else if (Platform.OS === 'android') {
-      // Android emulator: host loopback → special alias for dev machine
-      raw = raw.replace(/127\.0\.0\.1|localhost/i, '10.0.2.2');
-    }
+    raw = resolveLoopbackApiBase(raw);
   }
 
   return raw.replace(/\/$/, '');
@@ -55,9 +107,9 @@ function shouldUseMockResponses(baseUrl: string): boolean {
 }
 
 // Mock response handler to prevent 404 errors
-const handleMockResponse = (endpoint: string, method: string, data?: any) => {
+const handleMockResponse = (endpoint: string, method: string, data?: unknown) => {
   // Simulate successful responses for common endpoints
-  const mockResponses: Record<string, any> = {
+  const mockResponses: Record<string, unknown> = {
     '/api/campaigns': {
       campaigns: [],
       message: 'Campaigns fetched successfully'
@@ -98,6 +150,23 @@ const handleMockResponse = (endpoint: string, method: string, data?: any) => {
       role: { id: 'mock-role', roleName: 'potential_influencer' },
       nextStep: 'COMPLETE_INFLUENCER_PROFILE',
     },
+    '/api/content-ideas/trending': {
+      success: true,
+      ideas: [
+        { title: 'Mock trend', hook: 'Try this hook today', hashtags: '#mock #creator', bestTime: '6 PM', rationale: 'Demo', contentType: 'reel' },
+      ],
+      cached: false,
+      generatedAt: new Date().toISOString(),
+    },
+    '/api/push-tokens/register': { success: true },
+    '/api/affiliates/tracking-links': { data: [] },
+    '/api/affiliates/tracking-links/eligible-products': { data: [] },
+    '/api/scheduled-posts/generate-caption': {
+      suggestions: [
+        { caption: 'Mock caption one', hashtags: '#demo' },
+        { caption: 'Mock caption two', hashtags: '#test' },
+      ],
+    },
     '/api/auth/me': {
       user: {
         id: 'mock-kinde-user-1',
@@ -117,6 +186,19 @@ const handleMockResponse = (endpoint: string, method: string, data?: any) => {
       },
       tenant: { id: 'mock-tenant' },
       role: { id: 'mock-role', roleName: 'potential_influencer' },
+    },
+    '/api/influencers/campaign-matches': {
+      success: true,
+      matches: [],
+    },
+    '/api/campaign-invites/my': {
+      success: true,
+      invites: [],
+    },
+    '/api/campaign-invites/notifications/my': {
+      success: true,
+      unread: 0,
+      notifications: [],
     },
     '/api/influencers/profile': {
       success: true,
@@ -155,6 +237,20 @@ const handleMockResponse = (endpoint: string, method: string, data?: any) => {
 };
 
 class ApiClient {
+  private isAnalyticsEndpoint(endpoint: string): boolean {
+    return /\/api\/influencers\/(instagram|youtube|twitter)-analytics/.test(endpoint);
+  }
+
+  private isExpectedNotConnected(endpoint: string, status: number, data: unknown): boolean {
+    if (status !== 404) return false;
+    if (!/\/api\/influencers\/(instagram|youtube|twitter)-analytics/.test(endpoint)) return false;
+    const msg =
+      data && typeof data === 'object'
+        ? String((data as { error?: string; message?: string }).error ?? (data as { error?: string; message?: string }).message ?? '')
+        : '';
+    return /not connected/i.test(msg);
+  }
+
   async getToken() {
     return await AsyncStorage.getItem('token');
   }
@@ -172,9 +268,11 @@ class ApiClient {
       ...(options.headers as Record<string, string> || {}),
     };
     
-    // Only set Content-Type if not FormData
-    const isFormData = options.body instanceof FormData;
-    if (!isFormData) {
+    // Fastify rejects DELETE/GET with Content-Type: application/json and an empty body (FST_ERR_CTP_EMPTY_JSON_BODY).
+    const body = options.body;
+    if (body instanceof FormData) {
+      // RN/fetch sets multipart boundary
+    } else if (body !== undefined && body !== null) {
       headers['Content-Type'] = 'application/json';
     }
     
@@ -207,7 +305,7 @@ class ApiClient {
       let data = {};
       try {
         data = await response.json();
-      } catch (e) {
+      } catch {
         console.log('Failed to parse JSON response, using empty object');
         data = {};
       }
@@ -215,17 +313,42 @@ class ApiClient {
       console.log(`Response status: ${response.status}, data:`, data);
       
       if (!response.ok) {
-        // Log for debugging
-        console.error('API error:', data, response.status);
-        const errorMessage = (data as any).error || (data as any).message || `HTTP error! status: ${response.status}`;
+        const expectedNotConnected = this.isExpectedNotConnected(endpoint, response.status, data);
+        const suppressAnalyticsServerError = this.isAnalyticsEndpoint(endpoint) && response.status >= 500;
+        if (expectedNotConnected) {
+          console.log('API info (not connected yet):', data, response.status);
+        } else if (suppressAnalyticsServerError) {
+          // Temporary suppression: avoid noisy redbox for transient analytics backend errors.
+          console.log('API info (analytics temporarily unavailable):', data, response.status);
+        } else {
+          console.error('API error:', data, response.status);
+        }
+        const payload = data as { error?: string; message?: string };
+        const detail =
+          typeof payload.message === 'string' && payload.message.trim()
+            ? payload.message.trim()
+            : typeof payload.error === 'string' && payload.error.trim()
+              ? payload.error.trim()
+              : '';
+        const errorMessage = detail || `HTTP error! status: ${response.status}`;
         throw new Error(errorMessage);
       }
       
       // Log for debugging
       console.log('API success:', data, response.status);
       return data;
-    } catch (error: any) {
-      console.error('Network error:', error);
+    } catch (error: unknown) {
+      const expectedNotConnected = this.isExpectedNotConnected(endpoint, 404, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      if (!expectedNotConnected) {
+        console.error('Network error:', error);
+      } else {
+        console.log(
+          'Network info (not connected yet):',
+          error instanceof Error ? error.message : String(error)
+        );
+      }
       throw error;
     }
   }
@@ -234,7 +357,7 @@ class ApiClient {
     return this.request(endpoint, { ...options, method: 'GET' });
   }
 
-  async post(endpoint: string, data: any, options: RequestInit = {}) {
+  async post(endpoint: string, data: unknown, options: RequestInit = {}) {
     // Check if data is FormData
     const isFormData = data instanceof FormData;
     
@@ -250,7 +373,7 @@ class ApiClient {
     });
   }
 
-  async put(endpoint: string, data: any, options: RequestInit = {}) {
+  async put(endpoint: string, data: unknown, options: RequestInit = {}) {
     return this.request(endpoint, {
       ...options,
       method: 'PUT',
@@ -258,7 +381,7 @@ class ApiClient {
     });
   }
 
-  async patch(endpoint: string, data: any, options: RequestInit = {}) {
+  async patch(endpoint: string, data: unknown, options: RequestInit = {}) {
     return this.request(endpoint, {
       ...options,
       method: 'PATCH',
@@ -282,7 +405,7 @@ export const contentProgressApi = {
   },
 
   // Submit content for a progress item
-  submitContent: async (participationId: string, data: { progressId: string; contentUrl: string; contentType: string }) => {
+  submitContent: async (participationId: string, data: { progressId: string; contentUrl: string; contentType: string; analysisId?: string | null }) => {
     const response = await api.post(`/api/campaigns/participation/${participationId}/submit-content`, data);
     return response;
   },

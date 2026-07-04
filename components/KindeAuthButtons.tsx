@@ -13,7 +13,7 @@ import { Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useKindeAuth } from '@kinde/expo';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '../store/auth-store';
+import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
 import { kindeConnectionId } from '../lib/auth-config';
 import { loginScreen, premiumButton } from '@/theme';
 
@@ -45,7 +45,8 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
         throw new Error('No ID token returned from Kinde. Check client configuration.');
       }
       await exchangeKindeIdToken(idToken);
-      router.replace('/influencer/dashboard');
+      const step = useAuthStore.getState().nextStep;
+      router.replace(getInfluencerEntryPath(step));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
       if (msg.includes('cancel') || msg.includes('dismiss')) return;

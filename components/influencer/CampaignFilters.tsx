@@ -70,13 +70,13 @@ interface CampaignFiltersProps {
     tenantId: string;
   }) => void;
   onReset: () => void;
-  tenants?: Array<{
+  tenants?: {
     id: string;
     tenantName: string;
     domain: string;
     subdomain: string;
     status: string;
-  }>;
+  }[];
 }
 
 export default function CampaignFilters({

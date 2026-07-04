@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+﻿import { Stack } from 'expo-router';
 import { appShell } from '@/theme';
 
 export default function CampaignsLayout() {
@@ -15,8 +15,7 @@ export default function CampaignsLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Campaigns',
-          headerShown: true,
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -29,3 +28,4 @@ export default function CampaignsLayout() {
     </Stack>
   );
 }
+

@@ -5,12 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { appShell, palette, premiumButton } from '@/theme';
 import { fonts } from '@/components/ui/typography';
-
 /**
  * White bar + active tab: glossy navy pill (same gradient/gloss as PrimaryButton), narrow width.
  */
 export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const activeKey = state.routes[state.index]?.key;
+  const hiddenTabs = new Set(['ugc-jobs', 'bookings', 'ratings', 'inbox']);
+  const visibleRoutes = state.routes.filter((route) => !hiddenTabs.has(route.name));
 
   return (
     <View
@@ -22,13 +24,13 @@ export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarPr
       ]}
     >
       <View style={styles.bar}>
-        {state.routes.map((route, index) => {
+        {visibleRoutes.map((route) => {
           const { options } = descriptors[route.key];
           const label =
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
               : options.title ?? route.name;
-          const isFocused = state.index === index;
+          const isFocused = route.key === activeKey;
           const inactiveColor = appShell.textSecondary;
 
           const onPress = () => {
@@ -84,7 +86,7 @@ export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarPr
                       style={styles.activeGloss}
                       pointerEvents="none"
                     />
-                    {icon}
+                    <View style={styles.iconWrap}>{icon}</View>
                     <Text style={styles.labelActive} numberOfLines={1}>
                       {String(label)}
                     </Text>
@@ -107,6 +109,7 @@ export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarPr
 }
 
 const styles = StyleSheet.create({
+  iconWrap: { position: 'relative' },
   wrap: {
     backgroundColor: 'transparent',
     paddingHorizontal: 0,
@@ -136,7 +139,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** Narrow pill — does not stretch full tab column */
+  /** Narrow pill â€” does not stretch full tab column */
   activeOuter: {
     alignSelf: 'center',
     maxWidth: 80,

@@ -5,24 +5,51 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { appShell, premiumNavy, radius, spacing } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PrimaryButton } from '@/components/ui';
+import { SecondaryButton } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface CampaignDetailsProps {
   campaignId?: string;
   onClose?: () => void;
-  onApplySuccess?: (participation: any) => void;
+  onApplySuccess?: (participation: { id?: string | null }) => void;
 }
 
+type CampaignRequirement = {
+  type: string;
+  count: number;
+  schedule?: string;
+  description?: string;
+};
+
+type CampaignView = {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  type: string;
+  startDate?: string;
+  endDate?: string;
+  targetAudienceAgeGroup: string;
+  requiredInfluencerNiche: string;
+  basicGuidelines: string;
+  preferredSocialMedia: string;
+  commissionRate?: string | number | null;
+  contentRequirements?: CampaignRequirement[];
+};
+
 export default function CampaignDetailsScreen({ campaignId, onClose, onApplySuccess }: CampaignDetailsProps) {
+  const router = useRouter();
   const {
     fetchCampaign,
     fetchParticipations,
-    joinCampaign,
+    fetchMyApplications,
+    applications,
+    applyToCampaign,
     participations,
     isLoading,
   } = useCampaignStore();
-  const [campaign, setCampaign] = useState<any>(null);
+  const [campaign, setCampaign] = useState<CampaignView | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFull, setShowFull] = useState<{desc: boolean, guidelines: boolean}>({desc: false, guidelines: false});
 
@@ -32,12 +59,13 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
       if (campaignId) {
         const c = await fetchCampaign(campaignId);
         await fetchParticipations();
+        await fetchMyApplications();
         setCampaign(c);
       }
       setLoading(false);
     };
     load();
-  }, [campaignId]);
+  }, [campaignId, fetchCampaign, fetchParticipations, fetchMyApplications]);
 
   if (loading || isLoading) {
     return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: appShell.canvas }}><ActivityIndicator size="large" color={appShell.cta} /></SafeAreaView>;
@@ -46,9 +74,56 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
     return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: appShell.canvas }}><Text>Campaign not found.</Text></SafeAreaView>;
   }
 
-  const participation = participations.find(p => p.campaignId === campaignId);
-  const isJoined = participation && participation.status === 'joined';
-  const isApplied = participation && participation.status === 'applied';
+  const normalizedCampaignId = String(campaignId ?? campaign.id ?? '').trim().toLowerCase();
+  const participation = participations.find((p) => {
+    const pid = String(p.campaignId ?? '').trim().toLowerCase();
+    const nested = String((p as { campaign?: { id?: string } }).campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
+    return pid === normalizedCampaignId || nested === normalizedCampaignId;
+  });
+  const application = applications.find((a) => {
+    const aid = String(a.campaignId ?? '').trim().toLowerCase();
+    const nested = String((a as { campaign?: { id?: string } }).campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
+    return aid === normalizedCampaignId || nested === normalizedCampaignId;
+  });
+  const applicationStatusNorm = String(application?.status ?? '')
+    .trim()
+    .toLowerCase();
+  const statusNorm = String(participation?.status ?? '')
+    .trim()
+    .toLowerCase();
+  const isJoined = !!participation && ['joined', 'active', 'completed'].includes(statusNorm);
+
+  const inviteIdRaw = participation?.inviteId;
+  const isInviteBackedParticipation =
+    inviteIdRaw != null && String(inviteIdRaw).trim() !== '';
+
+  const hasApprovedApplicationStatus = ['approved', 'contract_pending', 'contract_signed'].includes(
+    applicationStatusNorm
+  );
+
+  const legacyParticipationNoApplication = !!participation && !application;
+
+  const canShowContract = Boolean(
+    participation?.id &&
+      (isInviteBackedParticipation ||
+        hasApprovedApplicationStatus ||
+        legacyParticipationNoApplication)
+  );
+
+  const awaitingBrandApproval =
+    ['applied', 'pending_review'].includes(applicationStatusNorm) && !participation;
+
+  const isApplicationRejected = applicationStatusNorm === 'rejected';
+
+  const showRejectedReapply = !participation && isApplicationRejected;
+
+  const showFirstTimeApply = !participation && !application;
+
+  const approvedButNoParticipationYet = hasApprovedApplicationStatus && !participation?.id;
 
   const renderReadMore = (text: string, field: keyof typeof showFull, limit: number = 120) => {
     if (!text) return null;
@@ -68,29 +143,15 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
 
   const handleApply = async () => {
     try {
-      const participation = await joinCampaign(campaignId as string);
+      await applyToCampaign(campaign.id);
+      await fetchParticipations();
+      await fetchMyApplications();
+      Alert.alert('Applied', 'Your application has been submitted to the brand for review.');
       
-      // Call the callback to pass participation data to parent
-      if (onApplySuccess) {
-        onApplySuccess(participation);
-      } else {
-        // Fallback: show alert and close modal
-        Alert.alert(
-          'Success', 
-          'You have successfully applied for the campaign! Please review and sign the contract.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                if (onClose) onClose();
-              }
-            }
-          ]
-        );
-      }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error in handleApply:', e);
-      Alert.alert('Error', e.message || 'Failed to join campaign');
+      const msg = e instanceof Error ? e.message : 'Failed to apply for campaign';
+      Alert.alert('Error', msg);
     }
   };
 
@@ -141,6 +202,20 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
             <Text style={styles.statusBadge}>{String(campaign.status || 'active').toUpperCase()}</Text>
             <Text style={styles.commission}>{campaign.commissionRate ? `${campaign.commissionRate}% Commission` : 'Commission N/A'}</Text>
           </View>
+          <View style={styles.quickMetaRow}>
+            <View style={styles.quickMetaChip}>
+              <Text style={styles.quickMetaLabel}>Target age</Text>
+              <Text style={styles.quickMetaValue}>{campaign.targetAudienceAgeGroup}</Text>
+            </View>
+            <View style={styles.quickMetaChip}>
+              <Text style={styles.quickMetaLabel}>Niche</Text>
+              <Text style={styles.quickMetaValue}>{campaign.requiredInfluencerNiche}</Text>
+            </View>
+            <View style={styles.quickMetaChip}>
+              <Text style={styles.quickMetaLabel}>Platform</Text>
+              <Text style={styles.quickMetaValue}>{campaign.preferredSocialMedia}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.surfaceCard}>
@@ -173,7 +248,7 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
         {campaign.contentRequirements && campaign.contentRequirements.length > 0 && (
           <View style={styles.surfaceCard}>
             <Text style={styles.sectionTitle}>Content Requirements</Text>
-            {campaign.contentRequirements.map((req: any, index: number) => (
+            {campaign.contentRequirements.map((req: CampaignRequirement, index: number) => (
               <View key={index} style={styles.requirementItem}>
                 <View style={styles.requirementIconTile}>
                   <Ionicons name={index % 2 === 0 ? 'videocam' : 'document-text'} size={14} color="#FFFFFF" />
@@ -226,13 +301,87 @@ export default function CampaignDetailsScreen({ campaignId, onClose, onApplySucc
           </View>
         )}
 
-        {!isJoined && !isApplied ? (
-          <PrimaryButton label="Apply for Campaign" onPress={handleApply} />
+        {isJoined ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>You are on this campaign</Text>
+            <Text style={styles.statusCardText}>
+              Your agreement is complete. Track deliverables and promo tools from the My Campaigns tab.
+            </Text>
+            <SecondaryButton
+              label="Go to My Campaigns"
+              onPress={() => {
+                onClose?.();
+                router.push('/influencer/campaigns');
+              }}
+            />
+          </View>
+        ) : canShowContract ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Complete your agreement</Text>
+            <Text style={styles.statusCardText}>
+              Sign the contract to activate your participation and unlock promo codes and progress tracking.
+            </Text>
+            <SecondaryButton
+              label="Open contract"
+              onPress={() => {
+                if (!participation?.id) return;
+                onClose?.();
+                router.push(`/influencer/contract?participationId=${participation.id}`);
+              }}
+            />
+          </View>
+        ) : approvedButNoParticipationYet ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Approved</Text>
+            <Text style={styles.statusCardText}>
+              Your application was approved. Loading your contract — pull refresh if this persists.
+            </Text>
+            <SecondaryButton
+              label="Refresh status"
+              onPress={async () => {
+                await fetchParticipations();
+                await fetchMyApplications();
+              }}
+            />
+          </View>
+        ) : showRejectedReapply ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Application not approved</Text>
+            <Text style={styles.statusCardText}>
+              The brand did not approve this application. You can submit again while the campaign is open.
+            </Text>
+            <SecondaryButton label="Apply again" onPress={handleApply} />
+          </View>
+        ) : awaitingBrandApproval ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Application submitted</Text>
+            <Text style={styles.statusCardText}>
+              Your application has been sent to the brand. When they approve it, you can sign the contract here and
+              track progress.
+            </Text>
+          </View>
+        ) : showFirstTimeApply ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Apply for this campaign</Text>
+            <Text style={styles.statusCardText}>
+              Submit your interest to the brand. After approval, you can sign the contract and join.
+            </Text>
+            <SecondaryButton label="Apply for Campaign" onPress={handleApply} />
+          </View>
+        ) : participation && !canShowContract ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusCardTitle}>Waiting for brand approval</Text>
+            <Text style={styles.statusCardText}>
+              The brand still needs to approve your application before you can sign the contract. You will be notified
+              when you can proceed.
+            </Text>
+          </View>
         ) : (
           <View style={styles.statusCard}>
-            <Text style={styles.statusCardTitle}>{isApplied ? 'Application Submitted' : 'Campaign Joined'}</Text>
+            <Text style={styles.statusCardTitle}>Campaign status</Text>
             <Text style={styles.statusCardText}>
-              {isApplied ? 'Review and sign your contract in My Campaigns.' : 'Track your progress from My Campaigns.'}
+              Current participation status: {participation?.status ?? 'none'}. If this looks wrong, refresh or contact
+              support.
             </Text>
           </View>
         )}
@@ -276,6 +425,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  quickMetaRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  quickMetaChip: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  quickMetaLabel: {
+    fontSize: 10,
+    color: 'rgba(241,245,249,0.82)',
+    fontFamily: fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  quickMetaValue: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontFamily: fonts.bold,
+    marginTop: 2,
+  },
   statusBadge: {
     backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
@@ -302,6 +478,11 @@ const styles = StyleSheet.create({
     borderColor: appShell.cardBorder,
     padding: spacing.md,
     gap: spacing.xs,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   infoGrid: {
     flexDirection: 'row',
@@ -310,7 +491,7 @@ const styles = StyleSheet.create({
     columnGap: spacing.sm,
   },
   infoItem: {
-    width: '47%',
+    width: '48%',
     backgroundColor: appShell.canvasAlt,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -331,11 +512,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: fonts.semiBold,
     color: appShell.cta,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
     marginBottom: 4,
   },
   sectionText: {
@@ -385,10 +566,10 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     marginTop: spacing.xs,
-    backgroundColor: appShell.iceBlue,
+    backgroundColor: appShell.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: appShell.cardBorder,
+    borderColor: appShell.cta,
     padding: spacing.md,
   },
   statusCardTitle: {
@@ -402,6 +583,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 13,
     lineHeight: 19,
+  },
+  actionStack: {
+    marginTop: spacing.sm,
+    gap: spacing.xs,
   },
   participationRow: {
     flexDirection: 'row',

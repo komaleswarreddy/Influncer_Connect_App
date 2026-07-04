@@ -1,4 +1,4 @@
-export { DotBackground } from './DotBackground';
+﻿export { DotBackground } from './DotBackground';
 export { Screen, ScrollScreen } from './Screen';
 export { PremiumCard } from './PremiumCard';
 export { PrimaryButton } from './PrimaryButton';
@@ -12,7 +12,21 @@ export { SectionHeader } from './SectionHeader';
 export { PremiumSegmentedControl } from './PremiumSegmentedControl';
 export type { PremiumSegment, PremiumSegmentTone } from './PremiumSegmentedControl';
 export { StrategicOverviewHeroCard } from './StrategicOverviewHeroCard';
+export { HomeGrandHeroCard } from './HomeGrandHeroCard';
+export { HomeReferenceHeroCard } from './HomeReferenceHeroCard';
+export { HomeCampaignHealthCard } from './HomeCampaignHealthCard';
+export { HomeInvitesCard } from './HomeInvitesCard';
 export { PremiumCampaignFeedCard } from './PremiumCampaignFeedCard';
 export type { FeedMetaRow, PremiumCampaignFeedCardProps } from './PremiumCampaignFeedCard';
+export { PremiumOpportunityCard } from './PremiumOpportunityCard';
+export type { PremiumOpportunityCardProps, OpportunityPlatform } from './PremiumOpportunityCard';
 export { PremiumFAB } from './PremiumFAB';
+export { AuthenticityGradeBadge } from './AuthenticityGradeBadge';
 export { fonts } from './typography';
+export { AnimatedPressCard } from './AnimatedPressCard';
+export { usePressLiftStyle } from './usePressLiftStyle';
+export type { PressLiftHandlers } from './usePressLiftStyle';
+export { UnderlineTabBar } from './UnderlineTabBar';
+export type { UnderlineTab } from './UnderlineTabBar';
+export { VideoPreview } from './VideoPreview';
+

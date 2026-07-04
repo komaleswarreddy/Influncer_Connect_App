@@ -17,6 +17,20 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
+    plugins: [
+      ...(config.plugins || []),
+      'expo-secure-store',
+      'expo-video',
+      [
+        'expo-notifications',
+        {
+          icon: './assets/images/icon.png',
+          color: '#1e3a5f',
+          defaultChannel: 'default',
+        },
+      ],
+      './plugins/withAndroidNetworkSecurity.js',
+    ],
     extra: {
       ...extra,
       apiUrl: trim(process.env.EXPO_PUBLIC_API_URL) || extra.apiUrl || '',

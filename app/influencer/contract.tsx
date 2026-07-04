@@ -1,16 +1,70 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../lib/api';
 import { useCampaignStore } from '../../store/campaign-store';
-import { WebView } from 'react-native-webview';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import ViewShot from 'react-native-view-shot';
-import { appShell, palette, radius, shadow, spacing } from '@/theme';
+import { appShell, palette, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 import { fonts } from '@/components/ui/typography';
+import { PremiumCard, PrimaryButton, SecondaryButton } from '@/components/ui';
+
+type ContractRow = {
+  label: string;
+  value: string;
+};
+
+type ContractSection = {
+  title: string;
+  rows: ContractRow[];
+  paragraphs: string[];
+};
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function cleanText(value: string): string {
+  return decodeHtml(value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+}
+
+function parseContractSections(html: string): ContractSection[] {
+  if (!html || !html.trim()) return [];
+  const safe = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
+  const sections: ContractSection[] = [];
+  const sectionRegex = /<h[23][^>]*>([\s\S]*?)<\/h[23]>([\s\S]*?)(?=<h[23][^>]*>|$)/gi;
+  let sectionMatch: RegExpExecArray | null;
+  while ((sectionMatch = sectionRegex.exec(safe)) !== null) {
+    const title = cleanText(sectionMatch[1]);
+    const body = sectionMatch[2] || '';
+    if (!title) continue;
+    const rows: ContractRow[] = [];
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch: RegExpExecArray | null;
+    while ((rowMatch = rowRegex.exec(body)) !== null) {
+      const cells = [...rowMatch[1].matchAll(/<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi)].map((x) => cleanText(x[2]));
+      if (cells.length >= 2) {
+        rows.push({ label: cells[0], value: cells.slice(1).join(' · ') });
+      }
+    }
+    const paragraphs = [...body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map((x) => cleanText(x[1]))
+      .filter(Boolean);
+    sections.push({ title, rows, paragraphs });
+  }
+  return sections;
+}
 
 export default function ContractScreen() {
   const { participationId } = useLocalSearchParams<{ participationId: string }>();
@@ -24,58 +78,50 @@ export default function ContractScreen() {
   const [saving, setSaving] = useState(false);
   const [signatureImageUrl, setSignatureImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [useTextFallback, setUseTextFallback] = useState(false);
-  const [webViewHeight, setWebViewHeight] = useState(500);
+  const [structuredSections, setStructuredSections] = useState<ContractSection[]>([]);
   const [generatingPDF, setGeneratingPDF] = useState(false);
-  const webViewRef = useRef<WebView>(null);
 
-  useEffect(() => {
-    if (participationId) {
-      fetchContract();
-    } else {
-      setError('No participation ID provided');
-      setLoading(false);
-    }
-  }, [participationId]);
+  const contractSectionsToShow = useMemo(
+    () =>
+      structuredSections.filter((s) => {
+        const t = s.title.trim().toLowerCase();
+        if (t === 'campaign information') return false;
+        return true;
+      }),
+    [structuredSections]
+  );
 
-  // Debug logging to help identify text node issues
-  useEffect(() => {
-    console.log('Contract HTML length:', contractHtml?.length || 0);
-    console.log('Admin signature:', adminSignature ? 'Present' : 'Not present');
-    console.log('User signature:', signature ? 'Present' : 'Not present');
-    console.log('Signature image URL:', signatureImageUrl ? 'Present' : 'Not present');
-  }, [contractHtml, adminSignature, signature, signatureImageUrl]);
-
-  const fetchContract = async () => {
+  const fetchContract = useCallback(async () => {
+    const id = participationId;
+    if (!id) return;
     try {
       setLoading(true);
       setError(null);
-      
-      // Fetch contract HTML
-      const contractResponse = await api.get(`/api/campaigns/contract/${participationId}`);
+
+      const contractResponse = await api.get(`/api/campaigns/contract/${id}`);
       const responseData = contractResponse as any;
       console.log('Contract response:', responseData);
-      
-      // The backend returns { contractHtml: "..." }
+
       if (responseData && typeof responseData === 'object' && responseData.contractHtml) {
-        // Validate that contractHtml is a string
         if (typeof responseData.contractHtml === 'string') {
           setContractHtml(responseData.contractHtml);
+          setStructuredSections(parseContractSections(responseData.contractHtml));
         } else {
           console.warn('Contract HTML is not a string:', typeof responseData.contractHtml);
           setContractHtml('');
+          setStructuredSections([]);
         }
       } else {
         console.warn('No contract HTML in response:', responseData);
         setContractHtml('');
+        setStructuredSections([]);
       }
-      
-      // Try to fetch admin signature (optional)
+
       try {
-        const adminSignatureResponse = await api.get(`/api/campaigns/contract/${participationId}/admin-signature`);
+        const adminSignatureResponse = await api.get(`/api/campaigns/contract/${id}/admin-signature`);
         const sigResponseData = adminSignatureResponse as any;
         console.log('Admin signature response:', sigResponseData);
-        
+
         if (sigResponseData?.signature) {
           setAdminSignature(sigResponseData.signature);
         } else {
@@ -86,13 +132,37 @@ export default function ContractScreen() {
         console.warn('Admin signature not available:', sigError.response?.data?.error || 'No admin signature found');
         setAdminSignature('');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error in fetchContract:', err);
-      setError(err.response?.data?.error || 'Failed to load contract');
+      const msg = err instanceof Error ? err.message : 'Failed to load contract';
+      const awaiting =
+        /application not approved yet|approve your application/i.test(msg);
+      setError(
+        awaiting
+          ? 'The brand still needs to approve your application before you can view or sign this contract.'
+          : msg
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [participationId]);
+
+  useEffect(() => {
+    if (participationId) {
+      fetchContract();
+    } else {
+      setError('No participation ID provided');
+      setLoading(false);
+    }
+  }, [participationId, fetchContract]);
+
+  // Debug logging to help identify text node issues
+  useEffect(() => {
+    console.log('Contract HTML length:', contractHtml?.length || 0);
+    console.log('Admin signature:', adminSignature ? 'Present' : 'Not present');
+    console.log('User signature:', signature ? 'Present' : 'Not present');
+    console.log('Signature image URL:', signatureImageUrl ? 'Present' : 'Not present');
+  }, [contractHtml, adminSignature, signature, signatureImageUrl]);
 
   const handleSignatureUpload = async () => {
     try {
@@ -114,7 +184,6 @@ export default function ContractScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
-        const imageUri = result.assets[0].uri;
         const base64Data = result.assets[0].base64;
         
         if (!base64Data) {
@@ -178,11 +247,16 @@ export default function ContractScreen() {
           }
         ]
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error accepting contract:', err);
+      const msg =
+        err instanceof Error ? err.message : 'Failed to accept contract. Please try again.';
+      const awaiting = /application not approved yet|approve your application/i.test(msg);
       Alert.alert(
-        'Acceptance Failed',
-        err.response?.data?.error || 'Failed to accept contract. Please try again.'
+        awaiting ? 'Awaiting brand approval' : 'Acceptance Failed',
+        awaiting
+          ? 'The brand still needs to approve your application before you can sign the contract.'
+          : msg
       );
     } finally {
       setSaving(false);
@@ -626,427 +700,79 @@ export default function ContractScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Contract Content */}
-        <View style={styles.contractSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Campaign Contract Details</Text>
-            {contractHtml && typeof contractHtml === 'string' && contractHtml.trim() && (
-              <TouchableOpacity 
-                style={styles.switchModeButton}
-                onPress={() => setUseTextFallback(!useTextFallback)}
-              >
-                <Text style={styles.switchModeButtonText}>
-                  {useTextFallback ? 'Show HTML' : 'Show Text'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.contractContent}>
-            {(() => {
-              try {
-                if (contractHtml && typeof contractHtml === 'string' && contractHtml.trim() && !useTextFallback) {
-                  // Sanitize the HTML content to prevent any potential issues
-                  const sanitizedHtml = contractHtml
-                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
-                    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, ''); // Remove iframe tags
-                  
-                  return (
-                    <WebView
-                      ref={webViewRef}
-                      source={{ 
-                        html: `
-                          <!DOCTYPE html>
-                          <html>
-                          <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                            <meta charset="UTF-8">
-                            <style>
-                              * {
-                                box-sizing: border-box;
-                                margin: 0;
-                                padding: 0;
-                              }
-                              
-                              body { 
-                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                margin: 0; 
-                                padding: 20px; 
-                                font-size: 16px; 
-                                line-height: 1.6;
-                                color: #333;
-                                background-color: #fff;
-                                max-width: 100%;
-                                overflow-x: hidden;
-                                word-wrap: break-word;
-                                overflow-wrap: break-word;
-                              }
-                              
-                              .email-container {
-                                max-width: 100%;
-                                margin: 0;
-                                padding: 0;
-                                border: none;
-                              }
-                              
-                              .header {
-                                text-align: center;
-                                padding: 20px 0;
-                                border-bottom: 2px solid #333;
-                                margin-bottom: 20px;
-                              }
-                              
-                              .header h1 {
-                                font-size: 24px;
-                                font-weight: bold;
-                                margin-bottom: 10px;
-                                color: #333;
-                              }
-                              
-                              .header .subtitle {
-                                font-size: 14px;
-                                color: #666;
-                              }
-                              
-                              .content {
-                                padding: 0;
-                              }
-                              
-                              .section {
-                                margin-bottom: 25px;
-                                padding: 0;
-                                border: none;
-                              }
-                              
-                              .section h2 {
-                                font-size: 20px;
-                                font-weight: bold;
-                                color: #333;
-                                margin-bottom: 15px;
-                                padding-bottom: 8px;
-                                border-bottom: 1px solid #eee;
-                              }
-                              
-                              .section h3 {
-                                font-size: 18px;
-                                font-weight: bold;
-                                color: #333;
-                                margin: 20px 0 10px 0;
-                              }
-                              
-                              .section-content h3 {
-                                font-size: 16px;
-                                font-weight: bold;
-                                color: #333;
-                                margin: 15px 0 8px 0;
-                              }
-                              
-                              .section-content p {
-                                margin: 0 0 10px 0;
-                                line-height: 1.6;
-                                color: #333;
-                              }
-                              
-                              .info-table, .payment-table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin: 15px 0;
-                                font-size: 14px;
-                                background: white;
-                                table-layout: fixed;
-                                overflow: hidden;
-                              }
-                              
-                              .campaign-table, .campaign-table-compact {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin: 15px 0;
-                                font-size: 14px;
-                                table-layout: fixed;
-                                overflow: hidden;
-                              }
-                              
-                              .info-table th, .info-table td, 
-                              .payment-table th, .payment-table td,
-                              .campaign-table th, .campaign-table td,
-                              .campaign-table-compact th, .campaign-table-compact td {
-                                border: 1px solid #ddd;
-                                padding: 12px 8px;
-                                text-align: left;
-                                vertical-align: top;
-                                word-wrap: break-word;
-                                word-break: break-word;
-                                overflow-wrap: break-word;
-                                hyphens: auto;
-                                max-width: 50%;
-                              }
-                              
-                              .info-table th, .payment-table th,
-                              .campaign-table th, .campaign-table-compact th {
-                                background: #f8f9fa;
-                                color: #333;
-                                font-weight: bold;
-                                font-size: 14px;
-                              }
-                              
-                              .info-table td, .payment-table td,
-                              .campaign-table td, .campaign-table-compact td {
-                                color: #333;
-                                font-size: 14px;
-                                word-break: break-all;
-                                overflow-wrap: break-word;
-                              }
-                              
-                              .table-heading {
-                                font-size: 18px;
-                                font-weight: bold;
-                                margin: 25px 0 15px 0;
-                                color: #333;
-                              }
-                              
-                              .campaign-grid {
-                                margin-top: 20px;
-                              }
-                              
-                              .payment-section, .legal-section {
-                                margin: 25px 0;
-                                padding: 0;
-                                border: none;
-                              }
-                              
-                              .payment-section h3, .legal-section h3 {
-                                font-size: 18px;
-                                font-weight: bold;
-                                color: #333;
-                                margin-bottom: 15px;
-                              }
-                              
-                              .footer {
-                                margin-top: 30px;
-                                padding-top: 20px;
-                                border-top: 1px solid #eee;
-                                font-size: 12px;
-                                color: #666;
-                                text-align: center;
-                              }
-                              
-                              /* Special handling for long text in table cells */
-                              .info-table td, .payment-table td,
-                              .campaign-table td, .campaign-table-compact td {
-                                word-break: break-all;
-                                overflow-wrap: break-word;
-                                hyphens: auto;
-                              }
-                              
-                              @media (max-width: 480px) {
-                                body {
-                                  padding: 15px;
-                                  font-size: 15px;
-                                }
-                                
-                                .header h1 {
-                                  font-size: 22px;
-                                }
-                                
-                                .section h2 {
-                                  font-size: 18px;
-                                }
-                                
-                                .section h3 {
-                                  font-size: 16px;
-                                }
-                                
-                                .info-table, .payment-table, .campaign-table, .campaign-table-compact {
-                                  font-size: 13px;
-                                  table-layout: fixed;
-                                  width: 100%;
-                                }
-                                
-                                .info-table th, .info-table td, 
-                                .payment-table th, .payment-table td,
-                                .campaign-table th, .campaign-table td,
-                                .campaign-table-compact th, .campaign-table-compact td {
-                                  padding: 8px 4px;
-                                  font-size: 12px;
-                                  word-wrap: break-word;
-                                  word-break: break-all;
-                                  overflow-wrap: break-word;
-                                  hyphens: auto;
-                                  max-width: none;
-                                  width: 50%;
-                                  vertical-align: top;
-                                }
-                                
-                                .info-table th, .payment-table th,
-                                .campaign-table th, .campaign-table-compact th {
-                                  font-size: 12px;
-                                  font-weight: bold;
-                                  background: #f8f9fa;
-                                  width: 40%;
-                                }
-                                
-                                .info-table td, .payment-table td,
-                                .campaign-table td, .campaign-table-compact td {
-                                  width: 60%;
-                                  font-size: 12px;
-                                }
-                              }
-                              
-                              @media (max-width: 360px) {
-                                body {
-                                  padding: 10px;
-                                  font-size: 14px;
-                                }
-                                
-                                .info-table th, .info-table td, 
-                                .payment-table th, .payment-table td,
-                                .campaign-table th, .campaign-table td,
-                                .campaign-table-compact th, .campaign-table-compact td {
-                                  padding: 6px 3px;
-                                  font-size: 11px;
-                                  word-break: break-all;
-                                }
-                                
-                                .info-table th, .payment-table th,
-                                .campaign-table th, .campaign-table-compact th {
-                                  width: 35%;
-                                  font-size: 11px;
-                                }
-                                
-                                .info-table td, .payment-table td,
-                                .campaign-table td, .campaign-table-compact td {
-                                  width: 65%;
-                                  font-size: 11px;
-                                }
-                              }
-                            </style>
-                            <script>
-                              function sendHeight() {
-                                const height = document.body.scrollHeight;
-                                window.ReactNativeWebView.postMessage(JSON.stringify({
-                                  type: 'height',
-                                  height: height
-                                }));
-                              }
-                              
-                              // Send height after content loads
-                              window.addEventListener('load', sendHeight);
-                              document.addEventListener('DOMContentLoaded', sendHeight);
-                              
-                              // Also send height after a short delay to ensure all content is rendered
-                              setTimeout(sendHeight, 500);
-                            </script>
-                          </head>
-                          <body>
-                            ${sanitizedHtml}
-                          </body>
-                          </html>
-                        `
-                      }}
-                      style={[styles.webView, { height: webViewHeight }]}
-                      scrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                      onMessage={(event) => {
-                        // Handle any messages from the webview if needed
-                        try {
-                          const data = JSON.parse(event.nativeEvent.data);
-                          if (data.type === 'height' && data.height) {
-                            setWebViewHeight(Math.max(500, data.height + 50));
-                          }
-                        } catch (error) {
-                          // Ignore parsing errors
-                        }
-                      }}
-                      onError={(syntheticEvent) => {
-                        const { nativeEvent } = syntheticEvent;
-                        console.warn('WebView error:', nativeEvent);
-                        // Fallback to text display if WebView fails
-                        setUseTextFallback(true);
-                      }}
-                      javaScriptEnabled={true}
-                      domStorageEnabled={false}
-                      mixedContentMode="compatibility"
-                      allowsInlineMediaPlayback={false}
-                      mediaPlaybackRequiresUserAction={true}
-                      scalesPageToFit={true}
-                      bounces={false}
-                    />
-                  );
-                } else if (contractHtml && typeof contractHtml === 'string' && contractHtml.trim()) {
-                  // Text fallback - strip HTML tags and show as plain text with better formatting
-                  const plainText = contractHtml
-                    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '\n\n$1\n') // Convert h1 to double line breaks
-                    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '\n\n$1\n') // Convert h2 to double line breaks
-                    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '\n\n$1\n') // Convert h3 to double line breaks
-                    .replace(/<br\s*\/?>/gi, '\n') // Convert br to line breaks
-                    .replace(/<p[^>]*>(.*?)<\/p>/gi, '\n$1\n') // Convert p to line breaks
-                    .replace(/<tr[^>]*>(.*?)<\/tr>/gi, '\n$1\n') // Convert table rows to line breaks
-                    .replace(/<td[^>]*>(.*?)<\/td>/gi, (match, content) => {
-                      // Handle long content in table cells by wrapping at 40 characters
-                      const maxLength = 40;
-                      if (content.length > maxLength) {
-                        const words = content.split(' ');
-                        let result = '';
-                        let currentLine = '';
-                        
-                        words.forEach((word: string) => {
-                          if ((currentLine + word).length <= maxLength) {
-                            currentLine += (currentLine ? ' ' : '') + word;
-                          } else {
-                            result += (result ? '\n' : '') + currentLine;
-                            currentLine = word;
-                          }
-                        });
-                        
-                        if (currentLine) {
-                          result += (result ? '\n' : '') + currentLine;
-                        }
-                        
-                        return ' | ' + result;
-                      }
-                      return ' | ' + content;
-                    }) // Convert table cells to pipe-separated with wrapping
-                    .replace(/<th[^>]*>(.*?)<\/th>/gi, '**$1**') // Convert table headers to bold
-                    .replace(/<[^>]*>/g, '') // Remove all remaining HTML tags
-                    .replace(/&nbsp;/g, ' ') // Replace &nbsp; with spaces
-                    .replace(/&amp;/g, '&') // Replace &amp; with &
-                    .replace(/&lt;/g, '<') // Replace &lt; with <
-                    .replace(/&gt;/g, '>') // Replace &gt; with >
-                    .replace(/&quot;/g, '"') // Replace &quot; with "
-                    .replace(/\n\s*\n\s*\n/g, '\n\n') // Remove excessive line breaks
-                    .trim();
-                  
-                  return (
-                    <ScrollView style={styles.webView} showsVerticalScrollIndicator={true}>
-                      <Text style={styles.plainTextContent}>
-                        {plainText}
-                      </Text>
-                    </ScrollView>
-                  );
-                } else {
-                  return (
-                    <View style={styles.webViewPlaceholder}>
-                      <Text style={styles.placeholderText}>
-                        {contractHtml ? 'Contract content is empty or invalid' : 'Loading contract content...'}
-                      </Text>
-                    </View>
-                  );
-                }
-              } catch (error) {
-                console.error('Error rendering WebView:', error);
-                return (
-                  <View style={styles.webViewPlaceholder}>
-                    <Text style={styles.placeholderText}>
-                      Error loading contract content
-                    </Text>
-                  </View>
-                );
-              }
-            })()}
+        <View style={styles.heroStrip}>
+          <LinearGradient
+            colors={[...premiumNavy.base.colors]}
+            locations={[...premiumNavy.base.locations]}
+            start={premiumNavy.base.start}
+            end={premiumNavy.base.end}
+            style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            colors={[...premiumNavy.sheen.colors]}
+            locations={[...premiumNavy.sheen.locations]}
+            start={premiumNavy.sheen.start}
+            end={premiumNavy.sheen.end}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+          <View style={styles.heroStripInner}>
+            <Text style={styles.heroKicker}>Contract Review</Text>
+            <Text style={styles.heroTitle}>Premium agreement flow</Text>
+            <Text style={styles.heroSubtitle}>
+              Verify details, upload signature, and complete contract in one clean pass.
+            </Text>
           </View>
         </View>
 
-        {/* Signature Section */}
-        <View style={styles.signatureSection}>
+        <PremiumCard comfortable style={styles.contractSection} padded={false}>
+          {contractSectionsToShow.length > 0 ? (
+            <View style={{ gap: spacing.sm }}>
+              {contractSectionsToShow.map((section, idx) => (
+                <View key={`${section.title}-${idx}`} style={styles.sectionCard}>
+                  <LinearGradient
+                    colors={['#0a1128', '#141e33', '#1e2d4a', '#2a3f66']}
+                    locations={[0, 0.35, 0.72, 1]}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={styles.sectionHeadingGradient}
+                  >
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.06)', 'transparent']}
+                      locations={[0, 0.35, 1]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    />
+                    <Text style={styles.sectionHeadingText} numberOfLines={3}>
+                      {section.title}
+                    </Text>
+                  </LinearGradient>
+                  <View style={styles.sectionCardBody}>
+                    {section.rows.map((row, rowIndex) => (
+                      <View key={`${row.label}-${rowIndex}`} style={styles.kvRow}>
+                        <Text style={styles.kvLabel}>{row.label}</Text>
+                        <Text style={styles.kvValue}>{row.value || '—'}</Text>
+                      </View>
+                    ))}
+                    {section.paragraphs.map((p, pIndex) => (
+                      <Text key={`${section.title}-p-${pIndex}`} style={styles.sectionParagraph}>
+                        {p}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.webViewPlaceholder}>
+              <Text style={styles.placeholderText}>Contract preview is unavailable right now.</Text>
+            </View>
+          )}
+        </PremiumCard>
+
+        <PremiumCard comfortable style={styles.signatureSection} title="Digital Signature">
           <Text style={styles.sectionTitle}>Digital Signature</Text>
           <Text style={styles.signatureDescription}>
             Please upload your signature to accept the contract terms and conditions.
@@ -1064,52 +790,37 @@ export default function ContractScreen() {
           </View>
           
           {/* Signature Upload */}
-          <TouchableOpacity 
-            style={styles.uploadButton}
-            onPress={handleSignatureUpload}
-            disabled={uploading}
-          >
-            <Text style={styles.uploadButtonText}>
-              {uploading ? 'Uploading...' : 'Upload Signature Image'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.uploadSurface}>
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={handleSignatureUpload}
+              disabled={uploading}
+            >
+              <Text style={styles.uploadButtonText}>
+                {uploading ? 'Uploading...' : 'Upload Signature Image'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {signatureImageUrl && (
             <View style={styles.signatureStatus}>
               <Text style={styles.statusTextGreen}>✓ Signature uploaded successfully</Text>
             </View>
           )}
-        </View>
+        </PremiumCard>
 
-        {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
+          <SecondaryButton
+            label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
             onPress={handleDownloadPDF}
             disabled={loading || generatingPDF}
-          >
-            {generatingPDF ? (
-              <View style={styles.buttonContent}>
-                <ActivityIndicator size="small" color={appShell.cta} style={{ marginRight: 8 }} />
-                <Text style={styles.secondaryButtonText}>Generating PDF...</Text>
-              </View>
-            ) : (
-              <Text style={styles.secondaryButtonText}>Download PDF</Text>
-            )}
-          </TouchableOpacity>
+          />
           
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              (!signature && !signatureImageUrl) && styles.primaryButtonDisabled
-            ]}
+          <PrimaryButton
+            label={saving ? 'Accepting...' : 'Accept & Complete'}
             onPress={handleAccept}
-            disabled={!signature && !signatureImageUrl || saving}
-          >
-            <Text style={styles.primaryButtonText}>
-              {saving ? 'Accepting...' : 'Accept & Complete'}
-            </Text>
-          </TouchableOpacity>
+            disabled={(!signature && !signatureImageUrl) || saving}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -1147,6 +858,42 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
   },
+  heroStrip: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    minHeight: 112,
+    ...shadow.card,
+  },
+  heroStripInner: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    position: 'relative',
+    zIndex: 1,
+  },
+  heroKicker: {
+    color: 'rgba(255,255,255,0.72)',
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  heroTitle: {
+    color: palette.white,
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    lineHeight: 26,
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.86)',
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1180,18 +927,69 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   contractSection: {
-    backgroundColor: appShell.card,
-    borderRadius: radius.md,
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.1)',
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...shadow.cardLight,
-    minHeight: 600,
+    ...shadow.card,
+    minHeight: 620,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  sectionCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.12)',
+    backgroundColor: palette.white,
+    overflow: 'hidden',
+    ...shadow.cardLight,
+  },
+  sectionHeadingGradient: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+  },
+  sectionHeadingText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  sectionCardBody: {
+    padding: spacing.md,
+    paddingTop: spacing.sm,
+    gap: 0,
+    backgroundColor: palette.white,
+  },
+  kvRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(20, 30, 51, 0.08)',
+  },
+  kvLabel: {
+    color: '#64748b',
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  kvValue: {
+    color: '#0a1128',
+    fontSize: 15,
+    fontFamily: fonts.semiBold,
+    lineHeight: 22,
+  },
+  sectionParagraph: {
+    color: appShell.textSecondary,
+    fontSize: 13,
+    lineHeight: 21,
+    fontFamily: fonts.regular,
+    marginTop: spacing.xs,
   },
   sectionTitle: {
     fontSize: 16,
@@ -1220,12 +1018,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 500,
   },
-  webView: {
-    minHeight: 500,
-    backgroundColor: appShell.card,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
   webViewPlaceholder: {
     minHeight: 500,
     backgroundColor: appShell.card,
@@ -1245,11 +1037,13 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   signatureSection: {
-    backgroundColor: appShell.card,
-    borderRadius: radius.md,
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.1)',
     padding: spacing.md,
     marginBottom: 16,
-    ...shadow.cardLight,
+    ...shadow.card,
   },
   signatureDescription: {
     fontSize: 13,
@@ -1261,8 +1055,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     padding: 12,
-    backgroundColor: appShell.canvas,
-    borderRadius: 8,
+    backgroundColor: palette.white,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.1)',
   },
   statusDot: {
     width: 12,
@@ -1287,15 +1083,22 @@ const styles = StyleSheet.create({
     color: appShell.success,
     fontFamily: fonts.semiBold,
   },
+  uploadSurface: {
+    marginTop: 2,
+    backgroundColor: '#f8fafc',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.08)',
+    padding: spacing.xs,
+  },
   uploadButton: {
-    marginTop: 16,
     padding: 16,
     borderWidth: 2,
     borderColor: appShell.cta,
     borderStyle: 'dashed',
     borderRadius: radius.md,
     alignItems: 'center',
-    backgroundColor: appShell.canvasAlt,
+    backgroundColor: palette.white,
   },
   uploadButtonText: {
     color: appShell.cta,
@@ -1305,6 +1108,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     gap: 12,
     marginBottom: 32,
+    marginTop: 4,
   },
   primaryButton: {
     backgroundColor: appShell.cta,

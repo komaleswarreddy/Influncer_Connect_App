@@ -1,10 +1,13 @@
 import { ThemeProvider } from '@react-navigation/native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import '@/lib/kinde-secure-store-bootstrap';
+import { useEffect, useRef } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { registerForPushNotifications, routeFromPushData } from '@/lib/push-notifications';
 import { PaperProvider } from 'react-native-paper';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -15,7 +18,9 @@ import { appShell, appPaperLight, appPaperDark, appNavigationLight, appNavigatio
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { loadAuth, isInitialized } = useAuthStore();
+  const router = useRouter();
+  const { loadAuth, isInitialized, user } = useAuthStore();
+  const pushRegistered = useRef(false);
   const isDark = colorScheme === 'dark';
   const paperTheme = isDark ? appPaperDark : appPaperLight;
   const navTheme = isDark ? appNavigationDark : appNavigationLight;
@@ -30,6 +35,21 @@ export default function RootLayout() {
   useEffect(() => {
     loadAuth();
   }, [loadAuth]);
+
+  useEffect(() => {
+    if (!isInitialized || !user?.id || pushRegistered.current) return;
+    pushRegistered.current = true;
+    void registerForPushNotifications();
+  }, [isInitialized, user?.id]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+      const path = routeFromPushData(data as never);
+      if (path) router.push(path as never);
+    });
+    return () => sub.remove();
+  }, [router]);
 
   if (!loaded || !isInitialized) {
     return (

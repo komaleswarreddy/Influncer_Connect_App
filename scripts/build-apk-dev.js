@@ -10,7 +10,7 @@ console.log('📱 This build will work without a backend - using mock data');
 // Check if EAS CLI is installed
 try {
   execSync('eas --version', { stdio: 'ignore' });
-} catch (error) {
+} catch (_error) {
   console.error('❌ EAS CLI is not installed. Please install it first:');
   console.error('npm install -g @expo/eas-cli');
   process.exit(1);
@@ -19,7 +19,7 @@ try {
 // Check if user is logged in to Expo
 try {
   execSync('eas whoami', { stdio: 'ignore' });
-} catch (error) {
+} catch (_error) {
   console.error('❌ You are not logged in to Expo. Please run:');
   console.error('eas login');
   process.exit(1);
@@ -85,7 +85,7 @@ try {
   console.log('2. Install it on your Android device');
   console.log('3. Test the app with mock data');
   console.log('4. When ready for production, run: npm run setup:production');
-} catch (error) {
-  console.error('❌ APK build failed:', error.message);
+} catch (err) {
+  console.error('❌ APK build failed:', err instanceof Error ? err.message : String(err));
   process.exit(1);
 } 

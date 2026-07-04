@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, type TouchableOpacityProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { appShell, radius, spacing } from '@/theme';
@@ -20,6 +20,7 @@ type Props = TouchableOpacityProps & {
   compact?: boolean;
   status?: StatusDot;
   showChevron?: boolean;
+  trailing?: React.ReactNode;
 };
 
 const dotColor: Record<StatusDot, string> = {
@@ -38,6 +39,7 @@ export function ListRow({
   compact,
   status,
   showChevron = true,
+  trailing,
   onPress,
   style,
   ...rest
@@ -55,6 +57,7 @@ export function ListRow({
         <Text style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
         {subtitle ? <Text style={[styles.subtitle, compact && styles.subtitleCompact]}>{subtitle}</Text> : null}
       </View>
+      {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
       {status ? (
         <View style={[styles.dot, { backgroundColor: dotColor[status] }]} />
       ) : showChevron && onPress ? (
@@ -99,7 +102,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: 16,
     color: appShell.textPrimary,
-    fontWeight: '600',
   },
   subtitle: {
     fontFamily: fonts.regular,
@@ -113,6 +115,9 @@ const styles = StyleSheet.create({
   subtitleCompact: {
     fontSize: 11,
     marginTop: 1,
+  },
+  trailing: {
+    marginLeft: spacing.sm,
   },
   dot: {
     width: 10,

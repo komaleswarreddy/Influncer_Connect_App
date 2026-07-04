@@ -1,4 +1,4 @@
-import { palette, paletteExtended } from './palette';
+import { palette } from './palette';
 
 /**
  * Premium light login canvas — reference-matched (white background, navy type, periwinkle accent).

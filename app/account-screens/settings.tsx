@@ -8,7 +8,7 @@ import PasswordSection from '../../components/influencer/PasswordSection';
 import NotificationSection from '../../components/influencer/NotificationSection';
 import { kindeConfigured } from '../../lib/auth-config';
 import { Screen, PremiumSegmentedControl, type PremiumSegment } from '@/components/ui';
-import { appShell, palette, spacing } from '@/theme';
+import { palette, spacing } from '@/theme';
 
 const ALL_TABS = [
   { key: 'profile', label: 'Profile' },

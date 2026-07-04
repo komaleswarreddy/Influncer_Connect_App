@@ -1,0 +1,5 @@
+# Omit local `android/` from the EAS tarball:
+# - Avoids Windows EBUSY on android/.gradle/*.lock during "shallow clone" copy.
+# - EAS runs `expo prebuild` on Linux when `android/` is absent, so app.config.js
+#   plugins (network security / cleartext) still apply cleanly.
+android

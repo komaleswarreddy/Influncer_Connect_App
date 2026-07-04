@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { api } from '../../lib/api';
 import { appShell, shadow } from '@/theme';
@@ -14,18 +14,18 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
     allowNotificationForApproval: false,
   });
 
-  useEffect(() => {
-    loadNotificationSettings();
-  }, []);
-
-  const loadNotificationSettings = async () => {
+  const loadNotificationSettings = useCallback(async () => {
     try {
       const response = await api.get('/api/influencers/notifications');
       setNotifications(response as typeof notifications);
     } catch (error) {
       console.log('Could not load notification settings:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadNotificationSettings();
+  }, [loadNotificationSettings]);
 
   const handleToggle = async (key: keyof typeof notifications) => {
     const newSettings = {
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: appShell.cta,
+    color: '#111827',
     marginBottom: 12,
   },
   notificationItem: {
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#111827',
     marginBottom: 4,
   },
   notificationDescription: {
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   channelTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#111827',
     marginBottom: 4,
   },
   channelDescription: {
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   frequencyTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#111827',
     marginBottom: 4,
   },
   frequencyDescription: {

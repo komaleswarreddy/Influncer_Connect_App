@@ -10,6 +10,7 @@ type Extra = {
 };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
+const executionEnvironment = (Constants as { executionEnvironment?: string }).executionEnvironment;
 
 const trim = (s: string | undefined) => (typeof s === 'string' ? s.trim() : '');
 
@@ -43,3 +44,6 @@ export const useMockAuth =
 
 /** JsonPlaceholder-style mocks for API (dev only). */
 export const useMockApi = envBool('EXPO_PUBLIC_USE_MOCK_API') ?? extra.useMockApi === true;
+
+/** Expo Go runtime (store client). Native custom modules are unavailable here. */
+export const isExpoGo = executionEnvironment === 'storeClient';

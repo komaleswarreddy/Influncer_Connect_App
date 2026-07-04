@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, type ScrollViewProps, type ViewProps } fr
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { appShell, spacing } from '@/theme';
 import { DotBackground } from './DotBackground';
+import { useTabBarInset } from '@/lib/tab-bar-inset';
 
 type ScreenProps = ViewProps & {
   children: React.ReactNode;
@@ -37,6 +38,10 @@ export function Screen({
 type ScrollScreenProps = Omit<ScreenProps, 'children'> & {
   children: React.ReactNode;
   scrollProps?: ScrollViewProps;
+  /** Override default canvas color (e.g. home screen #F3F4F6) */
+  canvasColor?: string;
+  /** Extra bottom padding for tab bar overlap (true = auto from hook, number = explicit px) */
+  contentInsetBottom?: boolean | number;
 };
 
 export function ScrollScreen({
@@ -46,14 +51,30 @@ export function ScrollScreen({
   padH = spacing.lg,
   scrollProps,
   style,
+  canvasColor,
+  contentInsetBottom = false,
 }: ScrollScreenProps) {
+  const tabBarInset = useTabBarInset();
+  const inset =
+    contentInsetBottom === true
+      ? tabBarInset
+      : typeof contentInsetBottom === 'number'
+        ? contentInsetBottom
+        : 0;
+  const bg = canvasColor ?? appShell.canvas;
+  const mergedContentStyle = [
+    styles.scrollContent,
+    { paddingHorizontal: padH, paddingBottom: spacing.lg + inset },
+    scrollProps?.contentContainerStyle,
+  ];
+
   return (
-    <SafeAreaView style={[styles.safe, style]} edges={safeAreaEdges}>
-      <View style={[styles.fill, { backgroundColor: appShell.canvas }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }, style]} edges={safeAreaEdges}>
+      <View style={[styles.fill, { backgroundColor: bg }]}>
         {dotBackground ? <DotBackground /> : null}
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingHorizontal: padH }]}
+          contentContainerStyle={mergedContentStyle}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           {...scrollProps}
@@ -83,6 +104,5 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.lg,
   },
 });

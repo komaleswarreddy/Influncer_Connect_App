@@ -85,6 +85,8 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
               onChangeText={(text) => setFormData((prev) => ({ ...prev, currentPassword: text }))}
               placeholder="Enter your current password"
               secureTextEntry={!showCurrent}
+              placeholderTextColor="#6b7280"
+              selectionColor={appShell.cta}
             />
             <TouchableOpacity onPress={() => setShowCurrent((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showCurrent ? 'eye' : 'eye-off'} size={22} color="#888" />
@@ -101,6 +103,8 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
               onChangeText={(text) => setFormData((prev) => ({ ...prev, newPassword: text }))}
               placeholder="Enter your new password"
               secureTextEntry={!showNew}
+              placeholderTextColor="#6b7280"
+              selectionColor={appShell.cta}
             />
             <TouchableOpacity onPress={() => setShowNew((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showNew ? 'eye' : 'eye-off'} size={22} color="#888" />
@@ -117,6 +121,8 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
               onChangeText={(text) => setFormData((prev) => ({ ...prev, confirmPassword: text }))}
               placeholder="Confirm your new password"
               secureTextEntry={!showConfirm}
+              placeholderTextColor="#6b7280"
+              selectionColor={appShell.cta}
             />
             <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeIcon}>
               <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color="#888" />
@@ -172,7 +178,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: appShell.cta,
+    color: '#111827',
     marginBottom: 12,
   },
   inputGroup: {
@@ -181,7 +187,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
+    color: '#111827',
     marginBottom: 6,
   },
   input: {
@@ -192,6 +198,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     backgroundColor: '#fff',
+    color: '#111827',
   },
   passwordRequirements: {
     backgroundColor: '#f0f9ff',

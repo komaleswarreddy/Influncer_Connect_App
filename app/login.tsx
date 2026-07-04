@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthStore } from '../store/auth-store';
+import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
 import { KindeAuthButtons } from '../components/KindeAuthButtons';
 import { LoginHeroLottie } from '../components/LoginHeroLottie';
 import { kindeConfigured, useMockAuth } from '../lib/auth-config';
@@ -77,7 +77,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(data.email, data.password);
-      router.replace('/influencer/dashboard');
+      const step = useAuthStore.getState().nextStep;
+      router.replace(getInfluencerEntryPath(step));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please check your credentials and try again.';
       setError(msg);
