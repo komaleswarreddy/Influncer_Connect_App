@@ -4,7 +4,7 @@ import LottieView from 'lottie-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { loginScreen, radius } from '@/theme';
 
-const LOTTIE_SOURCE = require('../assets/Social Media Marketing.json');
+const LOTTIE_SOURCE = require('../assets/lottie/social-media-marketing.json');
 
 const BG = loginScreen.background;
 
