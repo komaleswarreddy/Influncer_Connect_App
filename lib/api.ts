@@ -86,10 +86,20 @@ function resolveLoopbackApiBase(raw: string): string {
  * `localhost` in EXPO_PUBLIC_API_URL is rewritten: LAN from Metro when possible; else Android emulator
  * uses 10.0.2.2, physical Android uses 127.0.0.1 (pair with `npm run adb:reverse` for API port).
  */
+let warnedMissingApiUrl = false;
+
 export function getApiBaseUrl(): string {
   const env = process.env.EXPO_PUBLIC_API_URL?.trim();
   const ex = (Constants.expoConfig?.extra as { apiUrl?: string })?.apiUrl?.trim();
   let raw = env || ex || '';
+
+  if (!raw && !warnedMissingApiUrl) {
+    warnedMissingApiUrl = true;
+    console.warn(
+      '[api] No API base URL configured. Set EXPO_PUBLIC_API_URL in mobile/.env ' +
+        '(or extra.apiUrl in app.json for builds) — requests will fail until then.'
+    );
+  }
 
   const isLoopbackHost = /localhost/i.test(raw) || /127\.0\.0\.1/.test(raw);
 

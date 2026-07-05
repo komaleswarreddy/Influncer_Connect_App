@@ -49,7 +49,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "https://jsonplaceholder.typicode.com",
+      "apiUrl": "",
       "useMockAuth": false,
       "useMockApi": false,
       "kindeDomain": "",

@@ -7,7 +7,6 @@
       "reactNativeDirectoryCheck": {
         "exclude": [
           "@kinde/expo",
-          "@lottiefiles/dotlottie-react",
           "metro"
         ],
         "listUnknownPackages": false
@@ -26,8 +25,6 @@
     "adb:reverse:metro": "node ./scripts/adb-reverse.js 8081",
     "adb:reverse": "node ./scripts/adb-reverse.js 8081 3000",
     "start:dev-client:usb": "node ./scripts/start-expo-usb.js",
-    "start:dev-client:usb:api": "node ./scripts/start-expo-usb.js",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --dev-client --android",
     "ios": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --dev-client --ios",
     "web": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --web",
@@ -45,7 +42,6 @@
     "@expo/vector-icons": "^14.1.0",
     "@hookform/resolvers": "^5.1.1",
     "@kinde/expo": "^0.5.2",
-    "@lottiefiles/dotlottie-react": "^0.6.5",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-picker/picker": "^2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
