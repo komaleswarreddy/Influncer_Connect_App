@@ -72,9 +72,7 @@ export default function RootLayout() {
         <Stack>
           <Stack.Screen name="login" options={{ title: 'Login', headerShown: false }} />
           <Stack.Screen name="register/influencer" options={{ title: 'Register', headerShown: false }} />
-          <Stack.Screen name="dashboard" options={{ title: 'Dashboard', headerShown: false }} />
           <Stack.Screen name="influencer" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="account-screens" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
