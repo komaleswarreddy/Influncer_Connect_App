@@ -1,50 +1,50 @@
-# Welcome to your Expo app 👋
+# Affiliate Platform — Mobile (Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo SDK 53 / React Native app for influencers: campaigns, invites, stats, UGC jobs, bookings, Instagram tools. Routing is file-based via **expo-router** (`app/`).
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+npm install                 # runs patch-package on postinstall
+cp .env.example .env        # set EXPO_PUBLIC_API_URL (backend base URL, no /api suffix)
+npm start                   # Expo Go dev server (runs scripts/expo-preflight.js first)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Useful variants:
 
-## Learn more
+| Script | Use when |
+|---|---|
+| `npm run start:clear` | Metro cache issues |
+| `npm run start:tunnel` | Device not on the same LAN |
+| `npm run start:dev-client:usb` | Physical Android over USB (`npm run adb:reverse` forwards :8081/:3000) |
+| `npm run android` / `npm run ios` | Dev-client build launch |
 
-To learn more about developing your project with Expo, look at the following resources:
+## Builds (EAS)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run build:apk           # helper wrapper around EAS Android build
+npm run build:preview       # eas build --profile preview
+npm run build:production    # eas build --profile production
+```
 
-## Join the community
+Profiles live in `eas.json`. `.easignore` excludes the committed `android/` folder — EAS cloud builds re-run prebuild from `app.config.js`, which is the source of truth for native config.
 
-Join our community of developers creating universal apps.
+## Project layout
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+app/               expo-router routes (login, register/, influencer/, account-screens/)
+components/        shared UI (ui/, influencer/, my-stats/, catalog/, scheduler/)
+lib/               API clients, parsers, push, mock data
+store/             zustand stores
+theme/             design tokens, paper/navigation themes
+assets/            images, fonts, lottie
+plugins/           expo config plugins (Android network security)
+scripts/           dev helper scripts (preflight, adb, EAS wrappers)
+patches/           patch-package patches
+```
+
+## Notes
+
+- Auth: Kinde (mobile keeps its own Kinde JWKS flow against `POST /api/auth/kinde/mobile-token-login` — independent of the web app's auth).
+- `EXPO_PUBLIC_USE_MOCK_AUTH` / `EXPO_PUBLIC_USE_MOCK_API` enable offline UI work without a backend; keep both `false` normally.
+- Mobile-specific guides live in [../docs/mobile/](../docs/mobile/) (APK without backend, UI test guide, known gaps).
