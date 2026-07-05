@@ -33,8 +33,7 @@
     "build:apk:dev": "node ./scripts/build-apk-dev.js",
     "build:preview": "eas build --platform android --profile preview",
     "build:eas:dev": "npx eas-cli@latest build --platform android --profile development --non-interactive",
-    "build:production": "eas build --platform android --profile production",
-    "setup:production": "node ./scripts/setup-production.js"
+    "build:production": "eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

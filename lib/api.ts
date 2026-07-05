@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
 import { useMockApi } from './auth-config';
 
-const MOCK_HOSTS = ['jsonplaceholder.typicode.com', 'your-railway-app.railway.app'];
+const MOCK_HOSTS = ['jsonplaceholder.typicode.com'];
 
 /** Android emulator: host machine is reachable at 10.0.2.2. Physical devices must use LAN or adb reverse + 127.0.0.1. */
 function isLikelyAndroidEmulator(): boolean {
@@ -54,12 +54,16 @@ function resolveLoopbackApiBase(raw: string): string {
   const hostUriCandidates = [
     Constants.expoConfig?.hostUri,
     (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost,
-    (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } }).manifest2?.extra
-      ?.expoClient?.hostUri,
+    (Constants as { manifest2?: { extra?: { expoClient?: { hostUri?: string } } } }).manifest2
+      ?.extra?.expoClient?.hostUri,
   ];
-  const hostUri = hostUriCandidates.find((v) => typeof v === 'string' && v.length > 0) as string | undefined;
+  const hostUri = hostUriCandidates.find((v) => typeof v === 'string' && v.length > 0) as
+    string | undefined;
   if (hostUri) {
-    const host = hostUri.replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0];
+    const host = hostUri
+      .replace(/^https?:\/\//, '')
+      .split('/')[0]
+      ?.split(':')[0];
     if (host && !/^(localhost|127\.0\.0\.1)$/i.test(host)) {
       return `http://${host}:${port}`;
     }
@@ -122,30 +126,30 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
   const mockResponses: Record<string, unknown> = {
     '/api/campaigns': {
       campaigns: [],
-      message: 'Campaigns fetched successfully'
+      message: 'Campaigns fetched successfully',
     },
     '/api/campaigns/participations': {
       participations: [],
-      message: 'Participations fetched successfully'
+      message: 'Participations fetched successfully',
     },
     '/api/influencers/instagram-analytics': {
       analytics: null,
-      message: 'Instagram analytics fetched'
+      message: 'Instagram analytics fetched',
     },
     '/api/influencers/youtube-analytics': {
       analytics: null,
-      message: 'YouTube analytics fetched'
+      message: 'YouTube analytics fetched',
     },
     '/api/influencers/twitter-analytics': {
       analytics: null,
-      message: 'Twitter analytics fetched'
+      message: 'Twitter analytics fetched',
     },
     '/api/ratings': {
       ratings: [],
-      message: 'Ratings fetched successfully'
+      message: 'Ratings fetched successfully',
     },
     '/api/auth/reset-password': {
-      message: 'Password reset email sent successfully'
+      message: 'Password reset email sent successfully',
     },
     '/api/auth/kinde/mobile-token-login': {
       token: 'mock-kinde-app-jwt',
@@ -163,7 +167,14 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
     '/api/content-ideas/trending': {
       success: true,
       ideas: [
-        { title: 'Mock trend', hook: 'Try this hook today', hashtags: '#mock #creator', bestTime: '6 PM', rationale: 'Demo', contentType: 'reel' },
+        {
+          title: 'Mock trend',
+          hook: 'Try this hook today',
+          hashtags: '#mock #creator',
+          bestTime: '6 PM',
+          rationale: 'Demo',
+          contentType: 'reel',
+        },
       ],
       cached: false,
       generatedAt: new Date().toISOString(),
@@ -242,7 +253,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
   // For other endpoints, return a generic success response
   return Promise.resolve({
     message: `${method} request to ${endpoint} successful`,
-    data: data || {}
+    data: data || {},
   });
 };
 
@@ -256,7 +267,11 @@ class ApiClient {
     if (!/\/api\/influencers\/(instagram|youtube|twitter)-analytics/.test(endpoint)) return false;
     const msg =
       data && typeof data === 'object'
-        ? String((data as { error?: string; message?: string }).error ?? (data as { error?: string; message?: string }).message ?? '')
+        ? String(
+            (data as { error?: string; message?: string }).error ??
+              (data as { error?: string; message?: string }).message ??
+              ''
+          )
         : '';
     return /not connected/i.test(msg);
   }
@@ -275,9 +290,9 @@ class ApiClient {
 
   async request(endpoint: string, options: RequestInit = {}) {
     const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string> || {}),
+      ...((options.headers as Record<string, string>) || {}),
     };
-    
+
     // Fastify rejects DELETE/GET with Content-Type: application/json and an empty body (FST_ERR_CTP_EMPTY_JSON_BODY).
     const body = options.body;
     if (body instanceof FormData) {
@@ -285,12 +300,12 @@ class ApiClient {
     } else if (body !== undefined && body !== null) {
       headers['Content-Type'] = 'application/json';
     }
-    
+
     const token = await this.getToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     const API_URL = getApiBaseUrl();
 
     if (!API_URL) {
@@ -311,7 +326,7 @@ class ApiClient {
         ...options,
         headers,
       });
-      
+
       let data = {};
       try {
         data = await response.json();
@@ -319,12 +334,13 @@ class ApiClient {
         console.log('Failed to parse JSON response, using empty object');
         data = {};
       }
-      
+
       console.log(`Response status: ${response.status}, data:`, data);
-      
+
       if (!response.ok) {
         const expectedNotConnected = this.isExpectedNotConnected(endpoint, response.status, data);
-        const suppressAnalyticsServerError = this.isAnalyticsEndpoint(endpoint) && response.status >= 500;
+        const suppressAnalyticsServerError =
+          this.isAnalyticsEndpoint(endpoint) && response.status >= 500;
         if (expectedNotConnected) {
           console.log('API info (not connected yet):', data, response.status);
         } else if (suppressAnalyticsServerError) {
@@ -343,7 +359,7 @@ class ApiClient {
         const errorMessage = detail || `HTTP error! status: ${response.status}`;
         throw new Error(errorMessage);
       }
-      
+
       // Log for debugging
       console.log('API success:', data, response.status);
       return data;
@@ -370,13 +386,13 @@ class ApiClient {
   async post(endpoint: string, data: unknown, options: RequestInit = {}) {
     // Check if data is FormData
     const isFormData = data instanceof FormData;
-    
+
     return this.request(endpoint, {
       ...options,
       method: 'POST',
       body: isFormData ? data : JSON.stringify(data),
       headers: {
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
         // Don't set Content-Type for FormData, let the browser set it with boundary
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       },
@@ -415,8 +431,19 @@ export const contentProgressApi = {
   },
 
   // Submit content for a progress item
-  submitContent: async (participationId: string, data: { progressId: string; contentUrl: string; contentType: string; analysisId?: string | null }) => {
-    const response = await api.post(`/api/campaigns/participation/${participationId}/submit-content`, data);
+  submitContent: async (
+    participationId: string,
+    data: {
+      progressId: string;
+      contentUrl: string;
+      contentType: string;
+      analysisId?: string | null;
+    }
+  ) => {
+    const response = await api.post(
+      `/api/campaigns/participation/${participationId}/submit-content`,
+      data
+    );
     return response;
   },
 
@@ -430,5 +457,5 @@ export const contentProgressApi = {
   deleteSubmission: async (submissionId: string) => {
     const response = await api.delete(`/api/campaigns/submission/${submissionId}`);
     return response;
-  }
-}; 
+  },
+};
