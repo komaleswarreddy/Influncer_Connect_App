@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import { api } from '../../lib/api';
 import { Ionicons } from '@expo/vector-icons';
-import { kindeConfigured } from '../../lib/auth-config';
+import { cognitoConfigured } from '../../lib/auth-config';
 import { appShell, shadow } from '@/theme';
 
 interface PasswordSectionProps {
   onUpdate?: () => void;
 }
 
-function KindePasswordMessage() {
+function CognitoPasswordMessage() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Password</Text>
-        <Text style={styles.kindeHint}>
-          You sign in with Google. Your password is managed by your Google account, so there is
-          nothing to change here.
+        <Text style={styles.cognitoHint}>
+          You sign in with Cognito Single Sign-On. Change your password from the Cognito Hosted UI
+          (Forgot password), not from this screen.
         </Text>
       </View>
     </ScrollView>
@@ -35,7 +44,11 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSave = async () => {
-    if (!formData.currentPassword.trim() || !formData.newPassword.trim() || !formData.confirmPassword.trim()) {
+    if (
+      !formData.currentPassword.trim() ||
+      !formData.newPassword.trim() ||
+      !formData.confirmPassword.trim()
+    ) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -154,8 +167,8 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
 }
 
 export default function PasswordSection(props: PasswordSectionProps) {
-  if (kindeConfigured) {
-    return <KindePasswordMessage />;
+  if (cognitoConfigured) {
+    return <CognitoPasswordMessage />;
   }
   return <EmailPasswordForm {...props} />;
 }
@@ -241,7 +254,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  kindeHint: {
+  cognitoHint: {
     fontSize: 14,
     color: '#4b5563',
     lineHeight: 22,

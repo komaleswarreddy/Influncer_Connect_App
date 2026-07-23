@@ -20,9 +20,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
-import { KindeAuthButtons } from '../components/KindeAuthButtons';
+import { CognitoAuthButtons } from '../components/CognitoAuthButtons';
 import { LoginHeroLottie } from '../components/LoginHeroLottie';
-import { kindeConfigured, useMockAuth } from '../lib/auth-config';
+import { cognitoConfigured, useMockAuth } from '../lib/auth-config';
 import { getApiBaseUrl } from '../lib/api';
 import { loginScreen, loginPremium, premiumButton } from '@/theme';
 
@@ -57,7 +57,11 @@ export default function LoginScreen() {
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const { login, error: authError } = useAuthStore();
 
-  const { control, handleSubmit, formState: { errors, isValid } } = useForm<LoginFormData>({
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '', remember: false, tenant: '' },
     mode: 'onChange',
@@ -80,7 +84,10 @@ export default function LoginScreen() {
       const step = useAuthStore.getState().nextStep;
       router.replace(getInfluencerEntryPath(step));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed. Please check your credentials and try again.';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Login failed. Please check your credentials and try again.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -137,16 +144,16 @@ export default function LoginScreen() {
                   <RNText style={styles.signInTitle}>Sign in</RNText>
                   {useMockAuth ? (
                     <RNText style={styles.signInHint}>
-                      {kindeConfigured
+                      {cognitoConfigured
                         ? 'Development: mock email sign-in below.'
                         : 'Enter your credentials to access your account'}
                     </RNText>
                   ) : null}
 
-                  {kindeConfigured ? (
+                  {cognitoConfigured ? (
                     <>
                       <View style={{ height: useMockAuth ? 20 : 12 }} />
-                      <KindeAuthButtons mode="login" appearance="premium" />
+                      <CognitoAuthButtons mode="login" appearance="premium" />
                       {useMockAuth ? (
                         <View style={styles.dividerRow}>
                           <View style={styles.divider} />
@@ -262,13 +269,19 @@ export default function LoginScreen() {
                                 locations={[...premiumButton.glossLocations]}
                                 start={{ x: 0.5, y: 0 }}
                                 end={{ x: 0.5, y: 1 }}
-                                style={[styles.premiumBtnGloss, { height: premiumButton.glossHeightPercent }]}
+                                style={[
+                                  styles.premiumBtnGloss,
+                                  { height: premiumButton.glossHeightPercent },
+                                ]}
                                 pointerEvents="none"
                               />
                               <View style={styles.premiumBtnRim} pointerEvents="none" />
                               <View style={styles.premiumBtnContent}>
                                 {loading ? (
-                                  <ActivityIndicator color={premiumButton.labelColor} size="small" />
+                                  <ActivityIndicator
+                                    color={premiumButton.labelColor}
+                                    size="small"
+                                  />
                                 ) : (
                                   <RNText style={styles.premiumBtnLabel}>Sign in</RNText>
                                 )}
@@ -279,9 +292,9 @@ export default function LoginScreen() {
                       </View>
                     </>
                   ) : (
-                    !kindeConfigured && (
+                    !cognitoConfigured && (
                       <RNText style={styles.configError}>
-                        Set kindeDomain and kindeClientId in app config, or enable useMockAuth for local
+                        Set EXPO_PUBLIC_COGNITO_* in mobile/.env, or enable useMockAuth for local
                         testing.
                       </RNText>
                     )
@@ -308,7 +321,11 @@ export default function LoginScreen() {
         </SafeAreaView>
 
         <Portal>
-          <Dialog visible={forgotVisible} onDismiss={() => setForgotVisible(false)} style={styles.dialog}>
+          <Dialog
+            visible={forgotVisible}
+            onDismiss={() => setForgotVisible(false)}
+            style={styles.dialog}
+          >
             <Dialog.Title>Reset Password</Dialog.Title>
             <Dialog.Content>
               <Text style={{ color: loginScreen.textPrimary }}>

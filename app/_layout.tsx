@@ -1,26 +1,33 @@
 import { ThemeProvider } from '@react-navigation/native';
-import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { Stack, useRouter } from 'expo-router';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import '@/lib/kinde-secure-store-bootstrap';
-import { useEffect, useRef } from 'react';
+import { initSentry, wrapWithSentry } from '@/lib/sentry';
+import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import { registerForPushNotifications, routeFromPushData } from '@/lib/push-notifications';
 import { PaperProvider } from 'react-native-paper';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/store/auth-store';
-import { KindeAuthProvider } from '@kinde/expo';
-import { kindeConfigured, kindeDomain, kindeClientId } from '@/lib/auth-config';
-import { appShell, appPaperLight, appPaperDark, appNavigationLight, appNavigationDark } from '@/theme';
+import {
+  appShell,
+  appPaperLight,
+  appPaperDark,
+  appNavigationLight,
+  appNavigationDark,
+} from '@/theme';
 
-export default function RootLayout() {
+initSentry();
+
+function RootLayout() {
   const colorScheme = useColorScheme();
-  const router = useRouter();
-  const { loadAuth, isInitialized, user } = useAuthStore();
-  const pushRegistered = useRef(false);
+  const { loadAuth, isInitialized } = useAuthStore();
   const isDark = colorScheme === 'dark';
   const paperTheme = isDark ? appPaperDark : appPaperLight;
   const navTheme = isDark ? appNavigationDark : appNavigationLight;
@@ -36,20 +43,8 @@ export default function RootLayout() {
     loadAuth();
   }, [loadAuth]);
 
-  useEffect(() => {
-    if (!isInitialized || !user?.id || pushRegistered.current) return;
-    pushRegistered.current = true;
-    void registerForPushNotifications();
-  }, [isInitialized, user?.id]);
-
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
-      const path = routeFromPushData(data as never);
-      if (path) router.push(path as never);
-    });
-    return () => sub.remove();
-  }, [router]);
+  // Push (expo-notifications) is intentionally not registered here.
+  // Expo Go SDK 53+ errors on any import of that package on Android.
 
   if (!loaded || !isInitialized) {
     return (
@@ -66,12 +61,15 @@ export default function RootLayout() {
     );
   }
 
-  const stack = (
+  return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navTheme}>
         <Stack>
           <Stack.Screen name="login" options={{ title: 'Login', headerShown: false }} />
-          <Stack.Screen name="register/influencer" options={{ title: 'Register', headerShown: false }} />
+          <Stack.Screen
+            name="register/influencer"
+            options={{ title: 'Register', headerShown: false }}
+          />
           <Stack.Screen name="influencer" options={{ headerShown: false }} />
           <Stack.Screen name="account-screens" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
@@ -80,20 +78,6 @@ export default function RootLayout() {
       </ThemeProvider>
     </PaperProvider>
   );
-
-  if (kindeConfigured) {
-    return (
-      <KindeAuthProvider
-        config={{
-          domain: kindeDomain,
-          clientId: kindeClientId,
-          scopes: 'openid profile email offline',
-        }}
-      >
-        {stack}
-      </KindeAuthProvider>
-    );
-  }
-
-  return stack;
 }
+
+export default wrapWithSentry(RootLayout);

@@ -6,7 +6,6 @@
     "doctor": {
       "reactNativeDirectoryCheck": {
         "exclude": [
-          "@kinde/expo",
           "metro"
         ],
         "listUnknownPackages": false
@@ -23,7 +22,7 @@
     "start:tunnel:dev-client": "node ./scripts/expo-preflight.js && cross-env CI=false EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 EXPO_FORCE_WEBCONTAINER_ENV=1 expo start --dev-client --tunnel",
     "start:tunnel:ngrok": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --tunnel",
     "adb:reverse:metro": "node ./scripts/adb-reverse.js 8081",
-    "adb:reverse": "node ./scripts/adb-reverse.js 8081 3000",
+    "adb:reverse": "node ./scripts/adb-reverse.js 8081 3003",
     "start:dev-client:usb": "node ./scripts/start-expo-usb.js",
     "android": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --dev-client --android",
     "ios": "node ./scripts/expo-preflight.js && cross-env EXPO_NO_DOCTOR=1 EXPO_NO_DEPENDENCY_VALIDATION=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start --dev-client --ios",
@@ -40,13 +39,14 @@
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo/vector-icons": "^14.1.0",
     "@hookform/resolvers": "^5.1.1",
-    "@kinde/expo": "^0.5.2",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-picker/picker": "^2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
+    "@sentry/react-native": "^8.17.1",
     "expo": "~53.0.27",
+    "expo-auth-session": "~6.2.1",
     "expo-blur": "~14.1.5",
     "expo-constants": "~17.1.6",
     "expo-crypto": "~14.1.5",

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearSessionToken, getSessionToken, setSessionToken } from './secure-session';
 import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
 import { useMockApi } from './auth-config';
@@ -49,7 +49,7 @@ function hostFromBundleScriptUrl(): string | undefined {
  */
 function resolveLoopbackApiBase(raw: string): string {
   const portMatch = raw.match(/:(\d+)/);
-  const port = portMatch ? portMatch[1] : '3000';
+  const port = portMatch ? portMatch[1] : '3003';
 
   const hostUriCandidates = [
     Constants.expoConfig?.hostUri,
@@ -86,7 +86,7 @@ function resolveLoopbackApiBase(raw: string): string {
 }
 
 /**
- * Public base URL (no trailing slash). Default Fastify: port 3000.
+ * Public base URL (no trailing slash). Default Fastify: port 3003.
  * `localhost` in EXPO_PUBLIC_API_URL is rewritten: LAN from Metro when possible; else Android emulator
  * uses 10.0.2.2, physical Android uses 127.0.0.1 (pair with `npm run adb:reverse` for API port).
  */
@@ -151,10 +151,10 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
     '/api/auth/reset-password': {
       message: 'Password reset email sent successfully',
     },
-    '/api/auth/kinde/mobile-token-login': {
-      token: 'mock-kinde-app-jwt',
+    '/api/auth/cognito/mobile-token-login': {
+      token: 'mock-cognito-app-jwt',
       user: {
-        id: 'mock-kinde-user-1',
+        id: 'mock-cognito-user-1',
         email: 'mock@example.com',
         firstName: 'Mock',
         lastName: 'User',
@@ -190,7 +190,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
     },
     '/api/auth/me': {
       user: {
-        id: 'mock-kinde-user-1',
+        id: 'mock-cognito-user-1',
         email: 'mock@example.com',
         firstName: 'Mock',
         lastName: 'User',
@@ -224,7 +224,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
     '/api/influencers/profile': {
       success: true,
       id: 'mock-inf',
-      userId: 'mock-kinde-user-1',
+      userId: 'mock-cognito-user-1',
       niche: 'general',
       country: 'US',
       bio: '',
@@ -234,7 +234,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       user: {
-        id: 'mock-kinde-user-1',
+        id: 'mock-cognito-user-1',
         email: 'mock@example.com',
         firstName: 'Mock',
         lastName: 'User',
@@ -277,15 +277,15 @@ class ApiClient {
   }
 
   async getToken() {
-    return await AsyncStorage.getItem('token');
+    return await getSessionToken();
   }
 
   async setToken(token: string) {
-    await AsyncStorage.setItem('token', token);
+    await setSessionToken(token);
   }
 
   async clearToken() {
-    await AsyncStorage.removeItem('token');
+    await clearSessionToken();
   }
 
   async request(endpoint: string, options: RequestInit = {}) {

@@ -1,11 +1,19 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMockAuth } from '../lib/auth-config';
+import {
+  clearEntireSession,
+  getSessionNextStep,
+  getSessionToken,
+  getSessionUserJson,
+  setSessionNextStep,
+  setSessionToken,
+  setSessionUserJson,
+} from '../lib/secure-session';
 
 export type AuthNextStep = 'COMPLETE_INFLUENCER_PROFILE' | 'PENDING_PLATFORM_APPROVAL' | null;
 
-/** Where to send the user after sign-in (Kinde or password) based on server `nextStep`. */
+/** Where to send the user after sign-in (Cognito or password) based on server `nextStep`. */
 export function getInfluencerEntryPath(nextStep: AuthNextStep | null | undefined): string {
   if (nextStep === 'PENDING_PLATFORM_APPROVAL') return '/influencer/pending-approval';
   if (nextStep === 'COMPLETE_INFLUENCER_PROFILE') return '/account-screens/settings';
@@ -32,7 +40,7 @@ interface AuthState {
   nextStep: AuthNextStep;
   login: (email: string, password: string) => Promise<void>;
   register: (data: any) => Promise<void>;
-  exchangeKindeIdToken: (idToken: string) => Promise<void>;
+  exchangeCognitoIdToken: (idToken: string) => Promise<void>;
   refreshSession: () => Promise<void>;
   clearProfileGate: () => void;
   logout: () => Promise<void>;
@@ -40,8 +48,6 @@ interface AuthState {
   loadAuth: () => Promise<void>;
   mockLogin: (email: string, password: string) => Promise<void>;
 }
-
-const NEXT_STEP_KEY = 'authNextStep';
 
 type MeResponse = {
   user: {
@@ -99,19 +105,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   nextStep: null,
 
   setAuth: async (token, user, nextStep = null) => {
-    await AsyncStorage.setItem('token', token);
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    if (nextStep) await AsyncStorage.setItem(NEXT_STEP_KEY, nextStep);
-    else await AsyncStorage.removeItem(NEXT_STEP_KEY);
+    await setSessionToken(token);
+    await setSessionUserJson(JSON.stringify(user));
+    await setSessionNextStep(nextStep);
     set({ token, user, isAuthenticated: true, isLoading: false, error: null, nextStep });
   },
 
   loadAuth: async () => {
     set({ isLoading: true });
     try {
-      const token = await AsyncStorage.getItem('token');
-      const userStr = await AsyncStorage.getItem('user');
-      const storedNext = await AsyncStorage.getItem(NEXT_STEP_KEY);
+      const token = await getSessionToken();
+      const userStr = await getSessionUserJson();
+      const storedNext = await getSessionNextStep();
       const nextStep = (storedNext as AuthNextStep) || null;
       if (token && userStr) {
         const user = JSON.parse(userStr) as User;
@@ -123,7 +128,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
           nextStep: nextStep || null,
         });
-        // Sync nextStep / role / profile with server (fixes stale AsyncStorage after approvals).
         await get().refreshSession();
       } else {
         set({
@@ -222,17 +226,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  exchangeKindeIdToken: async (idToken: string) => {
+  exchangeCognitoIdToken: async (idToken: string) => {
     set({ isLoading: true, error: null });
     try {
-      const data = (await api.post('/api/auth/kinde/mobile-token-login', {
+      const data = (await api.post('/api/auth/cognito/mobile-token-login', {
         idToken,
       })) as MobileTokenLoginResponse;
       if (!data?.token || !data?.user || !data?.role) {
-        throw new Error('Invalid Kinde login response from server');
+        throw new Error('Invalid Cognito login response from server');
       }
       const tenantId = data.tenant?.id;
-      if (!tenantId) throw new Error('Tenant ID not found in Kinde login response');
+      if (!tenantId) throw new Error('Tenant ID not found in Cognito login response');
       const nextStep = data.nextStep ?? null;
       const user: User = {
         id: data.user.id,
@@ -246,8 +250,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().setAuth(data.token, user, nextStep);
       await get().refreshSession();
     } catch (error: any) {
-      console.error('Kinde exchange error:', error);
-      set({ error: error.message || 'Kinde sign-in failed', isLoading: false });
+      console.error('Cognito exchange error:', error);
+      set({ error: error.message || 'Cognito sign-in failed', isLoading: false });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -262,9 +266,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!res?.user) return;
       const user = mapMeUser(res.user, res.role);
       const nextStep = (res.user.nextStep ?? null) as AuthNextStep;
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      if (nextStep) await AsyncStorage.setItem(NEXT_STEP_KEY, nextStep);
-      else await AsyncStorage.removeItem(NEXT_STEP_KEY);
+      await setSessionUserJson(JSON.stringify(user));
+      await setSessionNextStep(nextStep);
       set({ user, nextStep });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -279,10 +282,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearProfileGate: () => {
-    void AsyncStorage.removeItem(NEXT_STEP_KEY);
+    void setSessionNextStep(null);
     set((s) => {
       const user = s.user ? { ...s.user, profileCompleted: true as boolean } : null;
-      if (user) void AsyncStorage.setItem('user', JSON.stringify(user));
+      if (user) void setSessionUserJson(JSON.stringify(user));
       return { nextStep: null, user };
     });
   },
@@ -316,7 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
-      await AsyncStorage.multiRemove(['token', 'user', NEXT_STEP_KEY]);
+      await clearEntireSession();
       set({
         user: null,
         token: null,

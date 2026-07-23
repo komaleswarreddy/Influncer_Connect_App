@@ -2,22 +2,21 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useKindeAuth } from '@kinde/expo';
 import { useAuthStore } from '../store/auth-store';
+import { logoutFromCognito } from '../lib/cognito-auth';
 import { palette, radius, spacing } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
-export function AccountKindeLogout() {
+export function AccountCognitoLogout() {
   const router = useRouter();
   const { logout } = useAuthStore();
-  const kinde = useKindeAuth();
 
   return (
     <TouchableOpacity
       style={styles.item}
       onPress={async () => {
         try {
-          await kinde.logout({ revokeToken: true });
+          await logoutFromCognito();
         } catch {
           /* still clear local session */
         }
@@ -25,7 +24,12 @@ export function AccountKindeLogout() {
         router.replace('/login');
       }}
     >
-      <Ionicons name="log-out-outline" size={22} color={palette.error} style={{ marginRight: spacing.sm }} />
+      <Ionicons
+        name="log-out-outline"
+        size={22}
+        color={palette.error}
+        style={{ marginRight: spacing.sm }}
+      />
       <Text style={styles.label}>Log out</Text>
     </TouchableOpacity>
   );

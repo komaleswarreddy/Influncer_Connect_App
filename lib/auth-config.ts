@@ -2,9 +2,12 @@ import Constants from 'expo-constants';
 
 type Extra = {
   apiUrl?: string;
-  kindeDomain?: string;
-  kindeClientId?: string;
-  kindeConnectionId?: string;
+  cognitoRegion?: string;
+  cognitoUserPoolId?: string;
+  cognitoDomain?: string;
+  cognitoClientId?: string;
+  cognitoRedirectUri?: string;
+  cognitoLogoutUri?: string;
   useMockAuth?: boolean;
   useMockApi?: boolean;
 };
@@ -15,21 +18,35 @@ const executionEnvironment = (Constants as { executionEnvironment?: string }).ex
 const trim = (s: string | undefined) => (typeof s === 'string' ? s.trim() : '');
 
 /** Env wins (EAS / Metro inlines EXPO_PUBLIC_*); `extra` from app.config.js is fallback. */
-export const kindeDomain =
-  trim(process.env.EXPO_PUBLIC_KINDE_DOMAIN) ||
-  (typeof extra.kindeDomain === 'string' ? extra.kindeDomain.trim() : '');
-export const kindeClientId =
-  trim(process.env.EXPO_PUBLIC_KINDE_CLIENT_ID) ||
-  (typeof extra.kindeClientId === 'string' ? extra.kindeClientId.trim() : '');
-export const kindeConnectionId =
-  trim(process.env.EXPO_PUBLIC_KINDE_CONNECTION_ID) ||
-  (typeof extra.kindeConnectionId === 'string' ? extra.kindeConnectionId.trim() : '');
+export const cognitoRegion =
+  trim(process.env.EXPO_PUBLIC_COGNITO_REGION) ||
+  (typeof extra.cognitoRegion === 'string' ? extra.cognitoRegion.trim() : '');
 
-export const kindePostLogoutRedirectUrl =
-  trim(process.env.EXPO_PUBLIC_KINDE_POST_LOGOUT_REDIRECT_URL) || '';
+export const cognitoUserPoolId =
+  trim(process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID) ||
+  (typeof extra.cognitoUserPoolId === 'string' ? extra.cognitoUserPoolId.trim() : '');
 
-export const kindeConfigured =
-  kindeDomain.startsWith('https://') && kindeClientId.length > 0;
+export const cognitoDomain = (
+  trim(process.env.EXPO_PUBLIC_COGNITO_DOMAIN) ||
+  (typeof extra.cognitoDomain === 'string' ? extra.cognitoDomain.trim() : '')
+).replace(/\/+$/, '');
+
+export const cognitoClientId =
+  trim(process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID) ||
+  (typeof extra.cognitoClientId === 'string' ? extra.cognitoClientId.trim() : '');
+
+export const cognitoRedirectUri =
+  trim(process.env.EXPO_PUBLIC_COGNITO_REDIRECT_URI) ||
+  (typeof extra.cognitoRedirectUri === 'string' ? extra.cognitoRedirectUri.trim() : '') ||
+  'affiliateplatform://auth/callback';
+
+export const cognitoLogoutUri =
+  trim(process.env.EXPO_PUBLIC_COGNITO_LOGOUT_URI) ||
+  (typeof extra.cognitoLogoutUri === 'string' ? extra.cognitoLogoutUri.trim() : '') ||
+  'affiliate-platform://';
+
+export const cognitoConfigured =
+  cognitoDomain.startsWith('https://') && cognitoClientId.length > 0 && cognitoRegion.length > 0;
 
 function envBool(name: string): boolean | undefined {
   const v = trim(process.env[name]);
@@ -38,12 +55,16 @@ function envBool(name: string): boolean | undefined {
   return undefined;
 }
 
-/** Mock email/password only when explicitly enabled (dev). */
+/** Mock email/password only when explicitly enabled AND running a dev bundle.
+ * The `__DEV__` gate is a hard backstop: a stale `true` in app.json's `extra.useMockAuth`,
+ * or a misconfigured EAS build environment, can never make a shipped release build
+ * fabricate a fake login/registration — `__DEV__` is `false` in every release binary. */
 export const useMockAuth =
-  envBool('EXPO_PUBLIC_USE_MOCK_AUTH') ?? extra.useMockAuth === true;
+  __DEV__ && (envBool('EXPO_PUBLIC_USE_MOCK_AUTH') ?? extra.useMockAuth === true);
 
-/** JsonPlaceholder-style mocks for API (dev only). */
-export const useMockApi = envBool('EXPO_PUBLIC_USE_MOCK_API') ?? extra.useMockApi === true;
+/** JsonPlaceholder-style mocks for API — same hard `__DEV__` backstop as useMockAuth. */
+export const useMockApi =
+  __DEV__ && (envBool('EXPO_PUBLIC_USE_MOCK_API') ?? extra.useMockApi === true);
 
 /** Expo Go runtime (store client). Native custom modules are unavailable here. */
 export const isExpoGo = executionEnvironment === 'storeClient';

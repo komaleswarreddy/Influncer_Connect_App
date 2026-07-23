@@ -1,16 +1,9 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Alert,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuthStore } from '../../store/auth-store';
 import { useRouter } from 'expo-router';
-import { KindeAuthButtons } from '../../components/KindeAuthButtons';
-import { kindeConfigured, useMockAuth } from '../../lib/auth-config';
+import { CognitoAuthButtons } from '../../components/CognitoAuthButtons';
+import { cognitoConfigured, useMockAuth } from '../../lib/auth-config';
 import { ScrollScreen, SectionHeader, PrimaryButton, PremiumTextInput } from '@/components/ui';
 import { appShell, palette, spacing, radius } from '@/theme';
 import { fonts } from '@/components/ui/typography';
@@ -71,12 +64,14 @@ function LegacyMockRegisterForm() {
 
   const validate = () => {
     if (!form.fullName || form.fullName.length < 2) return 'Name must be at least 2 characters';
-    if (!form.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return 'Invalid email address';
+    if (!form.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email))
+      return 'Invalid email address';
     if (!form.password || form.password.length < 8) return 'Password must be at least 8 characters';
     if (!/[A-Z]/.test(form.password)) return 'Password must contain at least one uppercase letter';
     if (!/[a-z]/.test(form.password)) return 'Password must contain at least one lowercase letter';
     if (!/[0-9]/.test(form.password)) return 'Password must contain at least one number';
-    if (!/[^A-Za-z0-9]/.test(form.password)) return 'Password must contain at least one special character';
+    if (!/[^A-Za-z0-9]/.test(form.password))
+      return 'Password must contain at least one special character';
     if (form.password !== form.confirmPassword) return 'Passwords do not match';
     if (!form.phone || form.phone.length < 10) return 'Phone number must be at least 10 digits';
     if (form.instagram && !/^https?:\/\/.+/.test(form.instagram)) return 'Invalid Instagram URL';
@@ -96,16 +91,25 @@ function LegacyMockRegisterForm() {
     }
     try {
       await register(form);
-      Alert.alert('Registration Successful', 'Your account is pending approval or has been created.');
+      Alert.alert(
+        'Registration Successful',
+        'Your account is pending approval or has been created.'
+      );
       router.replace('/influencer/dashboard');
     } catch (e: unknown) {
-      Alert.alert('Registration Failed', e instanceof Error ? e.message : 'Please try again later.');
+      Alert.alert(
+        'Registration Failed',
+        e instanceof Error ? e.message : 'Please try again later.'
+      );
     }
   };
 
   return (
     <ScrollScreen scrollProps={{ contentContainerStyle: styles.container }}>
-      <SectionHeader title="Join as Influencer (dev)" subtitle="Mock registration — no Kinde. Disable with useMockAuth in app.json." />
+      <SectionHeader
+        title="Join as Influencer (dev)"
+        subtitle="Mock registration — no Cognito. Disable with useMockAuth in app.json."
+      />
       <PremiumTextInput
         style={styles.input}
         placeholder="Full Name"
@@ -167,7 +171,9 @@ function LegacyMockRegisterForm() {
             style={[styles.chip, form.niche === niche && styles.chipSelected]}
             onPress={() => setForm((f) => ({ ...f, niche }))}
           >
-            <Text style={form.niche === niche ? styles.chipTextSelected : styles.chipText}>{niche}</Text>
+            <Text style={form.niche === niche ? styles.chipTextSelected : styles.chipText}>
+              {niche}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -179,7 +185,9 @@ function LegacyMockRegisterForm() {
             style={[styles.chip, form.country === country && styles.chipSelected]}
             onPress={() => setForm((f) => ({ ...f, country }))}
           >
-            <Text style={form.country === country ? styles.chipTextSelected : styles.chipText}>{country}</Text>
+            <Text style={form.country === country ? styles.chipTextSelected : styles.chipText}>
+              {country}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -200,7 +208,12 @@ function LegacyMockRegisterForm() {
         </TouchableOpacity>
         <Text style={{ marginLeft: 8 }}>I agree to the terms and conditions</Text>
       </View>
-      <PrimaryButton label="Register" onPress={handleRegister} loading={isLoading} disabled={isLoading} />
+      <PrimaryButton
+        label="Register"
+        onPress={handleRegister}
+        loading={isLoading}
+        disabled={isLoading}
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TouchableOpacity onPress={() => router.push('/login')}>
         <Text style={styles.link}>Already have an account? Sign in</Text>
@@ -212,17 +225,20 @@ function LegacyMockRegisterForm() {
 export default function InfluencerRegisterScreen() {
   const router = useRouter();
 
-  if (kindeConfigured) {
+  if (cognitoConfigured) {
     return (
       <>
         <ScrollScreen>
           <SectionHeader
             title="Join as Influencer"
-            subtitle="Sign in with Kinde. You can complete your profile after login."
+            subtitle="Sign in with Single Sign-On. You can complete your profile after login."
           />
-          <KindeAuthButtons mode="register" />
+          <CognitoAuthButtons mode="register" />
           {!useMockAuth ? (
-            <TouchableOpacity onPress={() => router.push('/login')} style={{ marginTop: spacing.lg }}>
+            <TouchableOpacity
+              onPress={() => router.push('/login')}
+              style={{ marginTop: spacing.lg }}
+            >
               <Text style={styles.link}>Already have an account? Sign in</Text>
             </TouchableOpacity>
           ) : (
@@ -241,8 +257,19 @@ export default function InfluencerRegisterScreen() {
   }
 
   return (
-    <ScrollScreen scrollProps={{ contentContainerStyle: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing.xl } }}>
-      <SectionHeader title="Kinde not configured" subtitle="Set expo.extra.kindeDomain and kindeClientId in app.json, or set useMockAuth to true for local mock registration." />
+    <ScrollScreen
+      scrollProps={{
+        contentContainerStyle: {
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingVertical: spacing.xl,
+        },
+      }}
+    >
+      <SectionHeader
+        title="Cognito not configured"
+        subtitle="Set EXPO_PUBLIC_COGNITO_* in mobile/.env, or set useMockAuth to true for local mock registration."
+      />
       <TouchableOpacity onPress={() => router.back()}>
         <Text style={styles.link}>Go back</Text>
       </TouchableOpacity>

@@ -21,25 +21,25 @@ module.exports = ({ config }) => {
       ...(config.plugins || []),
       'expo-secure-store',
       'expo-video',
-      [
-        'expo-notifications',
-        {
-          icon: './assets/images/icon.png',
-          color: '#1e3a5f',
-          defaultChannel: 'default',
-        },
-      ],
+      // expo-notifications omitted from Expo Go entry — SDK 53 remote push errors on Android.
+      // Re-add this plugin only for EAS/dev-client builds that need push.
       './plugins/withAndroidNetworkSecurity.js',
     ],
     extra: {
       ...extra,
       apiUrl: trim(process.env.EXPO_PUBLIC_API_URL) || extra.apiUrl || '',
-      kindeDomain: trim(process.env.EXPO_PUBLIC_KINDE_DOMAIN) || extra.kindeDomain || '',
-      kindeClientId: trim(process.env.EXPO_PUBLIC_KINDE_CLIENT_ID) || extra.kindeClientId || '',
-      kindeConnectionId:
-        trim(process.env.EXPO_PUBLIC_KINDE_CONNECTION_ID) || extra.kindeConnectionId || '',
+      cognitoRegion: trim(process.env.EXPO_PUBLIC_COGNITO_REGION) || extra.cognitoRegion || '',
+      cognitoUserPoolId:
+        trim(process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID) || extra.cognitoUserPoolId || '',
+      cognitoDomain: trim(process.env.EXPO_PUBLIC_COGNITO_DOMAIN) || extra.cognitoDomain || '',
+      cognitoClientId: trim(process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID) || extra.cognitoClientId || '',
+      cognitoRedirectUri:
+        trim(process.env.EXPO_PUBLIC_COGNITO_REDIRECT_URI) || extra.cognitoRedirectUri || '',
+      cognitoLogoutUri:
+        trim(process.env.EXPO_PUBLIC_COGNITO_LOGOUT_URI) || extra.cognitoLogoutUri || '',
       useMockAuth: parseBool(process.env.EXPO_PUBLIC_USE_MOCK_AUTH, Boolean(extra.useMockAuth)),
       useMockApi: parseBool(process.env.EXPO_PUBLIC_USE_MOCK_API, Boolean(extra.useMockApi)),
+      sentryDsn: trim(process.env.EXPO_PUBLIC_SENTRY_DSN) || extra.sentryDsn || '',
     },
   };
 };

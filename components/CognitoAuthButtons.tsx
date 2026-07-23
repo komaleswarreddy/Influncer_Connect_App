@@ -11,10 +11,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useKindeAuth } from '@kinde/expo';
 import { useRouter } from 'expo-router';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
-import { kindeConnectionId } from '../lib/auth-config';
+import { signInWithCognito } from '../lib/cognito-auth';
 import { loginScreen, premiumButton } from '@/theme';
 
 const PILL = 999;
@@ -24,32 +23,26 @@ type Props = {
   appearance?: 'paper' | 'premium';
 };
 
-export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
+function ssoLabel(mode: 'login' | 'register') {
+  return mode === 'register' ? 'Sign up with Single Sign-On' : 'Continue with Single Sign-On';
+}
+
+export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
   const router = useRouter();
-  const kinde = useKindeAuth();
-  const exchangeKindeIdToken = useAuthStore((s) => s.exchangeKindeIdToken);
+  const exchangeCognitoIdToken = useAuthStore((s) => s.exchangeCognitoIdToken);
   const [busy, setBusy] = useState(false);
+  const label = ssoLabel(mode);
 
-  const connectionOpts = kindeConnectionId ? { connectionId: kindeConnectionId } : undefined;
-
-  const runKindeFlow = async () => {
+  const runCognitoFlow = async () => {
     setBusy(true);
     try {
-      if (mode === 'register') {
-        await kinde.register(connectionOpts);
-      } else {
-        await kinde.login(connectionOpts);
-      }
-      const idToken = await kinde.getIdToken();
-      if (!idToken) {
-        throw new Error('No ID token returned from Kinde. Check client configuration.');
-      }
-      await exchangeKindeIdToken(idToken);
+      const { idToken } = await signInWithCognito();
+      await exchangeCognitoIdToken(idToken);
       const step = useAuthStore.getState().nextStep;
       router.replace(getInfluencerEntryPath(step));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
-      if (msg.includes('cancel') || msg.includes('dismiss')) return;
+      if (/cancel/i.test(msg) || /dismiss/i.test(msg)) return;
       Alert.alert(mode === 'register' ? 'Sign up failed' : 'Sign in failed', msg);
     } finally {
       setBusy(false);
@@ -62,11 +55,11 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
         <View style={styles.shadowHost}>
           <TouchableOpacity
             activeOpacity={0.88}
-            onPress={runKindeFlow}
+            onPress={runCognitoFlow}
             disabled={busy}
             style={[styles.touchable, busy && styles.touchableDisabled]}
             accessibilityRole="button"
-            accessibilityLabel={mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}
+            accessibilityLabel={label}
           >
             <View style={styles.clip}>
               <LinearGradient
@@ -84,7 +77,6 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
                 style={[styles.glossLayer, { height: premiumButton.glossHeightPercent }]}
                 pointerEvents="none"
               />
-              {/* Specular top edge (reference: thin inner glow) */}
               <View style={styles.rimHighlight} pointerEvents="none" />
               <View style={styles.contentRow}>
                 {busy ? (
@@ -93,7 +85,7 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
                   <>
                     <View style={styles.iconSlot}>
                       <MaterialCommunityIcons
-                        name="google"
+                        name="shield-account"
                         size={24}
                         color={premiumButton.iconColor}
                       />
@@ -102,9 +94,9 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
                       style={styles.premiumLabel}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.92}
+                      minimumFontScale={0.85}
                     >
-                      {mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}
+                      {label}
                     </Text>
                   </>
                 )}
@@ -122,15 +114,19 @@ export function KindeAuthButtons({ mode, appearance = 'paper' }: Props) {
         mode="contained"
         buttonColor={loginScreen.primaryDark}
         textColor={loginScreen.textOnPrimary}
-        onPress={runKindeFlow}
+        onPress={runCognitoFlow}
         loading={busy}
         disabled={busy}
         style={styles.button}
         icon={() => (
-          <MaterialCommunityIcons name="google" size={22} color={loginScreen.textOnPrimary} />
+          <MaterialCommunityIcons
+            name="shield-account"
+            size={22}
+            color={loginScreen.textOnPrimary}
+          />
         )}
       >
-        {mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}
+        {label}
       </Button>
     </View>
   );
