@@ -1,7 +1,7 @@
 import React, { useId } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Defs, Pattern, Circle, Rect } from 'react-native-svg';
-import { appShell } from '@/theme';
+import { useAppShell } from '@/theme';
 
 type Props = {
   /** Dot color; defaults to theme dot */
@@ -11,7 +11,9 @@ type Props = {
 /**
  * Subtle dot-grid canvas (premium reference) — absolute fill behind content.
  */
-export function DotBackground({ dotColor = appShell.dot }: Props) {
+export function DotBackground({ dotColor }: Props) {
+  const shell = useAppShell();
+  const fill = dotColor ?? shell.dot;
   const { width, height } = useWindowDimensions();
   const uid = useId().replace(/:/g, '');
   const patternId = `dotGrid_${uid}`;
@@ -25,7 +27,7 @@ export function DotBackground({ dotColor = appShell.dot }: Props) {
       <Svg width={w} height={h}>
         <Defs>
           <Pattern id={patternId} patternUnits="userSpaceOnUse" width={step} height={step}>
-            <Circle cx={step / 2} cy={step / 2} r={r} fill={dotColor} />
+            <Circle cx={step / 2} cy={step / 2} r={r} fill={fill} />
           </Pattern>
         </Defs>
         <Rect width="100%" height="100%" fill={`url(#${patternId})`} />

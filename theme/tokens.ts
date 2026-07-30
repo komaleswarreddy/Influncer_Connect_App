@@ -27,7 +27,8 @@ export const radius = {
  * Premium app shell — aligned with `loginScreen` (navy CTA `#141e33`, copy `#0F172A` / `#718096`, periwinkle accent).
  * Use for screens, tab bar, cards, and primary buttons end-to-end.
  */
-export const appShell = {
+/** Light premium shell — default export alias kept as `appShell` for light fallbacks. */
+export const appShellLight = {
   canvas: '#F4F6FC',
   canvasAlt: '#EEF1F8',
   dot: 'rgba(20, 30, 51, 0.07)',
@@ -54,6 +55,36 @@ export const appShell = {
   secondaryButtonBg: 'rgba(142, 158, 237, 0.2)',
   secondaryButtonText: loginScreen.textPrimary,
 } as const;
+
+/** Deep navy Premium dark shell (10A). */
+export const appShellDark = {
+  canvas: '#0B1220',
+  canvasAlt: '#141C2E',
+  dot: 'rgba(248, 250, 252, 0.06)',
+  /** ~7% lighter than canvas — clearer card lift without heavy shadow */
+  card: '#1E283D',
+  cardBorder: 'rgba(255, 255, 255, 0.14)',
+  borderSubtle: 'rgba(255, 255, 255, 0.12)',
+  textPrimary: '#F8FAFC',
+  /** ~12% brighter than prior slate-400 for secondary copy */
+  textSecondary: '#A8B5C9',
+  textMuted: '#7A8BA3',
+  accent: '#8E9EED',
+  cta: '#8E9EED',
+  link: '#A5B4FC',
+  iceBlue: 'rgba(142, 158, 237, 0.22)',
+  iceBlueStrong: 'rgba(142, 158, 237, 0.32)',
+  tabBarBg: '#111827',
+  tabInactive: '#A8B5C9',
+  tabActive: '#F8FAFC',
+  success: '#34D399',
+  warning: '#FBBF24',
+  secondaryButtonBg: 'rgba(142, 158, 237, 0.22)',
+  secondaryButtonText: '#F8FAFC',
+} as const;
+
+/** @deprecated Prefer useAppShell() — static light tokens for module-load fallbacks. */
+export const appShell = appShellLight;
 
 export const shadow = {
   /** ~0 10px 30px rgba(0,0,0,0.05) — premium creator cards */

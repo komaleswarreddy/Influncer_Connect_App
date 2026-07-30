@@ -1,12 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { PremiumOpportunityCard, SectionHeader } from '@/components/ui';
 import { rateCardsApi } from '@/lib/rate-cards-api';
@@ -108,8 +101,8 @@ export function BookingsList({
     <View>
       {showHeader ? (
         <SectionHeader
-          title="Bookings"
-          subtitle="Direct requests from brands at your rate card prices"
+          title="PriceCard Bookings"
+          subtitle="Direct requests from brands at your price card prices"
         />
       ) : null}
 
@@ -130,13 +123,13 @@ export function BookingsList({
           {showEmptyRateCardCta ? (
             <>
               <Text style={styles.emptyHint}>
-                Enable Public rate card and Open for direct bookings in your Rate Card settings.
+                Enable Public price card and Open for direct bookings in your Price Card settings.
               </Text>
               <TouchableOpacity
                 style={styles.linkBtn}
                 onPress={() => router.push('/account-screens/rate-card' as never)}
               >
-                <Text style={styles.linkBtnText}>Open Rate Card</Text>
+                <Text style={styles.linkBtnText}>Open Price Card</Text>
               </TouchableOpacity>
             </>
           ) : null}

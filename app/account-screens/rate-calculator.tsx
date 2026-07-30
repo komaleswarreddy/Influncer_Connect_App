@@ -10,7 +10,7 @@ import {
   PremiumSegmentedControl,
   type PremiumSegment,
 } from '@/components/ui';
-import { appShell, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 type PlatformKey = 'instagram' | 'youtube' | 'twitter';
@@ -18,25 +18,145 @@ type PlatformKey = 'instagram' | 'youtube' | 'twitter';
 // --- Multipliers and base rates (copied from web) ---
 const platformBaseRates = {
   instagram: [
-    { tier: 'Nano', followers_min: 1000, followers_max: 10000, rate_usd_min: 8, rate_usd_max: 12, rate_inr_min: 680, rate_inr_max: 1020 },
-    { tier: 'Micro', followers_min: 10001, followers_max: 50000, rate_usd_min: 6, rate_usd_max: 10, rate_inr_min: 510, rate_inr_max: 850 },
-    { tier: 'Mid-tier', followers_min: 50001, followers_max: 500000, rate_usd_min: 4, rate_usd_max: 8, rate_inr_min: 340, rate_inr_max: 680 },
-    { tier: 'Macro', followers_min: 500001, followers_max: 1000000, rate_usd_min: 3, rate_usd_max: 6, rate_inr_min: 255, rate_inr_max: 510 },
-    { tier: 'Mega', followers_min: 1000001, followers_max: Infinity, rate_usd_min: 2, rate_usd_max: 4, rate_inr_min: 170, rate_inr_max: 340 },
+    {
+      tier: 'Nano',
+      followers_min: 1000,
+      followers_max: 10000,
+      rate_usd_min: 8,
+      rate_usd_max: 12,
+      rate_inr_min: 680,
+      rate_inr_max: 1020,
+    },
+    {
+      tier: 'Micro',
+      followers_min: 10001,
+      followers_max: 50000,
+      rate_usd_min: 6,
+      rate_usd_max: 10,
+      rate_inr_min: 510,
+      rate_inr_max: 850,
+    },
+    {
+      tier: 'Mid-tier',
+      followers_min: 50001,
+      followers_max: 500000,
+      rate_usd_min: 4,
+      rate_usd_max: 8,
+      rate_inr_min: 340,
+      rate_inr_max: 680,
+    },
+    {
+      tier: 'Macro',
+      followers_min: 500001,
+      followers_max: 1000000,
+      rate_usd_min: 3,
+      rate_usd_max: 6,
+      rate_inr_min: 255,
+      rate_inr_max: 510,
+    },
+    {
+      tier: 'Mega',
+      followers_min: 1000001,
+      followers_max: Infinity,
+      rate_usd_min: 2,
+      rate_usd_max: 4,
+      rate_inr_min: 170,
+      rate_inr_max: 340,
+    },
   ],
   youtube: [
-    { tier: 'Nano', followers_min: 1000, followers_max: 10000, rate_usd_min: 15, rate_usd_max: 25, rate_inr_min: 1275, rate_inr_max: 2125 },
-    { tier: 'Micro', followers_min: 10001, followers_max: 100000, rate_usd_min: 12, rate_usd_max: 20, rate_inr_min: 1020, rate_inr_max: 1700 },
-    { tier: 'Mid-tier', followers_min: 100001, followers_max: 500000, rate_usd_min: 10, rate_usd_max: 16, rate_inr_min: 850, rate_inr_max: 1360 },
-    { tier: 'Macro', followers_min: 500001, followers_max: 1000000, rate_usd_min: 8, rate_usd_max: 12, rate_inr_min: 680, rate_inr_max: 1020 },
-    { tier: 'Mega', followers_min: 1000001, followers_max: Infinity, rate_usd_min: 6, rate_usd_max: 10, rate_inr_min: 510, rate_inr_max: 850 },
+    {
+      tier: 'Nano',
+      followers_min: 1000,
+      followers_max: 10000,
+      rate_usd_min: 15,
+      rate_usd_max: 25,
+      rate_inr_min: 1275,
+      rate_inr_max: 2125,
+    },
+    {
+      tier: 'Micro',
+      followers_min: 10001,
+      followers_max: 100000,
+      rate_usd_min: 12,
+      rate_usd_max: 20,
+      rate_inr_min: 1020,
+      rate_inr_max: 1700,
+    },
+    {
+      tier: 'Mid-tier',
+      followers_min: 100001,
+      followers_max: 500000,
+      rate_usd_min: 10,
+      rate_usd_max: 16,
+      rate_inr_min: 850,
+      rate_inr_max: 1360,
+    },
+    {
+      tier: 'Macro',
+      followers_min: 500001,
+      followers_max: 1000000,
+      rate_usd_min: 8,
+      rate_usd_max: 12,
+      rate_inr_min: 680,
+      rate_inr_max: 1020,
+    },
+    {
+      tier: 'Mega',
+      followers_min: 1000001,
+      followers_max: Infinity,
+      rate_usd_min: 6,
+      rate_usd_max: 10,
+      rate_inr_min: 510,
+      rate_inr_max: 850,
+    },
   ],
   twitter: [
-    { tier: 'Nano', followers_min: 1000, followers_max: 10000, rate_usd_min: 2, rate_usd_max: 4, rate_inr_min: 170, rate_inr_max: 340 },
-    { tier: 'Micro', followers_min: 10001, followers_max: 50000, rate_usd_min: 1.5, rate_usd_max: 3, rate_inr_min: 128, rate_inr_max: 255 },
-    { tier: 'Mid-tier', followers_min: 50001, followers_max: 500000, rate_usd_min: 1, rate_usd_max: 2.5, rate_inr_min: 85, rate_inr_max: 213 },
-    { tier: 'Macro', followers_min: 500001, followers_max: 1000000, rate_usd_min: 0.8, rate_usd_max: 1.5, rate_inr_min: 68, rate_inr_max: 128 },
-    { tier: 'Mega', followers_min: 1000001, followers_max: Infinity, rate_usd_min: 0.5, rate_usd_max: 1, rate_inr_min: 43, rate_inr_max: 85 },
+    {
+      tier: 'Nano',
+      followers_min: 1000,
+      followers_max: 10000,
+      rate_usd_min: 2,
+      rate_usd_max: 4,
+      rate_inr_min: 170,
+      rate_inr_max: 340,
+    },
+    {
+      tier: 'Micro',
+      followers_min: 10001,
+      followers_max: 50000,
+      rate_usd_min: 1.5,
+      rate_usd_max: 3,
+      rate_inr_min: 128,
+      rate_inr_max: 255,
+    },
+    {
+      tier: 'Mid-tier',
+      followers_min: 50001,
+      followers_max: 500000,
+      rate_usd_min: 1,
+      rate_usd_max: 2.5,
+      rate_inr_min: 85,
+      rate_inr_max: 213,
+    },
+    {
+      tier: 'Macro',
+      followers_min: 500001,
+      followers_max: 1000000,
+      rate_usd_min: 0.8,
+      rate_usd_max: 1.5,
+      rate_inr_min: 68,
+      rate_inr_max: 128,
+    },
+    {
+      tier: 'Mega',
+      followers_min: 1000001,
+      followers_max: Infinity,
+      rate_usd_min: 0.5,
+      rate_usd_max: 1,
+      rate_inr_min: 43,
+      rate_inr_max: 85,
+    },
   ],
 };
 const engagementRateMultipliers = {
@@ -47,12 +167,12 @@ const engagementRateMultipliers = {
 const contentTypeMultipliers: Record<string, number> = {
   'Standard Post': 1.0,
   'Video/Reel': 1.35,
-  'Story': 0.8,
-  'Carousel': 1.1,
-  'Tweet': 1.0,
+  Story: 0.8,
+  Carousel: 1.1,
+  Tweet: 1.0,
 };
 const usageRightsMultipliers: Record<string, number> = {
-  'Standard': 1.0,
+  Standard: 1.0,
   '3 months ads': 1.3,
   '6 months ads': 1.6,
   '1 year ads': 2.0,
@@ -64,13 +184,13 @@ const nicheMultipliers: Record<string, number> = {
   'B2B/Professional': 1.4,
   'Luxury Goods': 1.4,
   'Beauty/Skincare': 1.3,
-  'Fashion': 1.2,
-  'Gaming': 1.2,
-  'Automotive': 1.15,
-  'Lifestyle': 1.0,
+  Fashion: 1.2,
+  Gaming: 1.2,
+  Automotive: 1.15,
+  Lifestyle: 1.0,
   'Food/Cooking': 1.05,
-  'Fitness': 1.05,
-  'Travel': 1.0,
+  Fitness: 1.05,
+  Travel: 1.0,
   'DIY/Crafts': 0.9,
   'General Entertainment': 0.95,
   'Pets/Animals': 0.95,
@@ -94,10 +214,10 @@ const PLATFORM_KEYS: PlatformKey[] = ['instagram', 'youtube', 'twitter'];
 
 function getPlatformRate(platform: PlatformKey, followers: number, currency: 'usd' | 'inr') {
   const rates = platformBaseRates[platform];
-  const tier = rates.find(r => followers >= r.followers_min && followers <= r.followers_max);
+  const tier = rates.find((r) => followers >= r.followers_min && followers <= r.followers_max);
   if (!tier) {
     if (followers > 0 && followers < 1000) {
-      const nanoTier = rates.find(r => r.tier === 'Nano');
+      const nanoTier = rates.find((r) => r.tier === 'Nano');
       if (!nanoTier) return { min: 0, max: 0 };
       if (currency === 'usd') {
         return { min: nanoTier.rate_usd_min, max: nanoTier.rate_usd_max };
@@ -143,10 +263,30 @@ function calculateRate({
   const baseRateINRMin = (followers / 1000) * ratePer1kINR.min;
   const baseRateINRMax = (followers / 1000) * ratePer1kINR.max;
   const engagementMultiplier = getEngagementMultiplier(platform, engagementRate);
-  const finalRateUSDMin = baseRateUSDMin * nicheMultiplier * engagementMultiplier * contentTypeMultiplier * usageRightsMultiplier;
-  const finalRateUSDMax = baseRateUSDMax * nicheMultiplier * engagementMultiplier * contentTypeMultiplier * usageRightsMultiplier;
-  const finalRateINRMin = baseRateINRMin * nicheMultiplier * engagementMultiplier * contentTypeMultiplier * usageRightsMultiplier;
-  const finalRateINRMax = baseRateINRMax * nicheMultiplier * engagementMultiplier * contentTypeMultiplier * usageRightsMultiplier;
+  const finalRateUSDMin =
+    baseRateUSDMin *
+    nicheMultiplier *
+    engagementMultiplier *
+    contentTypeMultiplier *
+    usageRightsMultiplier;
+  const finalRateUSDMax =
+    baseRateUSDMax *
+    nicheMultiplier *
+    engagementMultiplier *
+    contentTypeMultiplier *
+    usageRightsMultiplier;
+  const finalRateINRMin =
+    baseRateINRMin *
+    nicheMultiplier *
+    engagementMultiplier *
+    contentTypeMultiplier *
+    usageRightsMultiplier;
+  const finalRateINRMax =
+    baseRateINRMax *
+    nicheMultiplier *
+    engagementMultiplier *
+    contentTypeMultiplier *
+    usageRightsMultiplier;
   return {
     usd_min: finalRateUSDMin,
     usd_max: finalRateUSDMax,
@@ -156,6 +296,7 @@ function calculateRate({
 }
 
 export default function InfluencerRateCalculator() {
+  const shell = useAppShell();
   const [platform, setPlatform] = useState<PlatformKey>('instagram');
   const [followers, setFollowers] = useState(50000);
   const [engagementRate, setEngagementRate] = useState(3.5);
@@ -193,7 +334,11 @@ export default function InfluencerRateCalculator() {
   }, [platform, contentType]);
 
   return (
-    <ScrollScreen safeAreaEdges={['left', 'right', 'bottom']} padH={spacing.md} scrollProps={{ showsVerticalScrollIndicator: false }}>
+    <ScrollScreen
+      safeAreaEdges={['left', 'right', 'bottom']}
+      padH={spacing.md}
+      scrollProps={{ showsVerticalScrollIndicator: false }}
+    >
       <SectionHeader
         overline="Tools"
         title="Rate calculator"
@@ -207,7 +352,7 @@ export default function InfluencerRateCalculator() {
         style={styles.platformSegments}
       />
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Followers / Subscribers</Text>
+        <Text style={[styles.label, { color: shell.textSecondary }]}>Followers / Subscribers</Text>
         <PremiumTextInput
           style={styles.input}
           keyboardType="numeric"
@@ -217,7 +362,7 @@ export default function InfluencerRateCalculator() {
         />
       </View>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Engagement Rate (%)</Text>
+        <Text style={[styles.label, { color: shell.textSecondary }]}>Engagement Rate (%)</Text>
         <PremiumTextInput
           style={styles.input}
           keyboardType="decimal-pad"
@@ -227,12 +372,17 @@ export default function InfluencerRateCalculator() {
         />
       </View>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Niche / Industry</Text>
-        <View style={styles.pickerWrapper}>
+        <Text style={[styles.label, { color: shell.textSecondary }]}>Niche / Industry</Text>
+        <View
+          style={[
+            styles.pickerWrapper,
+            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
+          ]}
+        >
           <Picker
             selectedValue={niche}
             onValueChange={setNiche}
-            style={styles.picker}
+            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
           >
             {Object.keys(nicheMultipliers).map((n) => (
               <Picker.Item key={n} label={n} value={n} />
@@ -241,12 +391,17 @@ export default function InfluencerRateCalculator() {
         </View>
       </View>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Content Type</Text>
-        <View style={styles.pickerWrapper}>
+        <Text style={[styles.label, { color: shell.textSecondary }]}>Content Type</Text>
+        <View
+          style={[
+            styles.pickerWrapper,
+            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
+          ]}
+        >
           <Picker
             selectedValue={contentType}
             onValueChange={setContentType}
-            style={styles.picker}
+            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
           >
             {platformConfig[platform].contentTypes.map((c) => (
               <Picker.Item key={c} label={c} value={c} />
@@ -255,12 +410,17 @@ export default function InfluencerRateCalculator() {
         </View>
       </View>
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Usage Rights</Text>
-        <View style={styles.pickerWrapper}>
+        <Text style={[styles.label, { color: shell.textSecondary }]}>Usage Rights</Text>
+        <View
+          style={[
+            styles.pickerWrapper,
+            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
+          ]}
+        >
           <Picker
             selectedValue={usageRights}
             onValueChange={setUsageRights}
-            style={styles.picker}
+            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
           >
             {Object.keys(usageRightsMultipliers).map((u) => (
               <Picker.Item key={u} label={u} value={u} />
@@ -269,7 +429,9 @@ export default function InfluencerRateCalculator() {
         </View>
       </View>
 
-      <View style={styles.resultShell}>
+      <View
+        style={[styles.resultShell, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
         <LinearGradient
           colors={[...premiumNavy.base.colors]}
           locations={[...premiumNavy.base.locations]}
@@ -287,18 +449,20 @@ export default function InfluencerRateCalculator() {
           />
           <Text style={styles.resultTitleOnNavy}>Your estimated rate</Text>
         </LinearGradient>
-        <View style={styles.resultBody}>
+        <View style={[styles.resultBody, { backgroundColor: shell.card }]}>
           <View style={styles.resultRow}>
-            <View style={styles.resultBox}>
-              <Text style={styles.resultLabel}>USD</Text>
-              <Text style={styles.resultValue}>
-                ${Math.round(result.usd_min).toLocaleString()} – ${Math.round(result.usd_max).toLocaleString()}
+            <View style={[styles.resultBox, { backgroundColor: shell.iceBlue }]}>
+              <Text style={[styles.resultLabel, { color: shell.textSecondary }]}>USD</Text>
+              <Text style={[styles.resultValue, { color: shell.cta }]}>
+                ${Math.round(result.usd_min).toLocaleString()} – $
+                {Math.round(result.usd_max).toLocaleString()}
               </Text>
             </View>
-            <View style={styles.resultBox}>
-              <Text style={styles.resultLabel}>INR</Text>
-              <Text style={styles.resultValue}>
-                ₹{Math.round(result.inr_min).toLocaleString()} – ₹{Math.round(result.inr_max).toLocaleString()}
+            <View style={[styles.resultBox, { backgroundColor: shell.iceBlue }]}>
+              <Text style={[styles.resultLabel, { color: shell.textSecondary }]}>INR</Text>
+              <Text style={[styles.resultValue, { color: shell.cta }]}>
+                ₹{Math.round(result.inr_min).toLocaleString()} – ₹
+                {Math.round(result.inr_max).toLocaleString()}
               </Text>
             </View>
           </View>
@@ -318,36 +482,34 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.semiBold,
     marginBottom: 6,
-    color: appShell.textSecondary,
   },
   input: {
     borderWidth: 1,
-    borderColor: appShell.borderSubtle,
+
     padding: spacing.sm,
     fontSize: 14,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: appShell.borderSubtle,
+
     borderRadius: radius.md,
-    backgroundColor: appShell.card,
+
     overflow: 'hidden',
     minHeight: 50,
   },
   picker: {
     height: RNPlatform.OS === 'ios' ? 120 : 50,
     width: '100%',
-    color: appShell.textPrimary,
+
     fontSize: 14,
-    backgroundColor: appShell.card,
   },
   resultShell: {
     marginTop: spacing.md,
     borderRadius: radius.xl,
     overflow: 'hidden',
-    backgroundColor: appShell.card,
+
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
+
     ...shadow.card,
   },
   resultHeaderBand: {
@@ -366,7 +528,6 @@ const styles = StyleSheet.create({
   },
   resultBody: {
     padding: spacing.md,
-    backgroundColor: appShell.card,
   },
   resultRow: {
     flexDirection: 'row',
@@ -378,12 +539,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: spacing.sm,
-    backgroundColor: appShell.iceBlue,
+
     borderRadius: radius.md,
   },
   resultLabel: {
     fontSize: 12,
-    color: appShell.textSecondary,
+
     fontFamily: fonts.semiBold,
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -392,7 +553,7 @@ const styles = StyleSheet.create({
   resultValue: {
     fontSize: 15,
     fontFamily: fonts.bold,
-    color: appShell.cta,
+
     textAlign: 'center',
   },
 });

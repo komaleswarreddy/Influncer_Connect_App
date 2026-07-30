@@ -12,18 +12,21 @@ import {
 import { api } from '../../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { cognitoConfigured } from '../../lib/auth-config';
-import { appShell, shadow } from '@/theme';
+import { shadow, useAppShell } from '@/theme';
 
 interface PasswordSectionProps {
   onUpdate?: () => void;
 }
 
 function CognitoPasswordMessage() {
+  const shell = useAppShell();
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Password</Text>
-        <Text style={styles.cognitoHint}>
+      <View
+        style={[styles.section, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
+        <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>Password</Text>
+        <Text style={[styles.cognitoHint, { color: shell.textSecondary }]}>
           You sign in with Cognito Single Sign-On. Change your password from the Cognito Hosted UI
           (Forgot password), not from this screen.
         </Text>
@@ -33,6 +36,7 @@ function CognitoPasswordMessage() {
 }
 
 function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
+  const shell = useAppShell();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     currentPassword: '',
@@ -86,73 +90,111 @@ function EmailPasswordForm({ onUpdate }: PasswordSectionProps) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Change Password</Text>
+      <View
+        style={[styles.section, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
+        <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>Change Password</Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Current Password</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Current Password</Text>
           <View style={styles.passwordInputRow}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[
+                styles.input,
+                {
+                  flex: 1,
+                  borderColor: shell.borderSubtle,
+                  backgroundColor: shell.canvasAlt,
+                  color: shell.textPrimary,
+                },
+              ]}
               value={formData.currentPassword}
               onChangeText={(text) => setFormData((prev) => ({ ...prev, currentPassword: text }))}
               placeholder="Enter your current password"
               secureTextEntry={!showCurrent}
-              placeholderTextColor="#6b7280"
-              selectionColor={appShell.cta}
+              placeholderTextColor={shell.textMuted}
+              selectionColor={shell.cta}
             />
             <TouchableOpacity onPress={() => setShowCurrent((v) => !v)} style={styles.eyeIcon}>
-              <Ionicons name={showCurrent ? 'eye' : 'eye-off'} size={22} color="#888" />
+              <Ionicons name={showCurrent ? 'eye' : 'eye-off'} size={22} color={shell.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>New Password</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>New Password</Text>
           <View style={styles.passwordInputRow}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[
+                styles.input,
+                {
+                  flex: 1,
+                  borderColor: shell.borderSubtle,
+                  backgroundColor: shell.canvasAlt,
+                  color: shell.textPrimary,
+                },
+              ]}
               value={formData.newPassword}
               onChangeText={(text) => setFormData((prev) => ({ ...prev, newPassword: text }))}
               placeholder="Enter your new password"
               secureTextEntry={!showNew}
-              placeholderTextColor="#6b7280"
-              selectionColor={appShell.cta}
+              placeholderTextColor={shell.textMuted}
+              selectionColor={shell.cta}
             />
             <TouchableOpacity onPress={() => setShowNew((v) => !v)} style={styles.eyeIcon}>
-              <Ionicons name={showNew ? 'eye' : 'eye-off'} size={22} color="#888" />
+              <Ionicons name={showNew ? 'eye' : 'eye-off'} size={22} color={shell.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Confirm New Password</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Confirm New Password</Text>
           <View style={styles.passwordInputRow}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[
+                styles.input,
+                {
+                  flex: 1,
+                  borderColor: shell.borderSubtle,
+                  backgroundColor: shell.canvasAlt,
+                  color: shell.textPrimary,
+                },
+              ]}
               value={formData.confirmPassword}
               onChangeText={(text) => setFormData((prev) => ({ ...prev, confirmPassword: text }))}
               placeholder="Confirm your new password"
               secureTextEntry={!showConfirm}
-              placeholderTextColor="#6b7280"
-              selectionColor={appShell.cta}
+              placeholderTextColor={shell.textMuted}
+              selectionColor={shell.cta}
             />
             <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeIcon}>
-              <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color="#888" />
+              <Ionicons name={showConfirm ? 'eye' : 'eye-off'} size={22} color={shell.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.passwordRequirements}>
-          <Text style={styles.requirementsTitle}>Password Requirements:</Text>
-          <Text style={styles.requirement}>• At least 8 characters long</Text>
-          <Text style={styles.requirement}>• Include uppercase and lowercase letters</Text>
-          <Text style={styles.requirement}>• Include at least one number</Text>
+        <View style={[styles.passwordRequirements, { backgroundColor: shell.iceBlue }]}>
+          <Text style={[styles.requirementsTitle, { color: shell.cta }]}>
+            Password Requirements:
+          </Text>
+          <Text style={[styles.requirement, { color: shell.textSecondary }]}>
+            • At least 8 characters long
+          </Text>
+          <Text style={[styles.requirement, { color: shell.textSecondary }]}>
+            • Include uppercase and lowercase letters
+          </Text>
+          <Text style={[styles.requirement, { color: shell.textSecondary }]}>
+            • Include at least one number
+          </Text>
         </View>
       </View>
 
       <TouchableOpacity
-        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+        style={[
+          styles.saveButton,
+          { backgroundColor: shell.cta },
+          isLoading && styles.saveButtonDisabled,
+        ]}
         onPress={handleSave}
         disabled={isLoading}
       >
@@ -179,19 +221,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   section: {
-    backgroundColor: appShell.card,
     marginHorizontal: 12,
     marginVertical: 6,
     padding: 12,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     ...shadow.cardLight,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#111827',
     marginBottom: 12,
   },
   inputGroup: {
@@ -200,21 +239,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    backgroundColor: '#fff',
-    color: '#111827',
   },
   passwordRequirements: {
-    backgroundColor: '#f0f9ff',
     padding: 12,
     borderRadius: 8,
     marginTop: 8,
@@ -222,16 +256,13 @@ const styles = StyleSheet.create({
   requirementsTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0c4a6e',
     marginBottom: 8,
   },
   requirement: {
     fontSize: 13,
-    color: '#0369a1',
     marginBottom: 4,
   },
   saveButton: {
-    backgroundColor: appShell.cta,
     marginHorizontal: 12,
     marginVertical: 12,
     paddingVertical: 12,
@@ -256,7 +287,6 @@ const styles = StyleSheet.create({
   },
   cognitoHint: {
     fontSize: 14,
-    color: '#4b5563',
     lineHeight: 22,
   },
 });

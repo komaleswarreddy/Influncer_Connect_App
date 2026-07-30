@@ -36,7 +36,7 @@ export interface PostMetrics {
 
 export interface BulkAnalysisResult {
   success?: boolean;
-  results: PostMetrics[];
+  results: Array<PostMetrics & { analysisId?: string | null }>;
   errors: Array<{ url: string; error: string }>;
   summary: {
     total: number;
@@ -55,6 +55,42 @@ export interface PostAnalysis extends PostMetrics {
   createdAt: string;
 }
 
+export class PostAnalyzerDailyLimitError extends Error {
+  readonly code = 'DAILY_LIMIT_REACHED';
+  readonly limit: number;
+  readonly used: number;
+  readonly remaining: number;
+  readonly resetsAt: string;
+
+  constructor(payload: {
+    message: string;
+    limit: number;
+    used: number;
+    remaining: number;
+    resetsAt: string;
+  }) {
+    super(payload.message);
+    this.name = 'PostAnalyzerDailyLimitError';
+    this.limit = payload.limit;
+    this.used = payload.used;
+    this.remaining = payload.remaining;
+    this.resetsAt = payload.resetsAt;
+  }
+}
+
+export function isPostAnalyzerDailyLimitError(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return lower.includes('daily limit') || lower.includes('post analyses for today');
+}
+
+export interface PostAnalyzerQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+  resetsAt: string;
+}
+
 interface AnalyzePostResponse {
   success?: boolean;
   data?: PostMetrics;
@@ -62,16 +98,71 @@ interface AnalyzePostResponse {
   analysisId?: string | null;
   persisted?: boolean;
   persistError?: string | null;
+  error?: string;
+  message?: string;
+  limit?: number;
+  used?: number;
+  remaining?: number;
+  resetsAt?: string;
+}
+
+function throwIfDailyLimit(raw: AnalyzePostResponse, status?: number) {
+  if (
+    status === 429 ||
+    raw.error === 'DAILY_LIMIT_REACHED' ||
+    (raw.message && isPostAnalyzerDailyLimitError(raw.message))
+  ) {
+    throw new PostAnalyzerDailyLimitError({
+      message:
+        raw.message ??
+        'Daily analysis limit reached. Your free analysis resets at midnight (UTC). Re-checking a URL you already analyzed today does not use another slot.',
+      limit: Number(raw.limit ?? 1),
+      used: Number(raw.used ?? 1),
+      remaining: Number(raw.remaining ?? 0),
+      resetsAt: raw.resetsAt ?? new Date().toISOString(),
+    });
+  }
+}
+
+export async function getPostAnalyzerQuota(): Promise<PostAnalyzerQuota> {
+  const raw = (await api.get('/api/post-analyzer/quota')) as PostAnalyzerQuota;
+  return {
+    limit: Number(raw.limit ?? 1),
+    used: Number(raw.used ?? 0),
+    remaining: Number(raw.remaining ?? 0),
+    resetsAt: raw.resetsAt ?? new Date().toISOString(),
+  };
 }
 
 export async function analyzePost(
   url: string,
   campaignId?: string
-): Promise<{ success: boolean; data: PostMetrics; analysisId: string | null; persisted: boolean; persistError: string | null }> {
-  const raw = (await api.post('/api/post-analyzer/analyze', {
-    url,
-    campaignId,
-  })) as AnalyzePostResponse;
+): Promise<{
+  success: boolean;
+  data: PostMetrics;
+  analysisId: string | null;
+  persisted: boolean;
+  persistError: string | null;
+}> {
+  let raw: AnalyzePostResponse;
+  try {
+    raw = (await api.post('/api/post-analyzer/analyze', {
+      url,
+      campaignId,
+    })) as AnalyzePostResponse;
+  } catch (err) {
+    if (err instanceof Error && isPostAnalyzerDailyLimitError(err.message)) {
+      throw new PostAnalyzerDailyLimitError({
+        message: err.message,
+        limit: 1,
+        used: 1,
+        remaining: 0,
+        resetsAt: new Date().toISOString(),
+      });
+    }
+    throw err;
+  }
+  throwIfDailyLimit(raw);
   const metrics = raw.data ?? raw.metrics;
   if (!metrics) {
     throw new Error('Analyze response missing metrics data');
@@ -99,10 +190,32 @@ export async function analyzeBulkPosts(
   urls: string[],
   campaignId?: string
 ): Promise<BulkAnalysisResult> {
-  const raw = (await api.post('/api/post-analyzer/analyze-bulk', {
-    urls,
-    campaignId,
-  })) as Partial<BulkAnalysisResult>;
+  let raw: Partial<BulkAnalysisResult> & {
+    error?: string;
+    message?: string;
+    limit?: number;
+    used?: number;
+    remaining?: number;
+    resetsAt?: string;
+  };
+  try {
+    raw = (await api.post('/api/post-analyzer/analyze-bulk', {
+      urls,
+      campaignId,
+    })) as typeof raw;
+  } catch (err) {
+    if (err instanceof Error && isPostAnalyzerDailyLimitError(err.message)) {
+      throw new PostAnalyzerDailyLimitError({
+        message: err.message,
+        limit: 1,
+        used: 1,
+        remaining: 0,
+        resetsAt: new Date().toISOString(),
+      });
+    }
+    throw err;
+  }
+  throwIfDailyLimit(raw as AnalyzePostResponse);
   return {
     success: raw.success ?? true,
     results: Array.isArray(raw.results)
@@ -115,12 +228,15 @@ export async function analyzeBulkPosts(
           views: m.views === undefined ? undefined : Number(m.views ?? 0),
           creatorFollowers: Number(m.creatorFollowers ?? 0),
           authenticityScore: Number(m.authenticityScore ?? 0),
+          analysisId: (m as { analysisId?: string | null }).analysisId ?? null,
         }))
       : [],
     errors: Array.isArray(raw.errors) ? raw.errors : [],
     summary: {
       total: Number(raw.summary?.total ?? urls.length),
-      successful: Number(raw.summary?.successful ?? (Array.isArray(raw.results) ? raw.results.length : 0)),
+      successful: Number(
+        raw.summary?.successful ?? (Array.isArray(raw.results) ? raw.results.length : 0)
+      ),
       failed: Number(raw.summary?.failed ?? (Array.isArray(raw.errors) ? raw.errors.length : 0)),
       youtubeApiUnitsUsed: Number(raw.summary?.youtubeApiUnitsUsed ?? 0),
       scrapeCreditsUsed: Number(raw.summary?.scrapeCreditsUsed ?? 0),
@@ -140,9 +256,7 @@ export async function getPostAnalysisHistory(params: {
   if (params.limit) query.set('limit', String(params.limit));
   if (params.page) query.set('page', String(params.page));
   const suffix = query.toString();
-  const raw = (await api.get(
-    `/api/post-analyzer/history${suffix ? `?${suffix}` : ''}`
-  )) as
+  const raw = (await api.get(`/api/post-analyzer/history${suffix ? `?${suffix}` : ''}`)) as
     | { data?: PostAnalysis[]; items?: PostAnalysis[]; total?: number; page?: number }
     | PostAnalysis[];
 

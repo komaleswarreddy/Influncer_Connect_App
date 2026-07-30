@@ -1,15 +1,15 @@
 import type { InfluencerAnalyticsRow } from './influencer-analytics-map';
 import type { CampaignParticipation } from '@/store/campaign-store';
 
-export const HOME_STATS_MOCK = {
-  ecosystemReach: '12.4M',
-  activeCollabs: 12,
-  pendingApprovals: 8,
-  monthlyGoal: { progress: 53, points: 350 },
-} as const;
-
 const ACTIVE_STATUSES = new Set(['active', 'completed']);
-const PENDING_STATUSES = new Set(['invited', 'accepted', 'contract_pending']);
+const PENDING_STATUSES = new Set([
+  'invited',
+  'accepted',
+  'contract_pending',
+  'pending',
+  'applied',
+  'pending_review',
+]);
 
 function normStatus(status: string): string {
   return status.trim().toLowerCase().replace(/\s+/g, '_');
@@ -34,14 +34,29 @@ function sumConnectedFollowers(
   twitter: InfluencerAnalyticsRow | null
 ): number {
   let sum = 0;
-  if (instagram?.isConnected) sum += instagram.followerCount;
+  if (instagram?.isConnected) sum += Math.max(0, instagram.followerCount || 0);
   if (youtube?.isConnected) {
-    sum += youtube.subscriberCount ?? youtube.followerCount;
+    sum += Math.max(0, youtube.subscriberCount ?? youtube.followerCount ?? 0);
   }
-  if (twitter?.isConnected) sum += twitter.followerCount;
+  if (twitter?.isConnected) sum += Math.max(0, twitter.followerCount || 0);
   return sum;
 }
 
+export type HomeDashboardStats = {
+  /** Formatted reach, or "—" when no connected audience. */
+  totalReach: string;
+  hasReach: boolean;
+  activeCollabs: number;
+  pendingApprovals: number;
+  /** Share of tracked collabs that are active (0–1). */
+  activeRatio: number;
+  /** Share of tracked collabs that are pending (0–1). */
+  pendingRatio: number;
+};
+
+/**
+ * Home KPIs from live analytics + participations only — never invents placeholder millions.
+ */
 export function buildHomeDashboardStats(input: {
   instagramAnalytics: InfluencerAnalyticsRow | null;
   youtubeAnalytics: InfluencerAnalyticsRow | null;
@@ -49,34 +64,26 @@ export function buildHomeDashboardStats(input: {
   participations: CampaignParticipation[];
   hasLoadedParticipations: boolean;
   hasLoadedAnalytics: boolean;
-}) {
+}): HomeDashboardStats {
   const reachTotal = sumConnectedFollowers(
     input.instagramAnalytics,
     input.youtubeAnalytics,
     input.twitterAnalytics
   );
   const reachFormatted = formatReachCount(reachTotal);
+  const hasReach = reachTotal > 0 && !!reachFormatted;
 
-  const activeCount = input.participations.filter((p) =>
-    ACTIVE_STATUSES.has(normStatus(p.status))
-  ).length;
-  const pendingCount = input.participations.filter((p) =>
-    PENDING_STATUSES.has(normStatus(p.status))
-  ).length;
-
-  const ecosystemReach =
-    !reachFormatted || reachTotal <= 0
-      ? HOME_STATS_MOCK.ecosystemReach
-      : reachFormatted;
+  const list = input.hasLoadedParticipations ? input.participations : [];
+  const activeCount = list.filter((p) => ACTIVE_STATUSES.has(normStatus(p.status))).length;
+  const pendingCount = list.filter((p) => PENDING_STATUSES.has(normStatus(p.status))).length;
+  const total = list.length;
 
   return {
-    ecosystemReach,
-    activeCollabs: input.hasLoadedParticipations
-      ? activeCount
-      : HOME_STATS_MOCK.activeCollabs,
-    pendingApprovals: input.hasLoadedParticipations
-      ? pendingCount
-      : HOME_STATS_MOCK.pendingApprovals,
-    monthlyGoal: HOME_STATS_MOCK.monthlyGoal,
+    totalReach: hasReach ? reachFormatted : '—',
+    hasReach,
+    activeCollabs: activeCount,
+    pendingApprovals: pendingCount,
+    activeRatio: total > 0 ? activeCount / total : 0,
+    pendingRatio: total > 0 ? pendingCount / total : 0,
   };
 }

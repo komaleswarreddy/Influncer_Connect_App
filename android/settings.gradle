@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Affiliate Platform'
+rootProject.name = 'Influencer Connect'
 
 expoAutolinking.useExpoVersionCatalog()
 

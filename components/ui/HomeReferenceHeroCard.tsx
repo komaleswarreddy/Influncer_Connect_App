@@ -15,17 +15,16 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, Pattern, Circle, Rect } from 'react-native-svg';
 import { radius, shadow } from '@/theme';
 import { fonts } from './typography';
-import {
-  HOME_DESIGN,
-  HERO_STATS_CANVAS,
-  heroCardHeight,
-  scaleX,
-} from '@/lib/home-mock-layout';
+import { HOME_DESIGN, HERO_STATS_CANVAS, heroCardHeight, scaleX } from '@/lib/home-mock-layout';
 
 const HERO_STATS = require('@/assets/hero_stats.png');
 
 type Props = {
-  ecosystemReach: string;
+  /** Formatted reach or "—" */
+  totalReach: string;
+  hasReach: boolean;
+  /** Any social OAuth connected — shows connected hero copy when reach is still loading. */
+  accountsConnected?: boolean;
   onDetailsPress: () => void;
   style?: StyleProp<ViewStyle>;
 };
@@ -47,9 +46,11 @@ function HeroDotGrid() {
   );
 }
 
-/** Reference mock hero — navy canvas, hero_stats on right, live copy overlaid left. */
+/** Home hero — live total reach only (no invented marketing numbers). */
 export function HomeReferenceHeroCard({
-  ecosystemReach,
+  totalReach,
+  hasReach,
+  accountsConnected = false,
   onDetailsPress,
   style,
 }: Props) {
@@ -62,14 +63,12 @@ export function HomeReferenceHeroCard({
 
   const cardHeight = heroCardHeight(cardWidth);
   const artWidth = cardHeight * HOME_DESIGN.heroStatsAspect;
-  const textMaxWidth = cardWidth * 0.52;
+  const showConnectedPitch = accountsConnected && !hasReach;
+  const textMaxWidth = cardWidth * (hasReach ? 0.46 : showConnectedPitch ? 0.54 : 0.56);
   const sx = (px: number) => scaleX(cardWidth, px);
 
   return (
-    <View
-      style={[styles.shell, shadow.card, { height: cardHeight }, style]}
-      onLayout={onLayout}
-    >
+    <View style={[styles.shell, shadow.card, { height: cardHeight }, style]} onLayout={onLayout}>
       <LinearGradient
         colors={[...HERO_STATS_CANVAS.gradient]}
         locations={[...HERO_STATS_CANVAS.gradientLocations]}
@@ -79,16 +78,15 @@ export function HomeReferenceHeroCard({
       />
       <HeroDotGrid />
 
-      <View style={[styles.heroArtWrap, { width: artWidth, height: cardHeight }]} pointerEvents="none">
+      <View
+        style={[styles.heroArtWrap, { width: artWidth, height: cardHeight }]}
+        pointerEvents="none"
+      >
         <Image source={HERO_STATS} style={styles.heroArt} resizeMode="contain" />
       </View>
 
       <LinearGradient
-        colors={[
-          HERO_STATS_CANVAS.solid,
-          `rgba(${HERO_STATS_CANVAS.rgb}, 0.55)`,
-          'transparent',
-        ]}
+        colors={[HERO_STATS_CANVAS.solid, `rgba(${HERO_STATS_CANVAS.rgb}, 0.55)`, 'transparent']}
         locations={[0, 0.55, 1]}
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
@@ -111,36 +109,55 @@ export function HomeReferenceHeroCard({
         <View style={styles.copyBlock}>
           <View style={styles.overlinePill}>
             <Text style={styles.overline} numberOfLines={1}>
-              STRATEGIC OVERVIEW
+              {showConnectedPitch ? 'CREATOR DASHBOARD' : 'STRATEGIC OVERVIEW'}
             </Text>
           </View>
 
-          <Text style={styles.title} numberOfLines={1}>
-            Your Stats
-          </Text>
+          {showConnectedPitch ? (
+            <>
+              <Text style={styles.connectedHeadline} numberOfLines={2}>
+                Track. Grow.{'\n'}
+                <Text style={styles.connectedHeadlineAccent}>Earn More.</Text>
+              </Text>
+              <Text style={styles.connectedSubline} numberOfLines={2}>
+                Real insights, better collaborations.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.title} numberOfLines={1}>
+                Your Stats
+              </Text>
 
-          <Text style={styles.metricLabel}>Ecosystem Reach</Text>
+              <Text style={styles.metricLabel}>Total Reach</Text>
 
-          <Text
-            style={styles.metricValue}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {ecosystemReach}
-          </Text>
+              {hasReach ? (
+                <Text
+                  style={styles.metricValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.65}
+                >
+                  {totalReach}
+                </Text>
+              ) : (
+                <TouchableOpacity
+                  onPress={onDetailsPress}
+                  activeOpacity={0.88}
+                  accessibilityRole="button"
+                  accessibilityLabel="Link Accounts"
+                  style={[styles.connectBtn, styles.connectBtnUnderLabel]}
+                >
+                  <View style={styles.connectBtnInnerGlow} pointerEvents="none" />
+                  <Text style={styles.connectBtnText} numberOfLines={1}>
+                    Link Accounts
+                  </Text>
+                  <Ionicons name="arrow-forward" size={14} color="#141E33" style={styles.chevron} />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
-
-        <TouchableOpacity
-          style={styles.glassBtnOuter}
-          onPress={onDetailsPress}
-          activeOpacity={0.88}
-          accessibilityRole="button"
-          accessibilityLabel="More Details"
-        >
-          <Text style={styles.glassBtnText}>More Details</Text>
-          <Ionicons name="chevron-forward" size={14} color="#FFFFFF" style={styles.chevron} />
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -184,7 +201,7 @@ const styles = StyleSheet.create({
   textCol: {
     position: 'absolute',
     zIndex: 3,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   copyBlock: {
     gap: 0,
@@ -212,7 +229,31 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     lineHeight: 30,
     color: '#FFFFFF',
-    marginBottom: 14,
+    marginBottom: 12,
+  },
+  connectedHeadline: {
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    letterSpacing: -0.55,
+    lineHeight: 28,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    maxWidth: '100%',
+  },
+  connectedHeadlineAccent: {
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    letterSpacing: -0.55,
+    lineHeight: 28,
+    color: '#A5B4FC',
+  },
+  connectedSubline: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: 'rgba(255, 255, 255, 0.58)',
+    marginBottom: 4,
+    maxWidth: '100%',
   },
   metricLabel: {
     fontFamily: fonts.regular,
@@ -222,32 +263,67 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     fontFamily: fonts.bold,
-    fontSize: 36,
+    fontSize: 32,
     color: '#FFFFFF',
-    letterSpacing: -1.2,
-    lineHeight: 42,
+    letterSpacing: -1,
+    lineHeight: 38,
+    maxWidth: '100%',
     ...Platform.select({ android: { includeFontPadding: false } }),
   },
-  glassBtnOuter: {
+  /** Empty-state CTA: white fill, navy text, soft neon violet glow */
+  connectBtnUnderLabel: {
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  connectBtn: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
+    flexWrap: 'nowrap',
+    position: 'relative',
+    overflow: 'visible',
     borderRadius: radius.pill,
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingLeft: 14,
-    paddingRight: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    paddingRight: 12,
+    marginRight: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(108, 92, 255, 0.55)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#6C5CFF',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 6,
+        shadowColor: '#6C5CFF',
+      },
+      default: {},
+    }),
   },
-  glassBtnText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 11,
-    color: '#FFFFFF',
-    letterSpacing: 0.1,
+  /** Soft inset wash — RN has no inset box-shadow */
+  connectBtnInnerGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 92, 255, 0.18)',
+    backgroundColor: 'rgba(124, 92, 255, 0.06)',
+  },
+  connectBtnText: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#141E33',
+    letterSpacing: 0.05,
+    flexShrink: 0,
+    zIndex: 1,
   },
   chevron: {
-    marginLeft: 2,
-    opacity: 0.9,
+    marginLeft: 5,
+    opacity: 0.95,
+    zIndex: 1,
   },
 });

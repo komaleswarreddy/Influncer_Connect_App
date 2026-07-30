@@ -13,7 +13,7 @@ import { ScrollScreen, PrimaryButton, SectionHeader } from '@/components/ui';
 import { useAuthStore } from '@/store/auth-store';
 import { useCatalogStore } from '@/store/catalog-store';
 import type { CatalogBusinessType } from '@/lib/catalog-api';
-import { appShell, spacing, radius } from '@/theme';
+import { spacing, radius, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 const BUSINESS_TYPES: { key: CatalogBusinessType; label: string; emoji: string }[] = [
@@ -27,7 +27,9 @@ const BUSINESS_TYPES: { key: CatalogBusinessType; label: string; emoji: string }
   { key: 'other', label: 'Other', emoji: '📦' },
 ];
 
-function defaultStoreName(user: { firstName?: string | null; lastName?: string | null; email?: string | null } | null): string {
+function defaultStoreName(
+  user: { firstName?: string | null; lastName?: string | null; email?: string | null } | null
+): string {
   if (!user) return '';
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
   if (name) return name;
@@ -36,12 +38,15 @@ function defaultStoreName(user: { firstName?: string | null; lastName?: string |
 }
 
 export default function CatalogSetupScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const { user } = useAuthStore();
   const { setupCatalog, isSaving, catalog } = useCatalogStore();
 
   const initialName = useMemo(
-    () => (catalog?.storeName !== 'My Catalog' ? catalog?.storeName : defaultStoreName(user)) ?? defaultStoreName(user),
+    () =>
+      (catalog?.storeName !== 'My Catalog' ? catalog?.storeName : defaultStoreName(user)) ??
+      defaultStoreName(user),
     [catalog?.storeName, user]
   );
 
@@ -70,41 +75,57 @@ export default function CatalogSetupScreen() {
   return (
     <ScrollScreen safeAreaEdges={['bottom']}>
       <SectionHeader title="Set up catalog" subtitle="Tell us about your business" />
-      <Text style={styles.label}>Catalog name</Text>
+      <Text style={[styles.label, { color: shell.textPrimary }]}>Catalog name</Text>
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          { borderColor: shell.cardBorder, color: shell.textPrimary, backgroundColor: shell.card },
+        ]}
         value={storeName}
         onChangeText={setStoreName}
         placeholder="e.g. Parul's Closet"
-        placeholderTextColor={appShell.textMuted}
+        placeholderTextColor={shell.textMuted}
       />
-      <Text style={styles.label}>Business type</Text>
+      <Text style={[styles.label, { color: shell.textPrimary }]}>Business type</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
         {BUSINESS_TYPES.map((t) => {
           const active = businessType === t.key;
           return (
             <TouchableOpacity
               key={t.key}
-              style={[styles.chip, active && styles.chipActive]}
+              style={[
+                styles.chip,
+                { backgroundColor: shell.iceBlue },
+                active && [
+                  styles.chipActive,
+                  { backgroundColor: shell.cta, borderColor: shell.cta },
+                ],
+              ]}
               onPress={() => setBusinessType(t.key)}
             >
               <Text style={styles.chipEmoji}>{t.emoji}</Text>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.label}</Text>
+              <Text style={[styles.chipText, { color: active ? '#fff' : shell.textPrimary }]}>
+                {t.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
-      <Text style={styles.label}>Description (optional)</Text>
+      <Text style={[styles.label, { color: shell.textPrimary }]}>Description (optional)</Text>
       <TextInput
-        style={[styles.input, styles.textArea]}
+        style={[
+          styles.input,
+          styles.textArea,
+          { borderColor: shell.cardBorder, color: shell.textPrimary, backgroundColor: shell.card },
+        ]}
         value={description}
         onChangeText={setDescription}
         placeholder="Tell customers about your catalog"
-        placeholderTextColor={appShell.textMuted}
+        placeholderTextColor={shell.textMuted}
         multiline
         maxLength={200}
       />
-      <Text style={styles.counter}>{description.length}/200</Text>
+      <Text style={[styles.counter, { color: shell.textMuted }]}>{description.length}/200</Text>
       <PrimaryButton
         label="Continue →"
         onPress={() => void onContinue()}
@@ -119,25 +140,23 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.semiBold,
     fontSize: 14,
-    color: appShell.textPrimary,
+
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: appShell.cardBorder,
+
     borderRadius: radius.md,
     padding: spacing.md,
     fontFamily: fonts.regular,
     fontSize: 15,
-    color: appShell.textPrimary,
-    backgroundColor: appShell.card,
   },
   textArea: { minHeight: 96, textAlignVertical: 'top' },
   counter: {
     fontFamily: fonts.regular,
     fontSize: 12,
-    color: appShell.textMuted,
+
     textAlign: 'right',
     marginTop: 4,
     marginBottom: spacing.md,
@@ -150,16 +169,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: appShell.iceBlue,
+
     marginRight: spacing.xs,
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  chipActive: {
-    backgroundColor: appShell.cta,
-    borderColor: appShell.cta,
-  },
+  chipActive: {},
   chipEmoji: { fontSize: 16 },
-  chipText: { fontFamily: fonts.semiBold, fontSize: 13, color: appShell.textPrimary },
+  chipText: { fontFamily: fonts.semiBold, fontSize: 13 },
   chipTextActive: { color: '#fff' },
 });

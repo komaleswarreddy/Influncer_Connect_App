@@ -35,9 +35,14 @@ export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
 
   const runCognitoFlow = async () => {
     setBusy(true);
+    const t0 = Date.now();
     try {
       const { idToken } = await signInWithCognito();
+      if (__DEV__) console.log(`[auth] cognito UI+token done in ${Date.now() - t0}ms`);
+      const tEx = Date.now();
       await exchangeCognitoIdToken(idToken);
+      if (__DEV__)
+        console.log(`[auth] backend exchange ${Date.now() - tEx}ms; total ${Date.now() - t0}ms`);
       const step = useAuthStore.getState().nextStep;
       router.replace(getInfluencerEntryPath(step));
     } catch (e: unknown) {

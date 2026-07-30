@@ -1,19 +1,24 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform, type StyleProp, type ViewStyle } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { appShell, spacing, radius, shadow } from '@/theme';
 import { fonts } from './typography';
 
 type Props = {
   activeCollabs: number;
   pendingApprovals: number;
-  monthlyGoalProgress: number;
-  monthlyGoalPoints: number;
+  /** 0–1 share of tracked collabs that are active */
+  activeRatio: number;
+  /** 0–1 share of tracked collabs that are pending */
+  pendingRatio: number;
   style?: StyleProp<ViewStyle>;
 };
 
-const DECOR_BAR_ACTIVE = 0.72;
-const DECOR_BAR_PENDING = 0.48;
+function clampRatio(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (n >= 1) return 1;
+  return n;
+}
 
 function KpiMiniCard({
   icon,
@@ -30,6 +35,7 @@ function KpiMiniCard({
   barWidth: number;
   barColor: string;
 }) {
+  const widthPct = `${Math.round(clampRatio(barWidth) * 100)}%` as `${number}%`;
   return (
     <View style={styles.kpiMiniCard}>
       <View style={styles.kpiTopRow}>
@@ -40,7 +46,7 @@ function KpiMiniCard({
       </View>
       <Text style={styles.kpiLabel}>{label}</Text>
       <View style={styles.decorTrack}>
-        <View style={[styles.decorFill, { width: `${barWidth * 100}%`, backgroundColor: barColor }]} />
+        <View style={[styles.decorFill, { width: widthPct, backgroundColor: barColor }]} />
       </View>
     </View>
   );
@@ -49,8 +55,8 @@ function KpiMiniCard({
 export function HomeCampaignHealthCard({
   activeCollabs,
   pendingApprovals,
-  monthlyGoalProgress,
-  monthlyGoalPoints,
+  activeRatio,
+  pendingRatio,
   style,
 }: Props) {
   return (
@@ -71,7 +77,7 @@ export function HomeCampaignHealthCard({
           iconBg="#4F6EF7"
           value={activeCollabs}
           label="Active Collabs"
-          barWidth={DECOR_BAR_ACTIVE}
+          barWidth={activeRatio}
           barColor="#4F6EF7"
         />
         <KpiMiniCard
@@ -79,26 +85,9 @@ export function HomeCampaignHealthCard({
           iconBg="#64748B"
           value={pendingApprovals}
           label="Pending Approvals"
-          barWidth={DECOR_BAR_PENDING}
-          barColor="#CBD5E1"
+          barWidth={pendingRatio}
+          barColor="#94A3B8"
         />
-      </View>
-
-      <View style={styles.goalBlock}>
-        <View style={styles.goalHeader}>
-          <View style={styles.goalIconWell}>
-            <MaterialCommunityIcons name="bullseye-arrow" size={20} color={appShell.cta} />
-          </View>
-          <View style={styles.goalCopy}>
-            <Text style={styles.goalTitle}>Monthly Goal</Text>
-            <Text style={styles.goalCaption}>
-              {monthlyGoalPoints} points at {monthlyGoalProgress}% completion
-            </Text>
-          </View>
-        </View>
-        <View style={styles.goalTrack}>
-          <View style={[styles.goalFill, { width: `${monthlyGoalProgress}%` }]} />
-        </View>
       </View>
     </View>
   );
@@ -145,7 +134,6 @@ const styles = StyleSheet.create({
   kpiRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: spacing.sm,
   },
   kpiMiniCard: {
     flex: 1,
@@ -154,7 +142,7 @@ const styles = StyleSheet.create({
     borderColor: appShell.borderSubtle,
     backgroundColor: '#FAFBFD',
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   kpiTopRow: {
     flexDirection: 'row',
@@ -192,51 +180,5 @@ const styles = StyleSheet.create({
   decorFill: {
     height: '100%',
     borderRadius: radius.pill,
-  },
-  goalBlock: {
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appShell.borderSubtle,
-  },
-  goalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  goalIconWell: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  goalCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  goalTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 14,
-    color: appShell.textPrimary,
-    letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  goalCaption: {
-    fontFamily: fonts.regular,
-    fontSize: 10,
-    color: appShell.textSecondary,
-  },
-  goalTrack: {
-    height: 8,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(20, 30, 51, 0.08)',
-    overflow: 'hidden',
-  },
-  goalFill: {
-    height: '100%',
-    borderRadius: radius.pill,
-    backgroundColor: appShell.cta,
   },
 });

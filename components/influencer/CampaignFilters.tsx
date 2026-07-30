@@ -10,22 +10,11 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { appShell } from '@/theme';
+import { appShell, useAppShell } from '@/theme';
 
 const { width } = Dimensions.get('window');
 
 // Constants for filter options
-const AGE_GROUP_OPTIONS = [
-  { value: 'all', label: 'All Ages' },
-  { value: '13-17', label: '13-17 years' },
-  { value: '18-24', label: '18-24 years' },
-  { value: '25-34', label: '25-34 years' },
-  { value: '35-44', label: '35-44 years' },
-  { value: '45-54', label: '45-54 years' },
-  { value: '55-64', label: '55-64 years' },
-  { value: '65+', label: '65+ years' },
-];
-
 const NICHE_OPTIONS = [
   { value: 'all', label: 'All Niches' },
   { value: 'fashion', label: 'Fashion' },
@@ -52,7 +41,6 @@ const NICHE_OPTIONS = [
 
 interface CampaignFiltersProps {
   filters: {
-    targetAudienceAgeGroup: string;
     requiredNiche: string;
     dateRange: {
       from: Date | null;
@@ -61,7 +49,6 @@ interface CampaignFiltersProps {
     tenantId: string;
   };
   onFilterChange: (filters: {
-    targetAudienceAgeGroup: string;
     requiredNiche: string;
     dateRange: {
       from: Date | null;
@@ -85,15 +72,14 @@ export default function CampaignFilters({
   onReset,
   tenants,
 }: CampaignFiltersProps) {
+  const shell = useAppShell();
   const [showFilters, setShowFilters] = useState(false);
-  const [showAgeGroupPicker, setShowAgeGroupPicker] = useState(false);
   const [showNichePicker, setShowNichePicker] = useState(false);
   const [showTenantPicker, setShowTenantPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [slideAnim] = useState(new Animated.Value(0));
 
   const hasActiveFilters =
-    filters.targetAudienceAgeGroup !== 'all' ||
     filters.requiredNiche !== 'all' ||
     filters.tenantId !== 'all' ||
     (filters.dateRange && (filters.dateRange.from || filters.dateRange.to));
@@ -124,7 +110,7 @@ export default function CampaignFilters({
 
   const handleDateSelect = (date: Date) => {
     const currentRange = filters.dateRange || { from: null, to: null };
-    
+
     if (!currentRange.from || (currentRange.from && currentRange.to)) {
       // Start new range
       handleFilterChange('dateRange', { from: date, to: null });
@@ -158,39 +144,20 @@ export default function CampaignFilters({
     return 'Select Date Range';
   };
 
-  const getAgeGroupLabel = () => {
-    const option = AGE_GROUP_OPTIONS.find(opt => opt.value === filters.targetAudienceAgeGroup);
-    return option ? option.label : 'Select Age Group';
-  };
-
   const getNicheLabel = () => {
-    const option = NICHE_OPTIONS.find(opt => opt.value === filters.requiredNiche);
+    const option = NICHE_OPTIONS.find((opt) => opt.value === filters.requiredNiche);
     return option ? option.label : 'Select Niche';
   };
 
   const getTenantLabel = () => {
     if (filters.tenantId === 'all') return 'All Brands';
-    const tenant = tenants?.find(t => t.id === filters.tenantId);
+    const tenant = tenants?.find((t) => t.id === filters.tenantId);
     return tenant ? tenant.tenantName : 'Select Brand';
   };
 
   const renderFilterChips = () => {
     const chips = [];
-    
-    if (filters.targetAudienceAgeGroup !== 'all') {
-      chips.push(
-        <View key="age" style={styles.chip}>
-          <Text style={styles.chipText}>{getAgeGroupLabel()}</Text>
-          <TouchableOpacity
-            onPress={() => handleFilterChange('targetAudienceAgeGroup', 'all')}
-            style={styles.chipClose}
-          >
-            <Ionicons name="close" size={14} color={appShell.cta} />
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    
+
     if (filters.requiredNiche !== 'all') {
       chips.push(
         <View key="niche" style={styles.chip}>
@@ -204,7 +171,7 @@ export default function CampaignFilters({
         </View>
       );
     }
-    
+
     if (filters.tenantId !== 'all') {
       chips.push(
         <View key="tenant" style={styles.chip}>
@@ -218,7 +185,7 @@ export default function CampaignFilters({
         </View>
       );
     }
-    
+
     if (filters.dateRange && (filters.dateRange.from || filters.dateRange.to)) {
       chips.push(
         <View key="date" style={styles.chip}>
@@ -232,23 +199,31 @@ export default function CampaignFilters({
         </View>
       );
     }
-    
+
     return chips;
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: shell.card, borderBottomColor: shell.borderSubtle },
+      ]}
+    >
       {/* Filter Button */}
-      <TouchableOpacity style={styles.filterButton} onPress={toggleFilters}>
-        <Ionicons name="filter" size={20} color={appShell.cta} />
-        <Text style={styles.filterButtonText}>Filters</Text>
-        {hasActiveFilters && <View style={styles.activeIndicator} />}
+      <TouchableOpacity
+        style={[styles.filterButton, { backgroundColor: shell.iceBlue, borderColor: shell.cta }]}
+        onPress={toggleFilters}
+      >
+        <Ionicons name="filter" size={20} color={shell.cta} />
+        <Text style={[styles.filterButtonText, { color: shell.cta }]}>Filters</Text>
+        {hasActiveFilters ? <View style={styles.activeIndicator} /> : null}
       </TouchableOpacity>
 
       {/* Active Filter Chips */}
-      {hasActiveFilters && (
-        <ScrollView 
-          horizontal 
+      {hasActiveFilters ? (
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.chipsContainer}
           contentContainerStyle={styles.chipsContent}
@@ -258,20 +233,16 @@ export default function CampaignFilters({
             <Text style={styles.clearAllText}>Clear All</Text>
           </TouchableOpacity>
         </ScrollView>
-      )}
+      ) : null}
 
       {/* Filters Modal */}
-      <Modal
-        visible={showFilters}
-        transparent
-        animationType="slide"
-        onRequestClose={toggleFilters}
-      >
+      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={toggleFilters}>
         <View style={styles.modalOverlay}>
           <Animated.View
             style={[
               styles.modalContent,
               {
+                backgroundColor: shell.card,
                 transform: [
                   {
                     translateY: slideAnim.interpolate({
@@ -283,26 +254,16 @@ export default function CampaignFilters({
               },
             ]}
           >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filter Campaigns</Text>
+            <View style={[styles.modalHeader, { borderBottomColor: shell.borderSubtle }]}>
+              <Text style={[styles.modalTitle, { color: shell.textPrimary }]}>
+                Filter Campaigns
+              </Text>
               <TouchableOpacity onPress={toggleFilters} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={appShell.cta} />
+                <Ionicons name="close" size={24} color={shell.cta} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              {/* Age Group Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Age Group</Text>
-                <TouchableOpacity
-                  style={styles.pickerButton}
-                  onPress={() => setShowAgeGroupPicker(true)}
-                >
-                  <Text style={styles.pickerButtonText}>{getAgeGroupLabel()}</Text>
-                  <Ionicons name="chevron-down" size={20} color={appShell.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
               {/* Niche Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Niche</Text>
@@ -353,52 +314,6 @@ export default function CampaignFilters({
         </View>
       </Modal>
 
-      {/* Age Group Picker Modal */}
-      <Modal
-        visible={showAgeGroupPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAgeGroupPicker(false)}
-      >
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContainer}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Age Group</Text>
-              <TouchableOpacity onPress={() => setShowAgeGroupPicker(false)}>
-                <Ionicons name="close" size={24} color={appShell.cta} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.pickerList}>
-              {AGE_GROUP_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.pickerItem,
-                    filters.targetAudienceAgeGroup === option.value && styles.pickerItemSelected,
-                  ]}
-                  onPress={() => {
-                    handleFilterChange('targetAudienceAgeGroup', option.value);
-                    setShowAgeGroupPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.pickerItemText,
-                      filters.targetAudienceAgeGroup === option.value && styles.pickerItemTextSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                  {filters.targetAudienceAgeGroup === option.value && (
-                    <Ionicons name="checkmark" size={20} color={appShell.cta} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
       {/* Niche Picker Modal */}
       <Modal
         visible={showNichePicker}
@@ -407,7 +322,7 @@ export default function CampaignFilters({
         onRequestClose={() => setShowNichePicker(false)}
       >
         <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContainer}>
+          <View style={[styles.pickerContainer, { backgroundColor: shell.card }]}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Niche</Text>
               <TouchableOpacity onPress={() => setShowNichePicker(false)}>
@@ -453,7 +368,7 @@ export default function CampaignFilters({
         onRequestClose={() => setShowTenantPicker(false)}
       >
         <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContainer}>
+          <View style={[styles.pickerContainer, { backgroundColor: shell.card }]}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Choose the Brand</Text>
               <TouchableOpacity onPress={() => setShowTenantPicker(false)}>
@@ -462,10 +377,7 @@ export default function CampaignFilters({
             </View>
             <ScrollView style={styles.pickerList}>
               <TouchableOpacity
-                style={[
-                  styles.pickerItem,
-                  filters.tenantId === 'all' && styles.pickerItemSelected,
-                ]}
+                style={[styles.pickerItem, filters.tenantId === 'all' && styles.pickerItemSelected]}
                 onPress={() => {
                   handleFilterChange('tenantId', 'all');
                   setShowTenantPicker(false);
@@ -521,7 +433,7 @@ export default function CampaignFilters({
         onRequestClose={() => setShowDatePicker(false)}
       >
         <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContainer}>
+          <View style={[styles.pickerContainer, { backgroundColor: shell.card }]}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Select Date Range</Text>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
@@ -530,10 +442,10 @@ export default function CampaignFilters({
             </View>
             <ScrollView style={styles.pickerList}>
               <Text style={styles.dateHelperText}>
-                {!filters.dateRange?.from 
-                  ? 'Select start date' 
-                  : !filters.dateRange?.to 
-                    ? 'Select end date' 
+                {!filters.dateRange?.from
+                  ? 'Select start date'
+                  : !filters.dateRange?.to
+                    ? 'Select end date'
                     : 'Date range selected'}
               </Text>
               {/* Simple date selection - you can enhance this with a proper date picker */}
@@ -746,7 +658,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerContainer: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     width: width * 0.9,
     maxHeight: '70%',
@@ -807,4 +718,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
-}); 
+});

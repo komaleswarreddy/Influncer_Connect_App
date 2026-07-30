@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { appShell, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { appShell, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 export type FeedMetaRow = { label: string; value: string };
@@ -22,7 +22,7 @@ export type PremiumCampaignFeedCardProps = {
 };
 
 /**
- * Split premium card: navy gradient header (matches dashboard hero) + light body.
+ * Split premium card: navy gradient header (matches dashboard hero) + themed body.
  * Title/status flex rules prevent overflow; meta uses 12–13px and breathing room.
  */
 export function PremiumCampaignFeedCard({
@@ -36,8 +36,9 @@ export function PremiumCampaignFeedCard({
   footer,
   style,
 }: PremiumCampaignFeedCardProps) {
+  const shell = useAppShell();
   return (
-    <View style={[styles.shell, shadow.card, style]}>
+    <View style={[styles.shell, shadow.card, { backgroundColor: shell.card }, style]}>
       <View style={styles.headerBand}>
         <LinearGradient
           colors={[...premiumNavy.base.colors]}
@@ -68,11 +69,7 @@ export function PremiumCampaignFeedCard({
                 {overline}
               </Text>
             ) : null}
-            <Text
-              style={styles.headerTitle}
-              numberOfLines={2}
-              ellipsizeMode="tail"
-            >
+            <Text style={styles.headerTitle} numberOfLines={2} ellipsizeMode="tail">
               {title}
             </Text>
           </View>
@@ -84,9 +81,9 @@ export function PremiumCampaignFeedCard({
         </View>
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, { backgroundColor: shell.card }]}>
         {description ? (
-          <Text style={styles.description} numberOfLines={4}>
+          <Text style={[styles.description, { color: shell.textSecondary }]} numberOfLines={4}>
             {description}
           </Text>
         ) : null}
@@ -96,8 +93,12 @@ export function PremiumCampaignFeedCard({
           <View style={styles.metaColumnsWrap}>
             {metaRows.slice(0, 3).map((row, i) => (
               <View key={`${row.label}-${i}`} style={styles.metaColumn}>
-                <Text style={styles.metaLabel}>{row.label}</Text>
-                <Text style={[styles.metaValue, styles.metaValueColumn]} numberOfLines={1} ellipsizeMode="tail">
+                <Text style={[styles.metaLabel, { color: shell.textSecondary }]}>{row.label}</Text>
+                <Text
+                  style={[styles.metaValue, styles.metaValueColumn, { color: shell.textPrimary }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {row.value}
                 </Text>
               </View>
@@ -109,8 +110,8 @@ export function PremiumCampaignFeedCard({
               key={`${row.label}-${i}`}
               style={[styles.metaRow, i === metaRows.length - 1 && styles.metaRowLast]}
             >
-              <Text style={styles.metaLabel}>{row.label}</Text>
-              <Text style={styles.metaValue} numberOfLines={3}>
+              <Text style={[styles.metaLabel, { color: shell.textSecondary }]}>{row.label}</Text>
+              <Text style={[styles.metaValue, { color: shell.textPrimary }]} numberOfLines={3}>
                 {row.value}
               </Text>
             </View>

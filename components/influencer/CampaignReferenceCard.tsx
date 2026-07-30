@@ -5,12 +5,13 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  Image,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { appShell, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { appShell, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import { OPPORTUNITY_RAIL, type OpportunityStatusTone } from '@/lib/opportunity-card-ui';
 
@@ -28,36 +29,54 @@ export type CampaignReferenceCardProps = {
   title: string;
   brandName: string;
   metaLine: string;
-  statusLabel: string;
-  statusTone: OpportunityStatusTone;
+  statusLabel?: string | null;
+  statusTone?: OpportunityStatusTone;
   commissionRate: string;
   duration: string;
-  niche: string;
-  audience: string;
+  /** @deprecated Niche lives in metaLine; optional for backwards compatibility. */
+  niche?: string;
+  brandLogoUrl?: string | null;
+  shortDescription?: string | null;
+  /** Label under the primary rate (default: commission). */
+  rateLabel?: string;
   footerBadge?: string | null;
   footerButtonLabel: string;
   onFooterPress: () => void;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Stretch card to fill parent (swipe feed pages) so no dead white gap under metrics. */
+  fillHeight?: boolean;
 };
 
 type MetricColumnProps = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  iconColor: string;
+  labelColor: string;
+  valueColor: string;
+  iconWellBg: string;
 };
 
-function MetricColumn({ icon, label, value }: MetricColumnProps) {
+function MetricColumn({
+  icon,
+  label,
+  value,
+  iconColor,
+  labelColor,
+  valueColor,
+  iconWellBg,
+}: MetricColumnProps) {
   return (
     <View style={styles.metricColumn}>
-      <View style={styles.metricIconWell}>
-        <Ionicons name={icon} size={13} color={appShell.cta} />
+      <View style={[styles.metricIconWell, { backgroundColor: iconWellBg }]}>
+        <Ionicons name={icon} size={13} color={iconColor} />
       </View>
-      <Text style={styles.metricLabel} numberOfLines={1}>
+      <Text style={[styles.metricLabel, { color: labelColor }]} numberOfLines={1}>
         {label}
       </Text>
       <Text
-        style={styles.metricValue}
+        style={[styles.metricValue, { color: valueColor }]}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.75}
@@ -68,26 +87,44 @@ function MetricColumn({ icon, label, value }: MetricColumnProps) {
   );
 }
 
-function MetricDivider() {
-  return <View style={styles.metricDivider} />;
+function MetricDivider({ color }: { color: string }) {
+  return <View style={[styles.metricDivider, { backgroundColor: color }]} />;
 }
 
-function CommissionColumn({ rate }: { rate: string }) {
+function CommissionColumn({
+  rate,
+  label = 'commission',
+  boxBg,
+  valueColor,
+  labelColor,
+}: {
+  rate: string;
+  label?: string;
+  boxBg: string;
+  valueColor: string;
+  labelColor: string;
+}) {
   return (
-    <View style={styles.commissionColumn}>
+    <View style={[styles.commissionColumn, { backgroundColor: boxBg }]}>
       <Text
-        style={styles.commissionValue}
+        style={[styles.commissionValue, { color: valueColor }]}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.7}
       >
         {rate}
       </Text>
-      <Text style={styles.commissionLabel} numberOfLines={1}>
-        commission
+      <Text style={[styles.commissionLabel, { color: labelColor }]} numberOfLines={1}>
+        {label}
       </Text>
     </View>
   );
+}
+
+function truncateDescription(text: string, max = 110): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max - 1).trimEnd()}…`;
 }
 
 export function CampaignReferenceCard({
@@ -98,19 +135,38 @@ export function CampaignReferenceCard({
   statusTone,
   commissionRate,
   duration,
-  niche,
-  audience,
+  brandLogoUrl,
+  shortDescription,
+  rateLabel = 'commission',
   footerBadge,
   footerButtonLabel,
   onFooterPress,
   onPress,
   style,
+  fillHeight = false,
 }: CampaignReferenceCardProps) {
-  const statusColor = OPPORTUNITY_RAIL[statusTone];
+  const shell = useAppShell();
+  const statusColor = statusTone ? OPPORTUNITY_RAIL[statusTone] : OPPORTUNITY_RAIL.open;
+  const showStatusPill = Boolean(statusLabel && String(statusLabel).trim());
+  const desc =
+    shortDescription && shortDescription.trim() ? truncateDescription(shortDescription) : null;
+
+  const metricsSurface = shell.isDark ? 'rgba(255,255,255,0.10)' : CARD_COLORS.commissionBox;
+  const metricsIconWell = shell.isDark ? 'rgba(255,255,255,0.12)' : CARD_COLORS.iconWell;
+  const metricsAccent = shell.isDark ? '#E8ECFF' : shell.cta;
+  const footerBadgeBg = shell.isDark ? 'rgba(142, 158, 237, 0.22)' : CARD_COLORS.footerBadgeBg;
 
   const content = (
-    <View style={[styles.shell, shadow.card, style]}>
-      <View style={styles.headerBand}>
+    <View
+      style={[
+        styles.shell,
+        fillHeight && styles.shellFill,
+        shadow.card,
+        { backgroundColor: shell.card, borderColor: shell.cardBorder },
+        style,
+      ]}
+    >
+      <View style={[styles.headerBand, fillHeight && styles.headerBandFill]}>
         <LinearGradient
           colors={[...premiumNavy.base.colors]}
           locations={[...premiumNavy.base.locations]}
@@ -127,49 +183,82 @@ export function CampaignReferenceCard({
           pointerEvents="none"
         />
 
-        <View style={styles.headerContent}>
+        <View style={[styles.headerContent, fillHeight && styles.headerContentFill]}>
           <View style={styles.headerTopRow}>
             <Text style={styles.headerTitle} numberOfLines={2}>
               {title}
             </Text>
-            <View style={[styles.statusPill, { borderColor: CARD_COLORS.statusPillBorder }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <Text style={styles.statusPillText} numberOfLines={1}>
-                {statusLabel}
-              </Text>
-            </View>
+            {showStatusPill ? (
+              <View style={[styles.statusPill, { borderColor: CARD_COLORS.statusPillBorder }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <Text style={styles.statusPillText} numberOfLines={1}>
+                  {statusLabel}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.headerMetaBlock}>
             <View style={styles.brandRow}>
-              <Ionicons name="business-outline" size={14} color="rgba(255,255,255,0.92)" />
-              <Text style={styles.brandText} numberOfLines={1}>
-                {brandName}
-              </Text>
+              {brandLogoUrl ? (
+                <View style={styles.brandLogoWell}>
+                  <Image
+                    source={{ uri: brandLogoUrl }}
+                    style={styles.brandLogo}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : (
+                <View style={styles.brandLogoFallback}>
+                  <Ionicons name="business-outline" size={20} color="rgba(255,255,255,0.92)" />
+                </View>
+              )}
+              <View style={styles.brandCopy}>
+                <Text style={styles.brandText} numberOfLines={1}>
+                  {brandName}
+                </Text>
+                <Text style={styles.metaLineText} numberOfLines={1}>
+                  {metaLine}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.metaLineText} numberOfLines={1}>
-              {metaLine}
-            </Text>
+            {desc ? (
+              <Text style={styles.shortDescription} numberOfLines={2}>
+                {desc}
+              </Text>
+            ) : null}
           </View>
         </View>
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, { backgroundColor: shell.card }]}>
         <View style={styles.metricsRow}>
-          <CommissionColumn rate={commissionRate} />
-          <MetricDivider />
-          <MetricColumn icon="calendar-outline" label="Duration" value={duration} />
-          <MetricDivider />
-          <MetricColumn icon="pricetag-outline" label="Niche" value={niche} />
-          <MetricDivider />
-          <MetricColumn icon="people-outline" label="Audience" value={audience} />
+          <CommissionColumn
+            rate={commissionRate}
+            label={rateLabel}
+            boxBg={metricsSurface}
+            valueColor={shell.textPrimary}
+            labelColor={shell.textSecondary}
+          />
+          <MetricDivider color={shell.cardBorder} />
+          <MetricColumn
+            icon="calendar-outline"
+            label="Duration"
+            value={duration}
+            iconColor={metricsAccent}
+            labelColor={shell.textSecondary}
+            valueColor={shell.textPrimary}
+            iconWellBg={metricsIconWell}
+          />
         </View>
       </View>
 
-      <View style={styles.footer}>
+      <View
+        style={[styles.footer, { backgroundColor: shell.card, borderTopColor: shell.cardBorder }]}
+      >
         {footerBadge ? (
-          <View style={styles.footerBadge}>
-            <Text style={styles.footerBadgeText} numberOfLines={1}>
+          <View style={[styles.footerBadge, { backgroundColor: footerBadgeBg }]}>
+            <Text style={[styles.footerBadgeText, { color: shell.cta }]} numberOfLines={1}>
               {footerBadge}
             </Text>
           </View>
@@ -202,7 +291,11 @@ export function CampaignReferenceCard({
   if (!onPress) return content;
 
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={fillHeight ? styles.pressableFill : undefined}
+    >
       {content}
     </Pressable>
   );
@@ -219,16 +312,32 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     alignSelf: 'center',
   },
+  shellFill: {
+    flex: 1,
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+  },
+  pressableFill: {
+    flex: 1,
+    width: '100%',
+  },
   headerBand: {
-    minHeight: 118,
+    minHeight: 132,
     backgroundColor: CARD_COLORS.headerNavy,
     overflow: 'hidden',
+  },
+  headerBandFill: {
+    flex: 1,
   },
   headerContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+  },
+  headerContentFill: {
+    flex: 1,
+    justifyContent: 'space-between',
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -268,25 +377,58 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   headerMetaBlock: {
-    gap: 4,
+    gap: 8,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 12,
+  },
+  brandLogoWell: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  brandLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  brandLogoFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  brandCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   brandText: {
-    flex: 1,
     fontFamily: fonts.semiBold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: 'rgba(255,255,255,0.94)',
+    fontSize: 15,
+    lineHeight: 19,
+    color: 'rgba(255,255,255,0.96)',
   },
   metaLineText: {
     fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 17,
-    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.78)',
+  },
+  shortDescription: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.76)',
   },
   body: {
     paddingHorizontal: spacing.sm,
@@ -302,7 +444,6 @@ const styles = StyleSheet.create({
     flex: 1.05,
     minWidth: 0,
     borderRadius: radius.md,
-    backgroundColor: CARD_COLORS.commissionBox,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -316,7 +457,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: -0.2,
-    color: appShell.textPrimary,
     textAlign: 'center',
   },
   commissionLabel: {
@@ -324,13 +464,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 9,
     lineHeight: 11,
-    color: appShell.textSecondary,
     textAlign: 'center',
   },
   metricDivider: {
     width: StyleSheet.hairlineWidth,
     height: 56,
-    backgroundColor: CARD_COLORS.divider,
     marginHorizontal: 4,
   },
   metricColumn: {
@@ -346,24 +484,21 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 9,
-    backgroundColor: CARD_COLORS.iconWell,
     alignItems: 'center',
     justifyContent: 'center',
   },
   metricLabel: {
     width: '100%',
     fontFamily: fonts.regular,
-    fontSize: 9,
-    lineHeight: 11,
-    color: appShell.textSecondary,
+    fontSize: 10,
+    lineHeight: 12,
     textAlign: 'center',
   },
   metricValue: {
     width: '100%',
     fontFamily: fonts.semiBold,
-    fontSize: 10,
-    lineHeight: 12,
-    color: appShell.textPrimary,
+    fontSize: 12,
+    lineHeight: 14,
     textAlign: 'center',
   },
   footer: {
@@ -374,13 +509,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: CARD_COLORS.divider,
-    backgroundColor: appShell.card,
   },
   footerBadge: {
     flexShrink: 0,
     maxWidth: '38%',
-    backgroundColor: CARD_COLORS.footerBadgeBg,
     borderRadius: radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -394,7 +526,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
-    color: appShell.cta,
   },
   footerButton: {
     flex: 1,

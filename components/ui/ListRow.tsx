@@ -1,7 +1,7 @@
 ﻿import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, type TouchableOpacityProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { appShell, radius, spacing } from '@/theme';
+import { radius, spacing, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 export type StatusDot = 'success' | 'warning' | 'neutral';
@@ -23,18 +23,12 @@ type Props = TouchableOpacityProps & {
   trailing?: React.ReactNode;
 };
 
-const dotColor: Record<StatusDot, string> = {
-  success: appShell.success,
-  warning: appShell.warning,
-  neutral: appShell.textMuted,
-};
-
 export function ListRow({
   title,
   subtitle,
   iconName,
-  iconColor = appShell.tabActive,
-  iconWellColor = appShell.iceBlue,
+  iconColor,
+  iconWellColor,
   leftSlot,
   compact,
   status,
@@ -44,24 +38,47 @@ export function ListRow({
   style,
   ...rest
 }: Props) {
+  const shell = useAppShell();
+  const resolvedIconColor = iconColor ?? shell.tabActive;
+  const resolvedWell = iconWellColor ?? shell.iceBlue;
+  const statusColors: Record<StatusDot, string> = {
+    success: shell.success,
+    warning: shell.warning,
+    neutral: shell.textMuted,
+  };
+
   const content = (
     <View style={[styles.row, compact && styles.rowCompact, style]}>
-      {leftSlot ? (
+      {leftSlot != null && React.isValidElement(leftSlot) ? (
         <View style={styles.leftSlot}>{leftSlot}</View>
       ) : iconName ? (
-        <View style={[styles.well, { backgroundColor: iconWellColor }]}>
-          <Ionicons name={iconName} size={22} color={iconColor} />
+        <View style={[styles.well, { backgroundColor: resolvedWell }]}>
+          <Ionicons name={iconName} size={22} color={resolvedIconColor} />
         </View>
       ) : null}
       <View style={styles.textWrap}>
-        <Text style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
-        {subtitle ? <Text style={[styles.subtitle, compact && styles.subtitleCompact]}>{subtitle}</Text> : null}
+        <Text style={[styles.title, { color: shell.textPrimary }, compact && styles.titleCompact]}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={[
+              styles.subtitle,
+              { color: shell.textSecondary },
+              compact && styles.subtitleCompact,
+            ]}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-      {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
+      {trailing != null && React.isValidElement(trailing) ? (
+        <View style={styles.trailing}>{trailing}</View>
+      ) : null}
       {status ? (
-        <View style={[styles.dot, { backgroundColor: dotColor[status] }]} />
+        <View style={[styles.dot, { backgroundColor: statusColors[status] }]} />
       ) : showChevron && onPress ? (
-        <Ionicons name="chevron-forward" size={20} color={appShell.textMuted} />
+        <Ionicons name="chevron-forward" size={20} color={shell.textMuted} />
       ) : null}
     </View>
   );
@@ -101,12 +118,10 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fonts.semiBold,
     fontSize: 16,
-    color: appShell.textPrimary,
   },
   subtitle: {
     fontFamily: fonts.regular,
     fontSize: 13,
-    color: appShell.textSecondary,
     marginTop: 2,
   },
   titleCompact: {

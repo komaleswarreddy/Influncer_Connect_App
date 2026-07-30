@@ -29,7 +29,7 @@ import {
   type DmTriggerType,
   type InstagramMediaItem,
 } from '@/lib/instagram-automation-api';
-import { appShell, spacing, radius, palette } from '@/theme';
+import { spacing, radius, palette, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 const STEPS = ['Content', 'Trigger', 'Reply', 'Review'] as const;
@@ -97,6 +97,7 @@ function triggerOptionsForMedia(media: InstagramMediaItem | null) {
 }
 
 export default function CreateAutomationScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const { automationId } = useLocalSearchParams<{ automationId?: string }>();
   const isEdit = Boolean(automationId);
@@ -212,8 +213,7 @@ export default function CreateAutomationScreen() {
   const canContinueContent = Boolean(payload.specificPostId);
 
   const canContinueTrigger =
-    payload.name.length > 0 &&
-    (payload.matchType === 'any' || payload.triggerKeywords.length > 0);
+    payload.name.length > 0 && (payload.matchType === 'any' || payload.triggerKeywords.length > 0);
 
   const canContinueReply =
     payload.replyType === 'ai_generated'
@@ -333,7 +333,7 @@ export default function CreateAutomationScreen() {
   if (loadingExisting) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={shell.cta} style={{ marginTop: spacing.xl }} />
       </ScrollScreen>
     );
   }
@@ -347,15 +347,21 @@ export default function CreateAutomationScreen() {
 
       <View style={styles.stepDots}>
         {STEPS.map((s, i) => (
-          <View key={s} style={[styles.dot, i <= stepIndex && styles.dotActive]} />
+          <View
+            key={s}
+            style={[
+              styles.dot,
+              { backgroundColor: shell.borderSubtle },
+              i <= stepIndex ? [styles.dotActive, { backgroundColor: shell.cta }] : null,
+            ]}
+          />
         ))}
       </View>
 
       {step === 'Content' ? (
         <PremiumCard style={styles.section}>
-          <Text style={styles.helpText}>
-            Select the reel, post, or story you want to automate. Auto DMs only run on that
-            content.
+          <Text style={[styles.helpText, { color: shell.textSecondary }]}>
+            Select the reel, post, or story you want to automate. Auto DMs only run on that content.
           </Text>
           <PremiumSegmentedControl
             segments={MEDIA_TABS.map((t) => ({ key: t.key, label: t.label }))}
@@ -364,15 +370,19 @@ export default function CreateAutomationScreen() {
             compact
           />
           <View style={styles.mediaHeader}>
-            <Text style={styles.label}>Select content</Text>
+            <Text style={[styles.label, { color: shell.textPrimary }]}>Select content</Text>
             <TouchableOpacity onPress={() => void loadMedia(true)} disabled={mediaLoading}>
-              <Text style={styles.refreshText}>{mediaLoading ? 'Loading…' : 'Refresh'}</Text>
+              <Text style={[styles.refreshText, { color: shell.cta }]}>
+                {mediaLoading ? 'Loading…' : 'Refresh'}
+              </Text>
             </TouchableOpacity>
           </View>
           {mediaLoading && mediaItems.length === 0 ? (
-            <ActivityIndicator color={appShell.cta} style={{ marginVertical: spacing.lg }} />
+            <ActivityIndicator color={shell.cta} style={{ marginVertical: spacing.lg }} />
           ) : mediaItems.length === 0 ? (
-            <Text style={styles.emptyMedia}>No {mediaTab} found. Pull to refresh or post new content.</Text>
+            <Text style={[styles.emptyMedia, { color: shell.textSecondary }]}>
+              No {mediaTab} found. Pull to refresh or post new content.
+            </Text>
           ) : (
             <FlatList
               data={mediaItems}
@@ -384,17 +394,35 @@ export default function CreateAutomationScreen() {
                 const selected = selectedMedia?.id === item.id;
                 return (
                   <TouchableOpacity
-                    style={[styles.mediaTile, selected && styles.mediaTileSelected]}
+                    style={[
+                      styles.mediaTile,
+                      { backgroundColor: shell.canvasAlt },
+                      selected ? [styles.mediaTileSelected, { borderColor: shell.cta }] : null,
+                    ]}
                     onPress={() => selectMedia(item)}
                   >
                     {item.thumbnailUrl ? (
-                      <Image source={{ uri: item.thumbnailUrl }} style={styles.mediaThumb} />
+                      <Image
+                        source={{ uri: item.thumbnailUrl }}
+                        style={[styles.mediaThumb, { backgroundColor: shell.borderSubtle }]}
+                      />
                     ) : (
-                      <View style={[styles.mediaThumb, styles.mediaThumbPlaceholder]}>
-                        <Text style={styles.mediaPlaceholderText}>{item.kind}</Text>
+                      <View
+                        style={[
+                          styles.mediaThumb,
+                          styles.mediaThumbPlaceholder,
+                          { backgroundColor: shell.borderSubtle },
+                        ]}
+                      >
+                        <Text style={[styles.mediaPlaceholderText, { color: shell.textMuted }]}>
+                          {item.kind}
+                        </Text>
                       </View>
                     )}
-                    <Text style={styles.mediaMeta} numberOfLines={1}>
+                    <Text
+                      style={[styles.mediaMeta, { color: shell.textSecondary }]}
+                      numberOfLines={1}
+                    >
                       {item.likeCount != null ? `${item.likeCount} likes` : item.kind}
                     </Text>
                   </TouchableOpacity>
@@ -408,34 +436,53 @@ export default function CreateAutomationScreen() {
       {step === 'Trigger' ? (
         <PremiumCard style={styles.section}>
           {selectedMedia ? (
-            <Text style={styles.helpText}>
-              Target: {selectedMedia.kind} · {selectedMedia.caption?.slice(0, 60) || selectedMedia.id}
+            <Text style={[styles.helpText, { color: shell.textSecondary }]}>
+              Target: {selectedMedia.kind} ·{' '}
+              {selectedMedia.caption?.slice(0, 60) || selectedMedia.id}
             </Text>
           ) : null}
-          <Text style={styles.label}>Automation name</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Automation name</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.cardBorder,
+                color: shell.textPrimary,
+                backgroundColor: shell.card,
+              },
+            ]}
             value={form.name}
             onChangeText={(name) => setForm({ ...form, name })}
             placeholder="e.g. Comment LINK reply"
-            placeholderTextColor={appShell.textMuted}
+            placeholderTextColor={shell.textMuted}
           />
-          <Text style={styles.label}>Trigger type</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Trigger type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {triggerOptions.map((opt) => {
               const active = form.triggerType === opt.key;
               return (
                 <TouchableOpacity
                   key={opt.key}
-                  style={[styles.chip, active && styles.chipActive]}
+                  style={[
+                    styles.chip,
+                    { backgroundColor: shell.iceBlue },
+                    active && [
+                      styles.chipActive,
+                      { backgroundColor: shell.cta, borderColor: shell.cta },
+                    ],
+                  ]}
                   onPress={() => setForm({ ...form, triggerType: opt.key })}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+                  <Text
+                    style={[styles.chipText, { color: active ? palette.white : shell.textPrimary }]}
+                  >
+                    {opt.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-          <Text style={styles.label}>Match type</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Match type</Text>
           <PremiumSegmentedControl
             segments={MATCH_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
             value={form.matchType}
@@ -444,26 +491,45 @@ export default function CreateAutomationScreen() {
           />
           {form.matchType !== 'any' ? (
             <>
-              <Text style={styles.label}>Keywords (comma separated)</Text>
+              <Text style={[styles.label, { color: shell.textPrimary }]}>
+                Keywords (comma separated)
+              </Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    borderColor: shell.cardBorder,
+                    color: shell.textPrimary,
+                    backgroundColor: shell.card,
+                  },
+                ]}
                 value={keywordsText}
                 onChangeText={setKeywordsText}
                 placeholder="LINK, INFO, PRICE"
-                placeholderTextColor={appShell.textMuted}
+                placeholderTextColor={shell.textMuted}
                 multiline
               />
             </>
           ) : null}
           {form.triggerType === 'comment_keyword' ? (
             <>
-              <Text style={styles.label}>Public comment reply (optional)</Text>
+              <Text style={[styles.label, { color: shell.textPrimary }]}>
+                Public comment reply (optional)
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: shell.cardBorder,
+                    color: shell.textPrimary,
+                    backgroundColor: shell.card,
+                  },
+                ]}
                 value={form.publicCommentReply ?? ''}
                 onChangeText={(publicCommentReply) => setForm({ ...form, publicCommentReply })}
                 placeholder="Check your DMs!"
-                placeholderTextColor={appShell.textMuted}
+                placeholderTextColor={shell.textMuted}
               />
             </>
           ) : null}
@@ -477,17 +543,28 @@ export default function CreateAutomationScreen() {
             disabled={suggestLoading || !payload.specificPostId}
             onPress={() => void runAiSuggest()}
           />
-          <Text style={styles.label}>Reply type</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Reply type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {REPLY_OPTIONS.map((opt) => {
               const active = form.replyType === opt.key;
               return (
                 <TouchableOpacity
                   key={opt.key}
-                  style={[styles.chip, active && styles.chipActive]}
+                  style={[
+                    styles.chip,
+                    { backgroundColor: shell.iceBlue },
+                    active && [
+                      styles.chipActive,
+                      { backgroundColor: shell.cta, borderColor: shell.cta },
+                    ],
+                  ]}
                   onPress={() => setForm({ ...form, replyType: opt.key })}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+                  <Text
+                    style={[styles.chipText, { color: active ? palette.white : shell.textPrimary }]}
+                  >
+                    {opt.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -495,13 +572,21 @@ export default function CreateAutomationScreen() {
 
           {form.replyType === 'ai_generated' ? (
             <>
-              <Text style={styles.label}>AI context</Text>
+              <Text style={[styles.label, { color: shell.textPrimary }]}>AI context</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    borderColor: shell.cardBorder,
+                    color: shell.textPrimary,
+                    backgroundColor: shell.card,
+                  },
+                ]}
                 value={form.aiContext ?? ''}
                 onChangeText={(aiContext) => setForm({ ...form, aiContext })}
                 placeholder="Describe your brand, offer, and tone..."
-                placeholderTextColor={appShell.textMuted}
+                placeholderTextColor={shell.textMuted}
                 multiline
               />
               <SecondaryButton
@@ -510,41 +595,65 @@ export default function CreateAutomationScreen() {
                 onPress={() => void runAiPreview()}
               />
               {aiPreview ? (
-                <View style={styles.previewBox}>
-                  <Text style={styles.previewLabel}>Preview</Text>
-                  <Text style={styles.previewText}>{aiPreview}</Text>
+                <View style={[styles.previewBox, { backgroundColor: shell.canvasAlt }]}>
+                  <Text style={[styles.previewLabel, { color: shell.textSecondary }]}>Preview</Text>
+                  <Text style={[styles.previewText, { color: shell.textPrimary }]}>
+                    {aiPreview}
+                  </Text>
                 </View>
               ) : null}
             </>
           ) : (
             <>
-              <Text style={styles.label}>Reply message</Text>
+              <Text style={[styles.label, { color: shell.textPrimary }]}>Reply message</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    borderColor: shell.cardBorder,
+                    color: shell.textPrimary,
+                    backgroundColor: shell.card,
+                  },
+                ]}
                 value={form.replyMessages[0] ?? ''}
                 onChangeText={(text) => setForm({ ...form, replyMessages: [text] })}
                 placeholder="Thanks for reaching out!"
-                placeholderTextColor={appShell.textMuted}
+                placeholderTextColor={shell.textMuted}
                 multiline
               />
               {form.replyType === 'text_with_link' ? (
                 <>
-                  <Text style={styles.label}>Link URL</Text>
+                  <Text style={[styles.label, { color: shell.textPrimary }]}>Link URL</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        borderColor: shell.cardBorder,
+                        color: shell.textPrimary,
+                        backgroundColor: shell.card,
+                      },
+                    ]}
                     value={form.replyLink ?? ''}
                     onChangeText={(replyLink) => setForm({ ...form, replyLink })}
                     placeholder="https://..."
-                    placeholderTextColor={appShell.textMuted}
+                    placeholderTextColor={shell.textMuted}
                     autoCapitalize="none"
                   />
-                  <Text style={styles.label}>Link label</Text>
+                  <Text style={[styles.label, { color: shell.textPrimary }]}>Link label</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        borderColor: shell.cardBorder,
+                        color: shell.textPrimary,
+                        backgroundColor: shell.card,
+                      },
+                    ]}
                     value={form.replyLinkLabel ?? ''}
                     onChangeText={(replyLinkLabel) => setForm({ ...form, replyLinkLabel })}
                     placeholder="Shop now"
-                    placeholderTextColor={appShell.textMuted}
+                    placeholderTextColor={shell.textMuted}
                   />
                 </>
               ) : null}
@@ -558,36 +667,40 @@ export default function CreateAutomationScreen() {
           {selectedMedia?.thumbnailUrl ? (
             <Image source={{ uri: selectedMedia.thumbnailUrl }} style={styles.reviewThumb} />
           ) : null}
-          <Text style={styles.reviewRow}>
+          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
             <Text style={styles.reviewLabel}>Content: </Text>
             {selectedMedia?.kind ?? 'selected'} ({payload.specificPostId.slice(0, 12)}…)
           </Text>
-          <Text style={styles.reviewRow}>
+          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
             <Text style={styles.reviewLabel}>Name: </Text>
             {payload.name}
           </Text>
-          <Text style={styles.reviewRow}>
+          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
             <Text style={styles.reviewLabel}>Trigger: </Text>
             {payload.triggerType.replace(/_/g, ' ')}
           </Text>
-          <Text style={styles.reviewRow}>
+          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
             <Text style={styles.reviewLabel}>Match: </Text>
             {payload.matchType}
           </Text>
           {payload.triggerKeywords.length ? (
-            <Text style={styles.reviewRow}>
+            <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
               <Text style={styles.reviewLabel}>Keywords: </Text>
               {payload.triggerKeywords.join(', ')}
             </Text>
           ) : null}
-          <Text style={styles.reviewRow}>
+          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
             <Text style={styles.reviewLabel}>Reply: </Text>
             {payload.replyType.replace(/_/g, ' ')}
           </Text>
           {payload.replyType === 'ai_generated' ? (
-            <Text style={styles.reviewBody}>{payload.aiContext}</Text>
+            <Text style={[styles.reviewBody, { color: shell.textSecondary }]}>
+              {payload.aiContext}
+            </Text>
           ) : (
-            <Text style={styles.reviewBody}>{payload.replyMessages[0]}</Text>
+            <Text style={[styles.reviewBody, { color: shell.textSecondary }]}>
+              {payload.replyMessages[0]}
+            </Text>
           )}
         </PremiumCard>
       ) : null}
@@ -628,32 +741,27 @@ export default function CreateAutomationScreen() {
 
 const styles = StyleSheet.create({
   stepDots: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md },
-  dot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: appShell.borderSubtle },
-  dotActive: { backgroundColor: appShell.cta },
+  dot: { flex: 1, height: 4, borderRadius: 2 },
+  dotActive: {},
   section: { marginBottom: spacing.md },
   helpText: {
     fontFamily: fonts.regular,
     fontSize: 13,
-    color: appShell.textSecondary,
     lineHeight: 18,
     marginBottom: spacing.sm,
   },
   label: {
     fontFamily: fonts.semiBold,
     fontSize: 14,
-    color: appShell.textPrimary,
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: appShell.cardBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     fontFamily: fonts.regular,
     fontSize: 15,
-    color: appShell.textPrimary,
-    backgroundColor: appShell.card,
   },
   textArea: { minHeight: 88, textAlignVertical: 'top' },
   chipScroll: { marginBottom: spacing.sm, flexGrow: 0 },
@@ -661,29 +769,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: appShell.iceBlue,
     marginRight: spacing.xs,
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  chipActive: { backgroundColor: appShell.cta, borderColor: appShell.cta },
-  chipText: { fontFamily: fonts.semiBold, fontSize: 13, color: appShell.textPrimary },
+  chipActive: {},
+  chipText: { fontFamily: fonts.semiBold, fontSize: 13 },
   chipTextActive: { color: palette.white },
   previewBox: {
     marginTop: spacing.sm,
     padding: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: appShell.canvasAlt,
   },
-  previewLabel: { fontFamily: fonts.semiBold, fontSize: 12, color: appShell.textSecondary, marginBottom: 4 },
-  previewText: { fontFamily: fonts.regular, fontSize: 14, color: appShell.textPrimary, lineHeight: 20 },
+  previewLabel: { fontFamily: fonts.semiBold, fontSize: 12, marginBottom: 4 },
+  previewText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
   reviewThumb: { width: '100%', height: 180, borderRadius: radius.md, marginBottom: spacing.sm },
-  reviewRow: { fontFamily: fonts.regular, fontSize: 14, color: appShell.textPrimary, marginBottom: spacing.xs },
+  reviewRow: { fontFamily: fonts.regular, fontSize: 14, marginBottom: spacing.xs },
   reviewLabel: { fontFamily: fonts.semiBold },
   reviewBody: {
     fontFamily: fonts.regular,
     fontSize: 13,
-    color: appShell.textSecondary,
     lineHeight: 19,
     marginTop: spacing.xs,
   },
@@ -694,11 +799,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  refreshText: { fontFamily: fonts.semiBold, fontSize: 13, color: appShell.cta },
+  refreshText: { fontFamily: fonts.semiBold, fontSize: 13 },
   emptyMedia: {
     fontFamily: fonts.regular,
     fontSize: 13,
-    color: appShell.textSecondary,
     marginVertical: spacing.md,
   },
   mediaRow: { gap: spacing.sm, marginBottom: spacing.sm },
@@ -708,16 +812,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
     overflow: 'hidden',
-    backgroundColor: appShell.canvasAlt,
   },
-  mediaTileSelected: { borderColor: appShell.cta },
-  mediaThumb: { width: '100%', aspectRatio: 0.75, backgroundColor: appShell.borderSubtle },
+  mediaTileSelected: {},
+  mediaThumb: { width: '100%', aspectRatio: 0.75 },
   mediaThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  mediaPlaceholderText: { fontFamily: fonts.semiBold, fontSize: 12, color: appShell.textMuted },
+  mediaPlaceholderText: { fontFamily: fonts.semiBold, fontSize: 12 },
   mediaMeta: {
     fontFamily: fonts.regular,
     fontSize: 11,
-    color: appShell.textSecondary,
     padding: spacing.xs,
   },
 });

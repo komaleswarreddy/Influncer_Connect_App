@@ -1,8 +1,9 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** Matches PremiumTabBar content height (icons + labels + vertical padding). */
-export const TAB_BAR_BODY_HEIGHT = 52;
-export const TAB_BAR_EXTRA_PADDING = 12;
+/** Matches PremiumTabBar content height (icons + labels + vertical padding + bar radius). */
+export const TAB_BAR_BODY_HEIGHT = 58;
+/** Lean buffer above the tab bar — avoid large empty scroll end. */
+export const TAB_BAR_EXTRA_PADDING = 10;
 
 export function useTabBarInset(): number {
   const insets = useSafeAreaInsets();

@@ -65,3 +65,24 @@ export function getPlatformLabel(platform: SupportedPlatform): string {
       return 'Unknown';
   }
 }
+
+const MAX_PASTE_URLS = 50;
+
+/**
+ * Split pasted text into URL tokens (commas, spaces, and newlines are separators).
+ * Dedupes in first-seen order, caps at {@link MAX_PASTE_URLS}.
+ */
+export function splitPasteIntoUrls(raw: string): string[] {
+  const normalized = String(raw).replace(/,/g, ' ').trim();
+  if (!normalized) return [];
+  const parts = normalized.split(/\s+/).filter((p) => p.length > 0);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of parts) {
+    if (seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+    if (out.length >= MAX_PASTE_URLS) break;
+  }
+  return out;
+}

@@ -54,10 +54,10 @@ const useLocalhost = (forceUsb || (!lanOnly && adbHasReadyDevice()));
 
 if (useLocalhost) {
   console.log(
-    '[expo] ADB device detected — using Metro --localhost + port reverse (8081, 3000). ' +
+    '[expo] ADB device detected — using Metro --localhost + port reverse (8081, 3003). ' +
       'If you see connection errors, run: npm run adb:reverse'
   );
-  const pre = spawnSync(process.execPath, [path.join(__dirname, 'adb-reverse.js'), '8081', '3000'], {
+  const pre = spawnSync(process.execPath, [path.join(__dirname, 'adb-reverse.js'), '8081', '3003'], {
     cwd: mobileRoot,
     stdio: 'inherit',
     shell: false,
@@ -73,8 +73,8 @@ if (useLocalhost) {
 
 const watchCmd =
   process.platform === 'win32'
-    ? 'node .\\scripts\\adb-reverse-watch.js 8081 3000'
-    : 'node ./scripts/adb-reverse-watch.js 8081 3000';
+    ? 'node .\\scripts\\adb-reverse-watch.js 8081 3003'
+    : 'node ./scripts/adb-reverse-watch.js 8081 3003';
 
 const expoParts = ['expo', 'start', '--dev-client', ...(useLocalhost ? ['--localhost'] : []), ...extraArgs];
 const expoCmd =

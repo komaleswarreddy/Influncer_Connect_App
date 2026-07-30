@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { appShell, palette, radius, shadow, spacing } from '@/theme';
+import { palette, radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import type { PostMetrics } from '../lib/post-analyzer-api';
 import { AuthenticityGradeBadge } from './ui/AuthenticityGradeBadge';
@@ -19,6 +19,25 @@ interface Props {
   showShares?: boolean;
 }
 
+function MetricBox({
+  label,
+  value,
+  valueColor,
+  labelColor,
+}: {
+  label: string;
+  value: string;
+  valueColor: string;
+  labelColor: string;
+}) {
+  return (
+    <View style={styles.metricBox}>
+      <Text style={[styles.metricValue, { color: valueColor }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: labelColor }]}>{label}</Text>
+    </View>
+  );
+}
+
 export function PostMetricsCard({
   metrics,
   onSubmit,
@@ -29,6 +48,7 @@ export function PostMetricsCard({
   showThumbnail = true,
   showShares = true,
 }: Props) {
+  const shell = useAppShell();
   const safeEngagementRate = Number(metrics.engagementRate ?? 0);
   const engagementRateValue = Number.isFinite(safeEngagementRate) ? safeEngagementRate : 0;
 
@@ -39,16 +59,31 @@ export function PostMetricsCard({
   };
 
   const getErColor = (engagementRate: number): string => {
-    if (engagementRate >= 3) return appShell.success;
-    if (engagementRate >= 1) return appShell.warning;
+    if (engagementRate >= 3) return shell.success;
+    if (engagementRate >= 1) return shell.warning;
     return palette.error;
   };
 
-  const platformColor = getPlatformColor(metrics.platform as Parameters<typeof getPlatformColor>[0]);
-  const platformLabel = getPlatformLabel(metrics.platform as Parameters<typeof getPlatformLabel>[0]);
+  const platformColor = getPlatformColor(
+    metrics.platform as Parameters<typeof getPlatformColor>[0]
+  );
+  const platformLabel = getPlatformLabel(
+    metrics.platform as Parameters<typeof getPlatformLabel>[0]
+  );
+  const hasSignals =
+    Boolean(metrics.authenticitySignals?.breakdown) &&
+    (metrics.authenticitySignals?.breakdown?.length ?? 0) > 0;
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: shell.card,
+          borderColor: shell.cardBorder,
+        },
+      ]}
+    >
       <View style={[styles.platformBadge, { backgroundColor: platformColor }]}>
         <Text style={styles.platformText}>{platformLabel}</Text>
       </View>
@@ -56,17 +91,29 @@ export function PostMetricsCard({
       <View style={styles.header}>
         {showThumbnail ? (
           metrics.thumbnail ? (
-            <Image source={{ uri: metrics.thumbnail }} style={styles.thumbnail} resizeMode="cover" />
+            <Image
+              source={{ uri: metrics.thumbnail }}
+              style={styles.thumbnail}
+              resizeMode="cover"
+            />
           ) : (
-            <View style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
+            <View
+              style={[
+                styles.thumbnail,
+                styles.thumbnailPlaceholder,
+                { backgroundColor: shell.canvasAlt },
+              ]}
+            />
           )
         ) : null}
         <View style={styles.creatorInfo}>
-          <Text style={styles.creatorName} numberOfLines={1}>
+          <Text style={[styles.creatorName, { color: shell.textPrimary }]} numberOfLines={1}>
             {metrics.creatorFullName || metrics.creatorUsername}
           </Text>
-          <Text style={styles.creatorHandle}>@{metrics.creatorUsername}</Text>
-          <Text style={styles.followers}>
+          <Text style={[styles.creatorHandle, { color: shell.textSecondary }]}>
+            @{metrics.creatorUsername}
+          </Text>
+          <Text style={[styles.followers, { color: shell.textSecondary }]}>
             {formatNumber(metrics.creatorFollowers)} followers
             {metrics.creatorIsVerified ? '  ✓' : ''}
           </Text>
@@ -79,32 +126,59 @@ export function PostMetricsCard({
       </View>
 
       {metrics.title || metrics.caption ? (
-        <Text style={styles.caption} numberOfLines={2}>
+        <Text style={[styles.caption, { color: shell.textSecondary }]} numberOfLines={2}>
           {metrics.title || metrics.caption}
         </Text>
       ) : null}
 
-      <View style={styles.metricsGrid}>
-        <MetricBox label="Likes" value={formatNumber(metrics.likes)} />
-        <MetricBox label="Comments" value={formatNumber(metrics.comments)} />
-        {metrics.views !== undefined ? <MetricBox label="Views" value={formatNumber(metrics.views)} /> : null}
+      <View style={[styles.metricsGrid, { backgroundColor: shell.canvasAlt }]}>
+        <MetricBox
+          label="Likes"
+          value={formatNumber(metrics.likes)}
+          valueColor={shell.textPrimary}
+          labelColor={shell.textSecondary}
+        />
+        <MetricBox
+          label="Comments"
+          value={formatNumber(metrics.comments)}
+          valueColor={shell.textPrimary}
+          labelColor={shell.textSecondary}
+        />
+        {metrics.views !== undefined ? (
+          <MetricBox
+            label="Views"
+            value={formatNumber(metrics.views)}
+            valueColor={shell.textPrimary}
+            labelColor={shell.textSecondary}
+          />
+        ) : null}
         {showShares && metrics.shares !== undefined ? (
-          <MetricBox label="Shares" value={formatNumber(metrics.shares)} />
+          <MetricBox
+            label="Shares"
+            value={formatNumber(metrics.shares)}
+            valueColor={shell.textPrimary}
+            labelColor={shell.textSecondary}
+          />
         ) : null}
       </View>
 
-      <View style={styles.erContainer}>
-        <Text style={styles.erLabel}>Engagement Rate</Text>
+      <View style={[styles.erContainer, { borderTopColor: shell.borderSubtle }]}>
+        <Text style={[styles.erLabel, { color: shell.textSecondary }]}>Engagement Rate</Text>
         <Text style={[styles.erValue, { color: getErColor(engagementRateValue) }]}>
           {engagementRateValue.toFixed(2)}%
         </Text>
       </View>
 
-      {!compact && showAuthenticitySignals && metrics.authenticitySignals?.breakdown?.length > 0 ? (
-        <View style={styles.breakdown}>
-          <Text style={styles.breakdownTitle}>Authenticity Signals</Text>
-          {metrics.authenticitySignals.breakdown.map((item, index) => (
-            <Text key={`${item}-${index}`} style={styles.breakdownItem}>
+      {!compact && showAuthenticitySignals && hasSignals ? (
+        <View style={[styles.breakdown, { backgroundColor: shell.canvasAlt }]}>
+          <Text style={[styles.breakdownTitle, { color: shell.textSecondary }]}>
+            Authenticity Signals
+          </Text>
+          {metrics.authenticitySignals!.breakdown.map((item, index) => (
+            <Text
+              key={`${item}-${index}`}
+              style={[styles.breakdownItem, { color: shell.textMuted }]}
+            >
               {item}
             </Text>
           ))}
@@ -113,7 +187,10 @@ export function PostMetricsCard({
 
       {onSubmit ? (
         <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+          style={[
+            styles.submitButton,
+            { backgroundColor: isSubmitting ? shell.textMuted : shell.cta },
+          ]}
           onPress={onSubmit}
           disabled={isSubmitting}
         >
@@ -126,21 +203,10 @@ export function PostMetricsCard({
   );
 }
 
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricBox}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: appShell.card,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     padding: spacing.md,
     marginVertical: spacing.xs,
     ...shadow.cardLight,
@@ -168,32 +234,26 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: radius.sm,
   },
-  thumbnailPlaceholder: {
-    backgroundColor: appShell.canvasAlt,
-  },
+  thumbnailPlaceholder: {},
   creatorInfo: {
     flex: 1,
   },
   creatorName: {
     fontSize: 14,
     fontFamily: fonts.semiBold,
-    color: appShell.textPrimary,
   },
   creatorHandle: {
     fontSize: 12,
-    color: appShell.textSecondary,
     marginTop: 2,
     fontFamily: fonts.regular,
   },
   followers: {
     fontSize: 12,
-    color: appShell.textSecondary,
     marginTop: 2,
     fontFamily: fonts.regular,
   },
   caption: {
     fontSize: 13,
-    color: appShell.textSecondary,
     marginBottom: spacing.sm,
     lineHeight: 18,
     fontFamily: fonts.regular,
@@ -201,7 +261,6 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: appShell.canvasAlt,
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     marginBottom: spacing.sm,
@@ -212,11 +271,9 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 16,
     fontFamily: fonts.bold,
-    color: appShell.textPrimary,
   },
   metricLabel: {
     fontSize: 11,
-    color: appShell.textSecondary,
     marginTop: 2,
     fontFamily: fonts.regular,
   },
@@ -226,12 +283,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: appShell.borderSubtle,
     marginBottom: spacing.xs,
   },
   erLabel: {
     fontSize: 14,
-    color: appShell.textSecondary,
     fontFamily: fonts.semiBold,
   },
   erValue: {
@@ -239,7 +294,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
   },
   breakdown: {
-    backgroundColor: appShell.canvasAlt,
     borderRadius: radius.sm,
     padding: spacing.sm,
     marginBottom: spacing.sm,
@@ -247,25 +301,19 @@ const styles = StyleSheet.create({
   breakdownTitle: {
     fontSize: 12,
     fontFamily: fonts.semiBold,
-    color: appShell.textSecondary,
     marginBottom: spacing.xs,
   },
   breakdownItem: {
     fontSize: 12,
-    color: appShell.textMuted,
     marginBottom: 3,
     lineHeight: 16,
     fontFamily: fonts.regular,
   },
   submitButton: {
-    backgroundColor: appShell.cta,
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
     marginTop: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: appShell.textMuted,
   },
   submitButtonText: {
     color: palette.white,

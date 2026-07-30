@@ -1,17 +1,24 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  RefreshControl,
+  Modal,
+  FlatList,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+} from 'react-native';
 import { useCampaignStore, type Campaign } from '../../../../store/campaign-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CampaignDetailsScreen from '../../../../components/influencer/CampaignDetails';
 import { api } from '../../../../lib/api';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import {
-  AnimatedPressCard,
-  PremiumOpportunityCard,
-  PremiumSegmentedControl,
-  PrimaryButton,
-  UnderlineTabBar,
-} from '@/components/ui';
+import { PremiumSegmentedControl, PrimaryButton, UnderlineTabBar } from '@/components/ui';
 import { CampaignReferenceCard } from '../../../../components/influencer/CampaignReferenceCard';
 import {
   useUgcStore,
@@ -22,47 +29,52 @@ import {
 import {
   campaignAvailableLabel,
   campaignAvailableTone,
-  campaignParticipationLabel,
-  campaignParticipationTone,
+  buildMineCampaignStatus,
   labelForContentType,
-  platformForContentType,
-  ugcApplicationShort,
-  ugcApplicationTone,
   ugcJobTone,
 } from '@/lib/opportunity-card-ui';
 import { appShell, palette, radius, spacing } from '@/theme';
+import { useAppShell } from '@/theme/useAppShell';
 import { fonts } from '@/components/ui/typography';
+import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
 import { Ionicons } from '@expo/vector-icons';
 import {
   CampaignSwipeFeed,
+  CAMPAIGN_FEED_PEEK_PX,
   type SwipeFeedRenderOptions,
 } from '../../../../components/influencer/CampaignSwipeFeed';
 import type { OpportunityStatusTone } from '@/lib/opportunity-card-ui';
-const MAIN_TABS = [
-  { key: 'available', label: 'Partnership', icon: 'layers-outline' as const },
+import { canOpenCampaignContract, isParticipationEnrolled } from '@/lib/campaign-participation-ui';
+
+type PagerPage = 'exclusive' | 'public' | 'mine';
+const PAGER_PAGES: PagerPage[] = ['exclusive', 'public', 'mine'];
+
+type MineFeedItem =
+  | { kind: 'exclusive'; id: string; campaign: Campaign; status: 'joined' | 'applied' }
+  | { kind: 'ugc'; id: string; row: UgcApplicationRow };
+
+const MAIN_TABS_BASE = [
+  { key: 'campaigns', label: 'Campaigns', icon: 'layers-outline' as const },
   { key: 'my-partnerships', label: 'Mine', icon: 'folder-outline' as const },
-  { key: 'public', label: 'Public', icon: 'globe-outline' as const },
 ];
 
-const TAB_HEADERS: Record<string, { title: string; subtitle: string }> = {
-  available: {
-    title: 'Partnership Campaigns',
-    subtitle: 'Browse collaborations and public briefs',
-  },
-  'my-partnerships': {
-    title: 'My Campaigns',
-    subtitle: 'Track applications and active partnerships',
-  },
-  public: {
-    title: 'Public Campaigns',
-    subtitle: 'UGC briefs and applications',
-  },
-};
-
-const PUBLIC_SEGMENTS = [
-  { key: 'jobs', label: 'Browse' },
-  { key: 'applications', label: 'My applications' },
+const CAMPAIGN_KIND_SEGMENTS = [
+  { key: 'exclusive', label: 'Exclusive' },
+  { key: 'public', label: 'Public' },
 ];
+
+function campaignsHeaderCopy(kind: 'exclusive' | 'public'): { title: string; subtitle: string } {
+  if (kind === 'public') {
+    return {
+      title: 'Campaigns',
+      subtitle: 'UGC briefs and public opportunities',
+    };
+  }
+  return {
+    title: 'Campaigns',
+    subtitle: 'Exclusive brand collaborations',
+  };
+}
 
 function formatUgcDeadline(raw: unknown): string | null {
   if (!raw) return null;
@@ -80,8 +92,6 @@ const NICHE_CHIPS = [
   { key: 'lifestyle', label: 'Lifestyle' },
 ];
 
-const DB_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 type TenantOption = {
   id: string;
   tenantName: string;
@@ -91,25 +101,35 @@ type TenantOption = {
 };
 
 function normStatus(s: unknown) {
-  return String(s ?? '').trim().toLowerCase();
+  return String(s ?? '')
+    .trim()
+    .toLowerCase();
 }
 
 function findParticipationForCampaign(
-  list: {
-    id?: string;
-    campaignId?: string;
-    status?: string;
-    inviteId?: string | null;
-    campaign?: { id?: string } | null;
-  }[] | undefined,
+  list:
+    | {
+        id?: string;
+        campaignId?: string;
+        status?: string;
+        inviteId?: string | null;
+        campaign?: { id?: string } | null;
+      }[]
+    | undefined,
   campaignId: string
 ) {
   if (!Array.isArray(list)) return undefined;
-  const cid = String(campaignId ?? '').trim().toLowerCase();
+  const cid = String(campaignId ?? '')
+    .trim()
+    .toLowerCase();
   return list.find((p) => {
     if (!p) return false;
-    const pid = String(p.campaignId ?? '').trim().toLowerCase();
-    const nested = String(p.campaign?.id ?? '').trim().toLowerCase();
+    const pid = String(p.campaignId ?? '')
+      .trim()
+      .toLowerCase();
+    const nested = String(p.campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
     return pid === cid || nested === cid;
   });
 }
@@ -125,40 +145,21 @@ function applicationForCampaign(
   campaignId: string
 ) {
   if (!Array.isArray(apps)) return undefined;
-  const cid = String(campaignId ?? '').trim().toLowerCase();
+  const cid = String(campaignId ?? '')
+    .trim()
+    .toLowerCase();
   return apps.find((a) => {
     if (!a) return false;
-    const aid = String(a.campaignId ?? '').trim().toLowerCase();
-    const nested = String(a.campaign?.id ?? '').trim().toLowerCase();
+    const aid = String(a.campaignId ?? '')
+      .trim()
+      .toLowerCase();
+    const nested = String(a.campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
     return aid === cid || nested === cid;
   });
 }
 
-function canNavigateToContractForCampaign(
-  participations: Parameters<typeof findParticipationForCampaign>[0],
-  apps: Parameters<typeof applicationForCampaign>[0],
-  campaignId: string
-): boolean {
-  const p = findParticipationForCampaign(participations, campaignId);
-  if (!p?.id) return false;
-  const inviteBacked = p.inviteId != null && String(p.inviteId).trim() !== '';
-  const app = applicationForCampaign(apps, campaignId);
-  const appSt = normStatus(app?.status);
-  const approvedApp = ['approved', 'contract_pending', 'contract_signed'].includes(appSt);
-  const legacyNoApp = !app;
-  return inviteBacked || approvedApp || legacyNoApp;
-}
-
-function isAwaitingBrandApprovalOnly(
-  apps: Parameters<typeof applicationForCampaign>[0],
-  participations: Parameters<typeof findParticipationForCampaign>[0],
-  campaignId: string
-): boolean {
-  const app = applicationForCampaign(apps, campaignId);
-  const appSt = normStatus(app?.status);
-  if (!['applied', 'pending_review'].includes(appSt)) return false;
-  return !findParticipationForCampaign(participations, campaignId);
-}
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
@@ -179,21 +180,46 @@ function formatCampaignDurationRange(startDate?: string, endDate?: string) {
   return 'TBD';
 }
 
-function formatCommissionRate(rate: unknown): string {
-  const n = Number(rate);
-  if (!Number.isFinite(n)) return '—';
-  return `${n.toFixed(2)}%`;
-}
-
 function buildCampaignMetaLine(campaign: Campaign): string {
   const niche = campaign.requiredInfluencerNiche
     ? String(campaign.requiredInfluencerNiche).replace(/_/g, ' ')
     : 'General';
-  const audience = campaign.targetAudienceAgeGroup
-    ? String(campaign.targetAudienceAgeGroup).replace(/_/g, ' ')
-    : 'All ages';
   const nicheLabel = niche.charAt(0).toUpperCase() + niche.slice(1);
-  return `${nicheLabel} • ${audience}`;
+  const platform = campaign.preferredSocialMedia
+    ? String(campaign.preferredSocialMedia).replace(/_/g, ' ')
+    : null;
+  return platform ? `${nicheLabel} • ${platform}` : nicheLabel;
+}
+
+function isPastCampaignDeadline(endDate?: string | null): boolean {
+  if (!endDate) return false;
+  const end = new Date(endDate);
+  if (Number.isNaN(end.getTime())) return false;
+  end.setHours(23, 59, 59, 999);
+  return end.getTime() < Date.now();
+}
+
+function isActiveUgcApplication(row: UgcApplicationRow): boolean {
+  const appStatus = String(row.application?.status ?? row.status ?? '')
+    .trim()
+    .toLowerCase();
+  const d = String(row.deliverable?.status ?? '')
+    .trim()
+    .toLowerCase();
+  const pay = String(row.payment?.status ?? '')
+    .trim()
+    .toLowerCase();
+  if (
+    d === 'approved' ||
+    pay === 'released' ||
+    appStatus === 'completed' ||
+    appStatus === 'declined'
+  ) {
+    return false;
+  }
+  const deadline = row.brief?.deadline;
+  if (deadline && isPastCampaignDeadline(String(deadline))) return false;
+  return true;
 }
 
 function buildCampaignReferenceFooter(
@@ -210,7 +236,7 @@ function buildCampaignReferenceFooter(
 
   if (status === 'joined') {
     return {
-      badge: 'ACTIVE',
+      badge: null,
       buttonLabel: 'Track Progress',
       onPress: () => {
         try {
@@ -222,6 +248,8 @@ function buildCampaignReferenceFooter(
               pathname: '/influencer/campaign-progress',
               params: { participationId: String(participation.id), campaignId: cid },
             });
+          } else {
+            handlers.handleViewCampaign(cid);
           }
         } catch (error) {
           console.error('Error navigating to progress:', error);
@@ -231,69 +259,60 @@ function buildCampaignReferenceFooter(
   }
 
   if (status === 'applied') {
-    const appRow = applicationForCampaign(applications, cid);
-    const appSt = normStatus(appRow?.status);
-    const awaitingOnly = isAwaitingBrandApprovalOnly(applications, participations, cid);
-    const canContract = canNavigateToContractForCampaign(participations, applications, cid);
+    const participation = findParticipationForCampaign(participations, cid);
+    const application = applicationForCampaign(applications, cid);
+    const enrolled = isParticipationEnrolled(participation, application?.status);
+    const canOpenContract = canOpenCampaignContract(participation, application);
 
-    if (appSt === 'rejected') {
+    if (canOpenContract) {
       return {
-        badge: 'NOT APPROVED',
-        buttonLabel: 'View details',
-        onPress: () => handlers.handleViewCampaign(cid),
+        badge: null,
+        buttonLabel: 'Open contract',
+        onPress: () => {
+          handlers.router.push(`/influencer/contract?participationId=${participation!.id}`);
+        },
       };
     }
-    if (awaitingOnly) {
+
+    if (enrolled) {
       return {
-        badge: 'APPLICATION SENT',
-        buttonLabel: 'View details',
-        onPress: () => handlers.handleViewCampaign(cid),
-      };
-    }
-    if (canContract) {
-      return {
-        badge: 'READY TO SIGN',
-        buttonLabel: 'View & Sign Contract',
+        badge: null,
+        buttonLabel: 'Track Progress',
         onPress: () => {
           try {
-            const participation = findParticipationForCampaign(participations, cid);
-            const st = normStatus(participation?.status);
-            const participationOk =
-              participation && ['invited', 'accepted', 'contract_pending'].includes(st);
-            if (participationOk && DB_ID_REGEX.test(String(participation.id))) {
+            const p = findParticipationForCampaign(participations, cid);
+            if (p?.id) {
               handlers.router.push({
-                pathname: '/influencer/contract',
-                params: { participationId: participation.id },
+                pathname: '/influencer/campaign-progress',
+                params: { participationId: String(p.id), campaignId: cid },
               });
             } else {
-              Alert.alert(
-                'Contract Not Ready',
-                'Your participation is pending sync. Please refresh and try again shortly.'
-              );
+              handlers.handleViewCampaign(cid);
             }
           } catch (error) {
-            console.error('Error navigating to contract:', error);
+            console.error('Error navigating to progress:', error);
           }
         },
       };
     }
+
     return {
-      badge: 'AWAITING APPROVAL',
+      badge: null,
       buttonLabel: 'View details',
       onPress: () => handlers.handleViewCampaign(cid),
     };
   }
 
-  const campaignStatus = String(campaign.status || 'active').trim().toLowerCase();
+  // Available: primary CTA only
   return {
-    badge: campaignStatus === 'active' ? 'OPEN' : campaignAvailableLabel(String(campaign.status || 'active')).toUpperCase(),
+    badge: null,
     buttonLabel: 'View & Apply',
     onPress: () => handlers.handleViewCampaign(cid),
   };
 }
 
-
 export default function InfluencerCampaignsScreen() {
+  const shell = useAppShell();
   const {
     campaigns,
     participations,
@@ -304,12 +323,20 @@ export default function InfluencerCampaignsScreen() {
     fetchParticipations,
     fetchMyApplications,
   } = useCampaignStore();
-  const params = useLocalSearchParams<{ segment?: string }>();
-  const [tab, setTab] = useState('available');
-  const headerCopy = TAB_HEADERS[tab] ?? TAB_HEADERS.available;
+  const params = useLocalSearchParams<{ segment?: string; campaignId?: string }>();
+  const [tab, setTab] = useState('campaigns');
+  const [campaignKind, setCampaignKind] = useState<'exclusive' | 'public'>('exclusive');
+  const [pagerWidth, setPagerWidth] = useState(0);
+  const pagerRef = useRef<FlatList<PagerPage>>(null);
+  const pagerIndexRef = useRef(0);
+  const headerCopy =
+    tab === 'my-partnerships'
+      ? {
+          title: 'My Campaigns',
+          subtitle: 'Exclusive partnerships and public applications',
+        }
+      : campaignsHeaderCopy(campaignKind);
   const {
-    segment: ugcSegment,
-    setSegment: setUgcSegment,
     jobs: ugcJobs,
     applications: ugcApplications,
     loading: ugcLoading,
@@ -319,24 +346,88 @@ export default function InfluencerCampaignsScreen() {
   } = useUgcStore();
 
   useEffect(() => {
-    if (params.segment === 'public') setTab('public');
-  }, [params.segment]);
+    if (params.segment === 'public') {
+      setTab('campaigns');
+      setCampaignKind('public');
+      pagerIndexRef.current = 1;
+      if (pagerWidth > 0) {
+        pagerRef.current?.scrollToIndex({ index: 1, animated: false });
+      }
+    }
+  }, [params.segment, pagerWidth]);
+
+  const syncChromeFromPage = useCallback((page: PagerPage) => {
+    if (page === 'mine') {
+      setTab('my-partnerships');
+      return;
+    }
+    setTab('campaigns');
+    setCampaignKind(page);
+  }, []);
+
+  const goToPage = useCallback(
+    (page: PagerPage, animated = true) => {
+      const index = PAGER_PAGES.indexOf(page);
+      if (index < 0) return;
+      pagerIndexRef.current = index;
+      syncChromeFromPage(page);
+      if (pagerWidth > 0) {
+        pagerRef.current?.scrollToIndex({ index, animated });
+      }
+    },
+    [pagerWidth, syncChromeFromPage]
+  );
+
+  const handleMainTabChange = useCallback(
+    (key: string) => {
+      if (key === 'my-partnerships') {
+        goToPage('mine');
+        return;
+      }
+      goToPage(campaignKind === 'public' ? 'public' : 'exclusive');
+    },
+    [campaignKind, goToPage]
+  );
+
+  const handleKindChange = useCallback(
+    (key: string) => {
+      goToPage(key === 'public' ? 'public' : 'exclusive');
+    },
+    [goToPage]
+  );
 
   useFocusEffect(
     useCallback(() => {
-      if (tab !== 'public') return;
-      if (ugcSegment === 'jobs') void fetchJobs();
-      else void fetchApplications();
-    }, [tab, ugcSegment, fetchJobs, fetchApplications])
+      if (tab === 'campaigns' && campaignKind === 'public') {
+        void fetchJobs();
+        return;
+      }
+      if (tab === 'my-partnerships') {
+        void fetchApplications();
+      }
+    }, [tab, campaignKind, fetchJobs, fetchApplications])
   );
   const [refreshing, setRefreshing] = useState(false);
   const [feedHeight, setFeedHeight] = useState(0);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showCampaignDetails, setShowCampaignDetails] = useState(false);
+
+  useEffect(() => {
+    if (params.segment !== 'mine') return;
+    setTab('my-partnerships');
+    pagerIndexRef.current = 2;
+    if (pagerWidth > 0) {
+      pagerRef.current?.scrollToIndex({ index: 2, animated: false });
+    }
+    const cid = String(params.campaignId ?? '').trim();
+    if (cid) {
+      setSelectedCampaignId(cid);
+      setShowCampaignDetails(true);
+    }
+  }, [params.segment, params.campaignId, pagerWidth]);
+
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
-    targetAudienceAgeGroup: 'all',
     requiredNiche: 'all',
     dateRange: null as { from: Date | null; to: Date | null } | null,
     tenantId: 'all',
@@ -365,7 +456,7 @@ export default function InfluencerCampaignsScreen() {
     }
   };
 
-  const ugcList = ugcSegment === 'jobs' ? ugcJobs : ugcApplications;
+  const ugcList = ugcJobs;
 
   useEffect(() => {
     const loadData = async () => {
@@ -373,13 +464,14 @@ export default function InfluencerCampaignsScreen() {
         await fetchCampaigns();
         await fetchParticipations();
         await fetchMyApplications();
+        await fetchApplications();
         await fetchTenants();
       } catch (error) {
         console.error('Error loading data:', error);
       }
     };
     loadData();
-  }, [fetchCampaigns, fetchParticipations, fetchMyApplications]);
+  }, [fetchCampaigns, fetchParticipations, fetchMyApplications, fetchApplications]);
 
   const fetchTenants = async () => {
     try {
@@ -389,20 +481,68 @@ export default function InfluencerCampaignsScreen() {
       } else {
         // Use mock tenants if API fails
         setTenants([
-          { id: 'tenant-1', tenantName: 'Fashion Forward', domain: 'fashionforward.com', subdomain: 'fashion', status: 'active' },
-          { id: 'tenant-2', tenantName: 'TechZone', domain: 'techzone.com', subdomain: 'tech', status: 'active' },
-          { id: 'tenant-3', tenantName: 'FitLife', domain: 'fitlife.com', subdomain: 'fitness', status: 'active' },
-          { id: 'tenant-4', tenantName: 'HomeStyle', domain: 'homestyle.com', subdomain: 'home', status: 'active' }
+          {
+            id: 'tenant-1',
+            tenantName: 'Fashion Forward',
+            domain: 'fashionforward.com',
+            subdomain: 'fashion',
+            status: 'active',
+          },
+          {
+            id: 'tenant-2',
+            tenantName: 'TechZone',
+            domain: 'techzone.com',
+            subdomain: 'tech',
+            status: 'active',
+          },
+          {
+            id: 'tenant-3',
+            tenantName: 'FitLife',
+            domain: 'fitlife.com',
+            subdomain: 'fitness',
+            status: 'active',
+          },
+          {
+            id: 'tenant-4',
+            tenantName: 'HomeStyle',
+            domain: 'homestyle.com',
+            subdomain: 'home',
+            status: 'active',
+          },
         ]);
       }
     } catch (error) {
       console.error('Error fetching tenants:', error);
       // Use mock tenants as fallback
       setTenants([
-        { id: 'tenant-1', tenantName: 'Fashion Forward', domain: 'fashionforward.com', subdomain: 'fashion', status: 'active' },
-        { id: 'tenant-2', tenantName: 'TechZone', domain: 'techzone.com', subdomain: 'tech', status: 'active' },
-        { id: 'tenant-3', tenantName: 'FitLife', domain: 'fitlife.com', subdomain: 'fitness', status: 'active' },
-        { id: 'tenant-4', tenantName: 'HomeStyle', domain: 'homestyle.com', subdomain: 'home', status: 'active' }
+        {
+          id: 'tenant-1',
+          tenantName: 'Fashion Forward',
+          domain: 'fashionforward.com',
+          subdomain: 'fashion',
+          status: 'active',
+        },
+        {
+          id: 'tenant-2',
+          tenantName: 'TechZone',
+          domain: 'techzone.com',
+          subdomain: 'tech',
+          status: 'active',
+        },
+        {
+          id: 'tenant-3',
+          tenantName: 'FitLife',
+          domain: 'fitlife.com',
+          subdomain: 'fitness',
+          status: 'active',
+        },
+        {
+          id: 'tenant-4',
+          tenantName: 'HomeStyle',
+          domain: 'homestyle.com',
+          subdomain: 'home',
+          status: 'active',
+        },
       ]);
     }
   };
@@ -414,6 +554,12 @@ export default function InfluencerCampaignsScreen() {
       await fetchParticipations();
       await fetchMyApplications();
       await fetchTenants();
+      if (tab === 'campaigns' && campaignKind === 'public') {
+        await fetchJobs();
+      }
+      if (tab === 'my-partnerships') {
+        await fetchApplications();
+      }
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -436,49 +582,16 @@ export default function InfluencerCampaignsScreen() {
     setSelectedCampaignId(null);
   };
 
-  const handleApplySuccess = (participation: { id?: string | null } | null) => {
-    try {
-      // Close the modal first
-      setShowCampaignDetails(false);
-      setSelectedCampaignId(null);
-      
-      // Navigate directly only when participation has a real DB UUID id.
-      if (participation && participation.id && DB_ID_REGEX.test(String(participation.id))) {
-        setTimeout(() => {
-          try {
-            // Try href approach first
-            router.push(`/influencer/contract?participationId=${participation.id}`);
-          } catch (error) {
-            console.error('Navigation error:', error);
-            // Fallback to pathname/params approach
-            try {
-              router.replace({
-                pathname: '/influencer/contract',
-                params: { participationId: participation.id }
-              });
-            } catch (fallbackError) {
-              console.error('Fallback navigation error:', fallbackError);
-            }
-          }
-        }, 100); // Small delay to ensure modal is closed
-      } else {
-        // Mock/local IDs like part-* should not call contract endpoint.
-        Alert.alert(
-          'Campaign Applied Successfully!',
-          'You have applied for the campaign. Contract will be available once your participation syncs.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                fetchParticipations();
-              }
-            }
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Error handling apply success:', error);
+  const handleBrowseMoreAfterApply = () => {
+    setShowCampaignDetails(false);
+    setSelectedCampaignId(null);
+    // Stay on current Available page (Exclusive or Public).
+    if (tab === 'my-partnerships') {
+      goToPage(campaignKind === 'public' ? 'public' : 'exclusive');
     }
+    void fetchParticipations();
+    void fetchMyApplications();
+    void fetchJobs();
   };
 
   const handleFilterChange = (newFilters: typeof filters) => {
@@ -487,7 +600,6 @@ export default function InfluencerCampaignsScreen() {
 
   const handleResetFilters = () => {
     setFilters({
-      targetAudienceAgeGroup: 'all',
       requiredNiche: 'all',
       dateRange: null,
       tenantId: 'all',
@@ -495,44 +607,31 @@ export default function InfluencerCampaignsScreen() {
   };
 
   const handleNicheChipPress = (niche: string) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       requiredNiche: prev.requiredNiche === niche ? 'all' : niche,
     }));
   };
 
-  // Filter campaigns based on current filters + search
+  // Filter campaigns based on current filters
   const filterCampaigns = (campaignsToFilter: Campaign[]) => {
     if (!Array.isArray(campaignsToFilter)) {
       return [];
     }
-    
-    return campaignsToFilter.filter(campaign => {
+
+    return campaignsToFilter.filter((campaign) => {
       if (!campaign) return false;
-      
+
       try {
-        // Age group filter
-        if (filters.targetAudienceAgeGroup !== 'all' && 
-            campaign.targetAudienceAgeGroup !== filters.targetAudienceAgeGroup) {
-          return false;
-        }
         // Niche filter - case insensitive comparison
-        if (filters.requiredNiche !== 'all' && 
-            campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()) {
+        if (
+          filters.requiredNiche !== 'all' &&
+          campaign.requiredInfluencerNiche?.toLowerCase() !== filters.requiredNiche.toLowerCase()
+        ) {
           return false;
-        }
-        if (searchQuery.trim().length > 0) {
-          const q = searchQuery.trim().toLowerCase();
-          const name = String(campaign.name || '').toLowerCase();
-          const brand = String(campaign.tenant?.tenantName || '').toLowerCase();
-          const niche = String(campaign.requiredInfluencerNiche || '').toLowerCase();
-          if (!name.includes(q) && !brand.includes(q) && !niche.includes(q)) {
-            return false;
-          }
         }
         // Tenant filter
-        if (filters.tenantId !== 'all' && 
-            campaign.tenantId !== filters.tenantId) {
+        if (filters.tenantId !== 'all' && campaign.tenantId !== filters.tenantId) {
           return false;
         }
         // Date range filtering (only if both from and to are set)
@@ -562,46 +661,170 @@ export default function InfluencerCampaignsScreen() {
   const joinedIds = Array.isArray(participations)
     ? participations
         .filter((p) => p && activeStatuses.has(normStatus(p.status)))
-        .map((p) => p.campaignId)
+        .map((p) => String(p.campaignId ?? p.campaign?.id ?? ''))
+        .filter(Boolean)
     : [];
   const appliedIds = Array.isArray(participations)
     ? participations
         .filter((p) => p && pendingStatuses.has(normStatus(p.status)))
-        .map((p) => p.campaignId)
+        .map((p) => String(p.campaignId ?? p.campaign?.id ?? ''))
+        .filter(Boolean)
     : [];
   const appliedCampaignIds = Array.isArray(applications)
     ? applications
         .filter(
           (a) =>
             a &&
-            ['applied', 'pending_review', 'approved', 'contract_pending', 'contract_signed', 'rejected'].includes(
-              normStatus(a.status)
-            )
+            [
+              'applied',
+              'pending_review',
+              'approved',
+              'contract_pending',
+              'contract_signed',
+              'rejected',
+            ].includes(normStatus(a.status))
         )
         .map((a) => String(a.campaignId ?? a.campaign?.id ?? ''))
         .filter(Boolean)
     : [];
-  const unavailableIds = new Set([...joinedIds, ...appliedIds, ...appliedCampaignIds]);
-  const availableCampaigns = filterCampaigns(
-    Array.isArray(campaigns) ? campaigns.filter((c) => c && !unavailableIds.has(c.id)) : []
+  const unavailableIds = new Set(
+    [...joinedIds, ...appliedIds, ...appliedCampaignIds].map((id) => String(id))
   );
-  const myCampaignIds = new Set([...joinedIds, ...appliedIds, ...appliedCampaignIds]);
+  const availableCampaigns = filterCampaigns(
+    Array.isArray(campaigns) ? campaigns.filter((c) => c && !unavailableIds.has(String(c.id))) : []
+  );
+  const myCampaignIds = new Set([...unavailableIds]);
   const myCampaigns = filterCampaigns(
-    Array.isArray(campaigns) ? campaigns.filter((c) => c && myCampaignIds.has(c.id)) : []
+    Array.isArray(campaigns) ? campaigns.filter((c) => c && myCampaignIds.has(String(c.id))) : []
+  );
+
+  const claimedUgcBriefIds = useMemo(() => {
+    const ids = new Set<string>();
+    (Array.isArray(ugcApplications) ? ugcApplications : []).forEach((row) => {
+      const briefId = String(row.brief?.id ?? '');
+      if (briefId) ids.add(briefId);
+    });
+    return ids;
+  }, [ugcApplications]);
+
+  const availableUgcList = useMemo(() => {
+    const list = Array.isArray(ugcList) ? ugcList : [];
+    return list.filter((item) => {
+      const brief = item as Record<string, unknown>;
+      const id = String(brief.id ?? '');
+      if (!id) return true;
+      if (Boolean(brief.hasApplied)) return false;
+      if (claimedUgcBriefIds.has(id)) return false;
+      return true;
+    });
+  }, [ugcList, claimedUgcBriefIds]);
+
+  const joinedIdSet = useMemo(() => new Set(joinedIds.map((id) => String(id))), [joinedIds]);
+
+  const mineFeedItems = useMemo((): MineFeedItem[] => {
+    const exclusiveItems: MineFeedItem[] = myCampaigns.map((c) => ({
+      kind: 'exclusive' as const,
+      id: String(c.id),
+      campaign: c,
+      status: joinedIdSet.has(String(c.id)) ? ('joined' as const) : ('applied' as const),
+    }));
+    const ugcItems: MineFeedItem[] = (Array.isArray(ugcApplications) ? ugcApplications : []).map(
+      (row, idx) => {
+        const app = appFromRow(row);
+        const briefId = String(row.brief?.id ?? idx);
+        return {
+          kind: 'ugc' as const,
+          id: String(app.id || briefId),
+          row,
+        };
+      }
+    );
+    return [...exclusiveItems, ...ugcItems];
+  }, [myCampaigns, ugcApplications, joinedIdSet]);
+
+  const mineActiveCount = useMemo(() => {
+    const exclusiveActive = myCampaigns.filter((c) => {
+      if (!c) return false;
+      if (isPastCampaignDeadline(c.endDate ?? null)) return false;
+      const cid = String(c.id);
+      const p = findParticipationForCampaign(participations, cid);
+      const pSt = normStatus(p?.status);
+      if (pSt === 'completed') return false;
+      if (['active', 'invited', 'accepted', 'contract_pending'].includes(pSt)) return true;
+      const app = applicationForCampaign(applications, cid);
+      const appSt = normStatus(app?.status);
+      return [
+        'applied',
+        'pending_review',
+        'approved',
+        'contract_pending',
+        'contract_signed',
+      ].includes(appSt);
+    }).length;
+    const publicActive = (Array.isArray(ugcApplications) ? ugcApplications : []).filter(
+      isActiveUgcApplication
+    ).length;
+    return exclusiveActive + publicActive;
+  }, [myCampaigns, participations, applications, ugcApplications]);
+
+  const renderUgcApplicationCard = (
+    row: UgcApplicationRow,
+    idx: number,
+    options?: SwipeFeedRenderOptions
+  ) => {
+    const app = appFromRow(row);
+    const brief = row.brief ?? {};
+    const title = String(brief.title ?? 'UGC Brief');
+    const budget = Number(brief.budgetPerPiece ?? 0);
+    const productName = String(brief.productName ?? 'Brand brief');
+    const contentType = String(brief.contentType ?? 'ugc_video');
+    const typeLabel = labelForContentType(contentType);
+    const showDeliver = canDeliverContent(row) && Boolean(app.id);
+    const deadline = formatUgcDeadline(brief.deadline);
+
+    return (
+      <CampaignReferenceCard
+        key={app.id || String(brief.id ?? idx)}
+        style={styles.campaignCard}
+        fillHeight={false}
+        title={title}
+        brandName={productName}
+        metaLine={typeLabel}
+        statusLabel={null}
+        commissionRate={`₹${budget.toLocaleString('en-IN')}`}
+        duration={deadline ? `Due ${deadline}` : 'TBD'}
+        rateLabel="/ piece"
+        footerBadge={null}
+        footerButtonLabel={showDeliver ? 'Deliver content' : 'View details'}
+        onFooterPress={() => {
+          if (showDeliver) openUgcDeliver(app.id, title);
+          else onUgcApplicationPress(row);
+        }}
+        onPress={() => onUgcApplicationPress(row)}
+      />
+    );
+  };
+
+  const mainTabs = useMemo(
+    () =>
+      MAIN_TABS_BASE.map((t) =>
+        t.key === 'my-partnerships' ? { ...t, badge: mineActiveCount } : t
+      ),
+    [mineActiveCount]
   );
 
   const hasAdvancedFilters = useMemo(() => {
-    return (
-      filters.targetAudienceAgeGroup !== 'all' ||
-      filters.tenantId !== 'all' ||
-      !!filters.dateRange
-    );
-  }, [filters.targetAudienceAgeGroup, filters.tenantId, filters.dateRange]);
+    return filters.tenantId !== 'all' || !!filters.dateRange;
+  }, [filters.tenantId, filters.dateRange]);
+
+  const showExclusiveChrome = tab === 'campaigns' && campaignKind === 'exclusive';
+  const showMineChrome = tab === 'my-partnerships';
+  const showPartnershipFilters = showExclusiveChrome || showMineChrome;
 
   const renderCampaignCard = (
     campaign: Campaign,
     status: 'available' | 'applied' | 'joined',
-    _options?: SwipeFeedRenderOptions
+    options?: SwipeFeedRenderOptions
   ) => {
     if (!campaign) return null;
 
@@ -611,37 +834,36 @@ export default function InfluencerCampaignsScreen() {
         handleViewCampaign,
         router,
       });
-      const statusLabel =
-        status === 'available'
-          ? campaignAvailableLabel(String(campaign.status || 'active'))
-          : campaignParticipationLabel(
-              status,
-              normStatus(applicationForCampaign(applications, cid)?.status)
-            );
-      const statusTone: OpportunityStatusTone =
-        status === 'available'
-          ? campaignAvailableTone(String(campaign.status || 'active'))
-          : campaignParticipationTone(status);
+      const isMine = status === 'applied' || status === 'joined';
+      const mineStatus = isMine ? buildMineCampaignStatus(cid, participations, applications) : null;
+      const statusLabel = isMine
+        ? (mineStatus?.label ?? null)
+        : campaignAvailableLabel(String(campaign.status || 'active'));
+      const statusTone: OpportunityStatusTone | undefined = isMine
+        ? mineStatus?.tone
+        : campaignAvailableTone(String(campaign.status || 'active'));
 
-      const niche = campaign.requiredInfluencerNiche
-        ? String(campaign.requiredInfluencerNiche).replace(/_/g, ' ')
-        : 'General';
-      const audience = campaign.targetAudienceAgeGroup
-        ? String(campaign.targetAudienceAgeGroup).replace(/_/g, ' ')
-        : 'All ages';
+      const shortDescription =
+        (campaign.description && String(campaign.description).trim()) ||
+        (campaign.basicGuidelines && String(campaign.basicGuidelines).trim()) ||
+        null;
+      const pay = resolveCampaignPaySummary(campaign);
 
       return (
         <CampaignReferenceCard
+          key={cid}
           style={styles.campaignCard}
+          fillHeight={false}
           title={String(campaign.name || 'Untitled Campaign')}
           brandName={String(campaign.tenant?.tenantName || 'Unknown brand')}
           metaLine={buildCampaignMetaLine(campaign)}
           statusLabel={statusLabel}
           statusTone={statusTone}
-          commissionRate={formatCommissionRate(campaign.commissionRate)}
+          commissionRate={pay.primaryLabel}
           duration={formatCampaignDurationRange(campaign.startDate, campaign.endDate ?? undefined)}
-          niche={niche.charAt(0).toUpperCase() + niche.slice(1)}
-          audience={audience}
+          brandLogoUrl={campaign.brandLogoUrl}
+          shortDescription={shortDescription}
+          rateLabel={pay.secondaryLabel.toLowerCase()}
           footerBadge={footer.badge}
           footerButtonLabel={footer.buttonLabel}
           onFooterPress={footer.onPress}
@@ -654,52 +876,214 @@ export default function InfluencerCampaignsScreen() {
     }
   };
 
+  const onPagerScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (pagerWidth <= 0) return;
+    const index = Math.round(event.nativeEvent.contentOffset.x / pagerWidth);
+    const clamped = Math.max(0, Math.min(PAGER_PAGES.length - 1, index));
+    if (clamped === pagerIndexRef.current) return;
+    pagerIndexRef.current = clamped;
+    syncChromeFromPage(PAGER_PAGES[clamped]);
+    if (PAGER_PAGES[clamped] === 'public') void fetchJobs();
+    if (PAGER_PAGES[clamped] === 'mine') void fetchApplications();
+  };
+
+  const renderPagerPage = (page: PagerPage) => {
+    if (page === 'exclusive') {
+      if (isLoading && !refreshing && showPartnershipFilters) {
+        return <ActivityIndicator size="large" color={appShell.cta} style={{ marginTop: 40 }} />;
+      }
+      if (availableCampaigns.length === 0) {
+        return (
+          <View style={styles.emptyFeed}>
+            <Text style={styles.emptyText}>
+              {filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
+                ? 'No campaigns match your current filters.'
+                : 'No available campaigns.'}
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <CampaignSwipeFeed
+          data={availableCampaigns}
+          itemHeight={feedHeight}
+          peekPx={CAMPAIGN_FEED_PEEK_PX}
+          keyExtractor={(c) => String(c.id)}
+          renderItem={(c, _i, opts) => renderCampaignCard(c, 'available', opts)}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      );
+    }
+
+    if (page === 'public') {
+      if (ugcLoading && availableUgcList.length === 0) {
+        return <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />;
+      }
+      if (ugcError) {
+        return (
+          <View style={styles.ugcEmptyBlock}>
+            <Text style={styles.ugcError}>{ugcError}</Text>
+            <TouchableOpacity style={styles.ugcRetryBtn} onPress={() => void fetchJobs()}>
+              <Text style={styles.ugcRetryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      if (availableUgcList.length === 0) {
+        return (
+          <View style={styles.emptyFeed}>
+            <Text style={styles.emptyText}>
+              No open public briefs right now. Check back when a brand posts a new brief.
+            </Text>
+          </View>
+        );
+      }
+      return (
+        <CampaignSwipeFeed
+          data={availableUgcList}
+          itemHeight={feedHeight}
+          peekPx={CAMPAIGN_FEED_PEEK_PX}
+          keyExtractor={(item, idx) => String((item as Record<string, unknown>).id ?? idx)}
+          renderItem={(item, idx, opts) => {
+            const brief = item as Record<string, unknown>;
+            const id = String(brief.id ?? idx);
+            const title = String(brief.title ?? 'UGC Brief');
+            const budget = Number(brief.budgetPerPiece ?? 0);
+            const productName = String(brief.productName ?? 'Brand brief');
+            const contentType = String(brief.contentType ?? 'ugc_video');
+            const deadline = formatUgcDeadline(brief.deadline);
+            const typeLabel = labelForContentType(contentType);
+            const description =
+              typeof brief.description === 'string' && brief.description.trim()
+                ? brief.description
+                : null;
+
+            return (
+              <CampaignReferenceCard
+                style={styles.campaignCard}
+                fillHeight={false}
+                title={title}
+                brandName={productName}
+                metaLine={typeLabel}
+                statusLabel="Open"
+                statusTone={ugcJobTone(false)}
+                commissionRate={`₹${budget.toLocaleString('en-IN')}`}
+                duration={deadline ? `Due ${deadline}` : 'TBD'}
+                rateLabel="/ piece"
+                shortDescription={description}
+                footerBadge={null}
+                footerButtonLabel="View & Apply"
+                onFooterPress={() => router.push(`/influencer/ugc-brief-detail?id=${id}` as never)}
+                onPress={() => router.push(`/influencer/ugc-brief-detail?id=${id}` as never)}
+              />
+            );
+          }}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      );
+    }
+
+    // Mine
+    if (isLoading && !refreshing && mineFeedItems.length === 0) {
+      return <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />;
+    }
+    if (mineFeedItems.length === 0) {
+      return (
+        <View style={styles.emptyFeed}>
+          <Text style={styles.emptyText}>
+            {filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
+              ? 'No campaigns match your current filters.'
+              : 'Nothing in Mine yet. Apply to Exclusive or Public campaigns to see them here.'}
+          </Text>
+        </View>
+      );
+    }
+    return (
+      <CampaignSwipeFeed
+        data={mineFeedItems}
+        itemHeight={feedHeight}
+        peekPx={CAMPAIGN_FEED_PEEK_PX}
+        keyExtractor={(item) => item.id}
+        renderItem={(item, _idx, opts) => {
+          if (item.kind === 'exclusive') {
+            return renderCampaignCard(item.campaign, item.status, opts);
+          }
+          return renderUgcApplicationCard(item.row, 0, opts);
+        }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
+    );
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: appShell.canvas }}>
-      <View style={styles.topChrome}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: shell.canvas }}>
+      <View
+        style={[
+          styles.topChrome,
+          { backgroundColor: shell.canvas, borderBottomColor: shell.borderSubtle },
+        ]}
+      >
         <View style={styles.tabsRow}>
-          <UnderlineTabBar tabs={MAIN_TABS} value={tab} onChange={(key) => setTab(key)} />
+          <UnderlineTabBar tabs={mainTabs} value={tab} onChange={handleMainTabChange} />
         </View>
 
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: shell.canvas }]}>
           <View style={styles.headerTopRow}>
             <View style={styles.headerTitles}>
-              <Text style={styles.headerTitle}>{headerCopy.title}</Text>
-              <Text style={styles.headerSubTitle}>{headerCopy.subtitle}</Text>
+              <Text style={[styles.headerTitle, { color: shell.textPrimary }]}>
+                {headerCopy.title}
+              </Text>
+              <Text style={[styles.headerSubTitle, { color: shell.textSecondary }]}>
+                {headerCopy.subtitle}
+              </Text>
             </View>
-            {tab !== 'public' ? (
+            {showPartnershipFilters ? (
               <TouchableOpacity
                 style={[styles.filterIconBtn, hasAdvancedFilters && styles.filterIconBtnActive]}
                 onPress={() => setShowAdvancedFilters(true)}
               >
-                <Ionicons name="options-outline" size={18} color={hasAdvancedFilters ? palette.white : appShell.cta} />
+                <Ionicons
+                  name="options-outline"
+                  size={18}
+                  color={hasAdvancedFilters ? palette.white : shell.cta}
+                />
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {tab !== 'public' ? (
-            <>
-              <View style={styles.searchWrap}>
-                <Ionicons name="search" size={16} color={appShell.textMuted} />
-                <TextInput
-                  placeholder="Search brands..."
-                  placeholderTextColor={appShell.textMuted}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  style={styles.searchInput}
-                />
-              </View>
+          {tab === 'campaigns' ? (
+            <PremiumSegmentedControl
+              segments={CAMPAIGN_KIND_SEGMENTS}
+              value={campaignKind}
+              onChange={handleKindChange}
+              compact
+              style={{ marginBottom: spacing.xs }}
+            />
+          ) : null}
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nicheRow}>
-                {NICHE_CHIPS.map(chip => {
-                  const active = filters.requiredNiche === chip.key || (chip.key === 'all' && filters.requiredNiche === 'all');
+          {showPartnershipFilters ? (
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.nicheRow}
+              >
+                {NICHE_CHIPS.map((chip) => {
+                  const active =
+                    filters.requiredNiche === chip.key ||
+                    (chip.key === 'all' && filters.requiredNiche === 'all');
                   return (
                     <TouchableOpacity
                       key={chip.key}
                       style={[styles.nicheChip, active && styles.nicheChipActive]}
                       onPress={() => handleNicheChipPress(chip.key)}
                     >
-                      <Text style={[styles.nicheChipText, active && styles.nicheChipTextActive]}>{chip.label}</Text>
+                      <Text style={[styles.nicheChipText, active && styles.nicheChipTextActive]}>
+                        {chip.label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -708,187 +1092,43 @@ export default function InfluencerCampaignsScreen() {
           ) : null}
         </View>
       </View>
-      {error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : null}
-      {isLoading && !refreshing && tab !== 'public' ? (
-        <ActivityIndicator size="large" color={appShell.cta} style={{ marginTop: 40 }} />
-      ) : (
-        <View
-          style={styles.feedShell}
-          onLayout={(event) => {
-            const next = Math.round(event.nativeEvent.layout.height);
-            if (next > 0 && next !== feedHeight) setFeedHeight(next);
-          }}
-        >
-          {tab === 'available' && (
-            availableCampaigns.length > 0 ? (
-              <CampaignSwipeFeed
-                data={availableCampaigns}
-                itemHeight={feedHeight}
-                keyExtractor={(c) => String(c.id)}
-                renderItem={(c, _i, opts) => renderCampaignCard(c, 'available', opts)}
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-              />
-            ) : (
-              <View style={styles.emptyFeed}>
-                <Text style={styles.emptyText}>
-                  {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
-                    ? 'No campaigns match your current filters.'
-                    : 'No available campaigns.'}
-                </Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View
+        style={styles.feedShell}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          const nextH = Math.round(height);
+          const nextW = Math.round(width);
+          if (nextH > 0 && nextH !== feedHeight) setFeedHeight(nextH);
+          if (nextW > 0 && nextW !== pagerWidth) setPagerWidth(nextW);
+        }}
+      >
+        {pagerWidth > 0 && feedHeight > 0 ? (
+          <FlatList
+            ref={pagerRef}
+            data={PAGER_PAGES}
+            keyExtractor={(item) => item}
+            horizontal
+            pagingEnabled
+            nestedScrollEnabled
+            directionalLockEnabled
+            showsHorizontalScrollIndicator={false}
+            bounces={false}
+            onMomentumScrollEnd={onPagerScrollEnd}
+            getItemLayout={(_data, index) => ({
+              length: pagerWidth,
+              offset: pagerWidth * index,
+              index,
+            })}
+            renderItem={({ item }) => (
+              <View style={[styles.pagerPage, { width: pagerWidth, height: feedHeight }]}>
+                {renderPagerPage(item)}
               </View>
-            )
-          )}
-          {tab === 'my-partnerships' && (
-            myCampaigns.length > 0 ? (
-              <CampaignSwipeFeed
-                data={myCampaigns}
-                itemHeight={feedHeight}
-                keyExtractor={(c) => String(c.id)}
-                renderItem={(c, _i, opts) =>
-                  renderCampaignCard(
-                    c,
-                    joinedIds.includes(String(c.id)) ? 'joined' : 'applied',
-                    opts
-                  )
-                }
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-              />
-            ) : (
-              <View style={styles.emptyFeed}>
-                <Text style={styles.emptyText}>
-                  {filters.targetAudienceAgeGroup !== 'all' || filters.requiredNiche !== 'all' || filters.tenantId !== 'all' || filters.dateRange
-                    ? 'No campaigns match your current filters.'
-                    : 'No joined or applied campaigns.'}
-                </Text>
-              </View>
-            )
-          )}
-          {tab === 'public' && (
-            <ScrollView
-              contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg }}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            >
-            <>
-              <PremiumSegmentedControl
-                segments={PUBLIC_SEGMENTS}
-                value={ugcSegment}
-                onChange={(key) => setUgcSegment(key as 'jobs' | 'applications')}
-                compact
-                style={{ marginBottom: spacing.sm }}
-              />
-              {ugcLoading ? (
-                <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />
-              ) : ugcError ? (
-                <View style={styles.ugcEmptyBlock}>
-                  <Text style={styles.ugcError}>{ugcError}</Text>
-                  <TouchableOpacity
-                    style={styles.ugcRetryBtn}
-                    onPress={() => void (ugcSegment === 'jobs' ? fetchJobs() : fetchApplications())}
-                  >
-                    <Text style={styles.ugcRetryText}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : ugcList.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  {ugcSegment === 'jobs'
-                    ? 'No open public briefs right now. Check back when a brand posts a new brief.'
-                    : 'No applications yet. Browse public briefs and apply.'}
-                </Text>
-              ) : (
-                ugcList.map((item, idx) => {
-                  if (ugcSegment === 'jobs') {
-                    const brief = item as Record<string, unknown>;
-                    const id = String(brief.id ?? idx);
-                    const title = String(brief.title ?? 'UGC Brief');
-                    const budget = Number(brief.budgetPerPiece ?? 0);
-                    const hasApplied = Boolean(brief.hasApplied);
-                    const productName = String(brief.productName ?? 'Brand brief');
-                    const contentType = String(brief.contentType ?? 'ugc_video');
-                    const deadline = formatUgcDeadline(brief.deadline);
-                    const piecesNeeded = Number(brief.piecesNeeded ?? 0);
-                    const piecesFilled = Number(brief.piecesFilled ?? 0);
-                    const subtitleParts = [
-                      productName,
-                      labelForContentType(contentType),
-                      deadline ? `Due ${deadline}` : null,
-                    ].filter(Boolean);
-                    const slotsLine =
-                      piecesNeeded > 0
-                        ? `${Math.max(0, piecesNeeded - piecesFilled)} of ${piecesNeeded} slots open`
-                        : undefined;
+            )}
+          />
+        ) : null}
+      </View>
 
-                    return (
-                      <AnimatedPressCard
-                        key={id}
-                        style={styles.campaignCard}
-                        onPress={() => router.push(`/influencer/ugc-brief-detail?id=${id}` as never)}
-                      >
-                        <PremiumOpportunityCard
-                          title={title}
-                          subtitle={subtitleParts.join(' · ')}
-                          platform={platformForContentType(contentType)}
-                          statusLabel={hasApplied ? 'Applied' : 'Open'}
-                          statusTone={ugcJobTone(hasApplied)}
-                          amountPrimary={`₹${budget.toLocaleString('en-IN')}`}
-                          amountSecondary="/ piece"
-                          quote={slotsLine}
-                          quoteLabel={slotsLine ? 'Availability' : undefined}
-                          onPress={undefined}
-                          showChevron={false}
-                        />
-                      </AnimatedPressCard>
-                    );
-                  }
-
-                  const row = item as UgcApplicationRow;
-                  const app = appFromRow(row);
-                  const brief = row.brief ?? {};
-                  const title = String(brief.title ?? 'UGC Brief');
-                  const budget = Number(brief.budgetPerPiece ?? 0);
-                  const productName = String(brief.productName ?? 'Brand brief');
-                  const contentType = String(brief.contentType ?? 'ugc_video');
-                  const showDeliver = canDeliverContent(row) && Boolean(app.id);
-
-                  const footer = showDeliver ? (
-                    <TouchableOpacity
-                      style={styles.ugcDeliverBtn}
-                      onPress={() => openUgcDeliver(app.id, title)}
-                    >
-                      <Text style={styles.ugcDeliverBtnText}>Deliver content</Text>
-                    </TouchableOpacity>
-                  ) : undefined;
-
-                  return (
-                    <AnimatedPressCard
-                      key={app.id || String(brief.id ?? idx)}
-                      style={styles.campaignCard}
-                      onPress={() => onUgcApplicationPress(row)}
-                    >
-                      <PremiumOpportunityCard
-                        title={title}
-                        subtitle={`${productName} · ${labelForContentType(contentType)}`}
-                        platform={platformForContentType(contentType)}
-                        statusLabel={ugcApplicationShort(row)}
-                        statusTone={ugcApplicationTone(row)}
-                        amountPrimary={`₹${budget.toLocaleString('en-IN')}`}
-                        amountSecondary="/ piece"
-                        showChevron={!showDeliver}
-                        onPress={undefined}
-                        footer={footer}
-                      />
-                    </AnimatedPressCard>
-                  );
-                })
-              )}
-            </>
-            </ScrollView>
-          )}
-        </View>
-      )}
       <Modal
         visible={showAdvancedFilters}
         animationType="slide"
@@ -896,7 +1136,7 @@ export default function InfluencerCampaignsScreen() {
         onRequestClose={() => setShowAdvancedFilters(false)}
       >
         <View style={styles.filtersModalOverlay}>
-          <View style={styles.filtersModalCard}>
+          <View style={[styles.filtersModalCard, { backgroundColor: shell.card }]}>
             <View style={styles.filtersHeader}>
               <Text style={styles.filtersTitle}>Advanced Filters</Text>
               <TouchableOpacity onPress={() => setShowAdvancedFilters(false)}>
@@ -904,31 +1144,29 @@ export default function InfluencerCampaignsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.filterLabel}>Audience Age Group</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineFilterRow}>
-              {['all', '13-17', '18-24', '25-34', '35-44', '45+'].map(age => {
-                const active = filters.targetAudienceAgeGroup === age;
-                return (
-                  <TouchableOpacity
-                    key={age}
-                    style={[styles.inlineFilterChip, active && styles.inlineFilterChipActive]}
-                    onPress={() => handleFilterChange({ ...filters, targetAudienceAgeGroup: age })}
-                  >
-                    <Text style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}>{age === 'all' ? 'All Ages' : age}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
             <Text style={styles.filterLabel}>Brand</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineFilterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.inlineFilterRow}
+            >
               <TouchableOpacity
-                style={[styles.inlineFilterChip, filters.tenantId === 'all' && styles.inlineFilterChipActive]}
+                style={[
+                  styles.inlineFilterChip,
+                  filters.tenantId === 'all' && styles.inlineFilterChipActive,
+                ]}
                 onPress={() => handleFilterChange({ ...filters, tenantId: 'all' })}
               >
-                <Text style={[styles.inlineFilterText, filters.tenantId === 'all' && styles.inlineFilterTextActive]}>All Brands</Text>
+                <Text
+                  style={[
+                    styles.inlineFilterText,
+                    filters.tenantId === 'all' && styles.inlineFilterTextActive,
+                  ]}
+                >
+                  All Brands
+                </Text>
               </TouchableOpacity>
-              {tenants.map(tenant => {
+              {tenants.map((tenant) => {
                 const active = filters.tenantId === tenant.id;
                 return (
                   <TouchableOpacity
@@ -936,7 +1174,11 @@ export default function InfluencerCampaignsScreen() {
                     style={[styles.inlineFilterChip, active && styles.inlineFilterChipActive]}
                     onPress={() => handleFilterChange({ ...filters, tenantId: tenant.id })}
                   >
-                    <Text style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}>{tenant.tenantName}</Text>
+                    <Text
+                      style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}
+                    >
+                      {tenant.tenantName}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -958,20 +1200,15 @@ export default function InfluencerCampaignsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={handleCloseCampaignDetails}
       >
-        <View style={{ flex: 1, backgroundColor: appShell.canvas }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={handleCloseCampaignDetails} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>âœ•</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Campaign Details</Text>
-          </View>
-          {selectedCampaignId && (
-            <CampaignDetailsScreen 
-              campaignId={selectedCampaignId} 
+        <View style={{ flex: 1, backgroundColor: shell.canvas }}>
+          {selectedCampaignId ? (
+            <CampaignDetailsScreen
+              campaignId={selectedCampaignId}
               onClose={handleCloseCampaignDetails}
-              onApplySuccess={handleApplySuccess}
+              onBrowseMore={handleBrowseMoreAfterApply}
+              showModalHeader
             />
-          )}
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>
@@ -989,14 +1226,14 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
     backgroundColor: appShell.canvas,
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
     gap: spacing.sm,
   },
   headerTitles: {
@@ -1028,29 +1265,13 @@ const styles = StyleSheet.create({
     backgroundColor: appShell.cta,
     borderColor: appShell.cta,
   },
-  searchWrap: {
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: appShell.canvasAlt,
-    borderWidth: 1,
-    borderColor: appShell.cardBorder,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: appShell.textPrimary,
-    fontFamily: fonts.regular,
-  },
   nicheRow: {
-    paddingTop: spacing.sm,
+    paddingTop: 2,
+    paddingBottom: 2,
     gap: 8,
   },
   nicheChip: {
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
     backgroundColor: appShell.canvasAlt,
@@ -1131,11 +1352,6 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 10,
-  },
-  closeButtonText: {
-    fontSize: 18,
-    fontFamily: fonts.bold,
-    color: appShell.cta,
   },
   modalTitle: {
     fontSize: 18,
@@ -1228,6 +1444,10 @@ const styles = StyleSheet.create({
   feedShell: {
     flex: 1,
   },
+  pagerPage: {
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+  },
   emptyFeed: {
     flex: 1,
     justifyContent: 'center',
@@ -1236,6 +1456,11 @@ const styles = StyleSheet.create({
   campaignCard: {
     marginBottom: 0,
     width: '100%',
+  },
+  ugcFeedContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
   },
   partnershipCampaignCard: {
     alignSelf: 'center',
@@ -1259,5 +1484,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ugcDeliverBtnText: { color: palette.white, fontFamily: fonts.semiBold },
-}); 
-
+});

@@ -7,7 +7,8 @@
  */
 export { palette, paletteExtended, type Palette } from './palette';
 export { loginScreen, loginPremium, premiumButton } from './semantic';
-export { appShell, spacing, radius, shadow } from './tokens';
+export { appShell, appShellLight, appShellDark, spacing, radius, shadow } from './tokens';
+export { useAppShell, type ResolvedAppShell } from './useAppShell';
 export { premiumNavy } from './premiumSurfaces';
 export { appPaperLight, appPaperDark } from './paperTheme';
 export { appNavigationLight, appNavigationDark } from './navigationTheme';

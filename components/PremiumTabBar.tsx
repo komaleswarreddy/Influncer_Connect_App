@@ -3,12 +3,14 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { appShell, palette, premiumButton } from '@/theme';
+import { palette, premiumButton } from '@/theme';
+import { useAppShell } from '@/theme/useAppShell';
 import { fonts } from '@/components/ui/typography';
 /**
  * White bar + active tab: glossy navy pill (same gradient/gloss as PrimaryButton), narrow width.
  */
 export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const shell = useAppShell();
   const insets = useSafeAreaInsets();
   const activeKey = state.routes[state.index]?.key;
   const hiddenTabs = new Set(['ugc-jobs', 'bookings', 'ratings', 'inbox']);
@@ -20,18 +22,27 @@ export function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarPr
         styles.wrap,
         {
           paddingBottom: Math.max(insets.bottom, 8),
+          backgroundColor: shell.tabBarBg,
         },
       ]}
     >
-      <View style={styles.bar}>
+      <View
+        style={[
+          styles.bar,
+          {
+            backgroundColor: shell.tabBarBg,
+            borderTopColor: shell.cardBorder,
+          },
+        ]}
+      >
         {visibleRoutes.map((route) => {
           const { options } = descriptors[route.key];
           const label =
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
-              : options.title ?? route.name;
+              : (options.title ?? route.name);
           const isFocused = route.key === activeKey;
-          const inactiveColor = appShell.textSecondary;
+          const inactiveColor = shell.tabInactive;
 
           const onPress = () => {
             const event = navigation.emit({
@@ -119,16 +130,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: appShell.tabBarBg,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
     paddingVertical: 6,
     paddingHorizontal: 6,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.12,
         shadowRadius: 16,
       },
       android: { elevation: 12 },
@@ -139,7 +150,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** Narrow pill â€” does not stretch full tab column */
+  /** Narrow pill — does not stretch full tab column */
   activeOuter: {
     alignSelf: 'center',
     maxWidth: 80,

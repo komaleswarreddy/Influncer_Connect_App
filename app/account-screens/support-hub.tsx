@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../store/auth-store';
+import { getApiBaseUrl } from '../../lib/api';
 import {
   PremiumCard,
   PremiumTextInput,
@@ -15,20 +16,47 @@ import {
 import { appShell, palette, premiumNavy, radius, spacing } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
-// Get API_URL from api.ts
-const API_URL = 'http://10.126.155.236:3000'; // Keep in sync with api.ts
-
 const FAQS = [
-  { q: "How do I connect my bank account?", a: "Go to Settings > Payouts and follow the instructions to securely connect your bank account." },
-  { q: "Why is my payment pending?", a: "Payments may be pending due to processing times or missing information. Check your payout settings and email for updates." },
-  { q: "How does link tracking work?", a: "Each campaign provides unique tracking links. Use these links in your content to track clicks and conversions." },
-  { q: "What does 'engagement rate' mean?", a: "Engagement rate measures how actively your audience interacts with your content, calculated as (likes + comments + shares) / followers." },
-  { q: "How do I apply for a campaign?", a: "Browse available campaigns and click 'View & Apply' to see details and submit your application." },
-  { q: "Can I update my profile information?", a: "Yes, go to Settings > Profile to update your personal and social information." },
-  { q: "How do I reset my password?", a: "Go to Settings > Security and follow the instructions to reset your password." },
-  { q: "What if I have a technical problem?", a: "Use the Contact Support form below to describe your issue. Our team will assist you promptly." },
-  { q: "How do I check my campaign status?", a: "Go to the Campaigns page to view your applications, active, and completed campaigns." },
-  { q: "How do I contact support?", a: "Use the Contact Support form below to submit a ticket. Our team will respond within 24 hours." },
+  {
+    q: 'How do I connect my bank account?',
+    a: 'Go to Settings > Payouts and follow the instructions to securely connect your bank account.',
+  },
+  {
+    q: 'Why is my payment pending?',
+    a: 'Payments may be pending due to processing times or missing information. Check your payout settings and email for updates.',
+  },
+  {
+    q: 'How does link tracking work?',
+    a: 'Each campaign provides unique tracking links. Use these links in your content to track clicks and conversions.',
+  },
+  {
+    q: "What does 'engagement rate' mean?",
+    a: 'Engagement rate measures how actively your audience interacts with your content, calculated as (likes + comments + shares) / followers.',
+  },
+  {
+    q: 'How do I apply for a campaign?',
+    a: "Browse available campaigns and click 'View & Apply' to see details and submit your application.",
+  },
+  {
+    q: 'Can I update my profile information?',
+    a: 'Yes, go to Settings > Profile to update your personal and social information.',
+  },
+  {
+    q: 'How do I reset my password?',
+    a: 'Go to Settings > Security and follow the instructions to reset your password.',
+  },
+  {
+    q: 'What if I have a technical problem?',
+    a: 'Use the Contact Support form below to describe your issue. Our team will assist you promptly.',
+  },
+  {
+    q: 'How do I check my campaign status?',
+    a: 'Go to the Campaigns page to view your applications, active, and completed campaigns.',
+  },
+  {
+    q: 'How do I contact support?',
+    a: 'Use the Contact Support form below to submit a ticket. Our team will respond within 24 hours.',
+  },
 ];
 
 const ISSUE_OPTIONS = [
@@ -98,10 +126,10 @@ export default function SupportHub() {
         });
       }
 
-      const response = await fetch(`${API_URL}/api/support/tickets`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/support/tickets`, {
         method: 'POST',
         headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
           'x-user-id': user.id,
           'x-tenant-id': user.tenantId,
         },
@@ -123,7 +151,11 @@ export default function SupportHub() {
   };
 
   return (
-    <ScrollScreen safeAreaEdges={['left', 'right', 'bottom']} padH={spacing.md} scrollProps={{ showsVerticalScrollIndicator: false }}>
+    <ScrollScreen
+      safeAreaEdges={['left', 'right', 'bottom']}
+      padH={spacing.md}
+      scrollProps={{ showsVerticalScrollIndicator: false }}
+    >
       <PremiumSegmentedControl
         segments={SUPPORT_SEGMENTS}
         value={tab}
@@ -135,10 +167,23 @@ export default function SupportHub() {
           <Text style={styles.cardTitle}>Support FAQ</Text>
           {FAQS.map((faq, idx) => (
             <View key={idx} style={styles.accordionItem}>
-              <TouchableOpacity style={styles.accordionHeader} onPress={() => setActiveFaq(activeFaq === idx ? null : idx)}>
-                <Ionicons name="chatbubble-ellipses" size={18} color={appShell.cta} style={{ marginRight: 8 }} />
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => setActiveFaq(activeFaq === idx ? null : idx)}
+              >
+                <Ionicons
+                  name="chatbubble-ellipses"
+                  size={18}
+                  color={appShell.cta}
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={styles.accordionQuestion}>{faq.q}</Text>
-                <Ionicons name={activeFaq === idx ? 'chevron-up' : 'chevron-down'} size={18} color={appShell.textSecondary} style={{ marginLeft: 'auto' }} />
+                <Ionicons
+                  name={activeFaq === idx ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={appShell.textSecondary}
+                  style={{ marginLeft: 'auto' }}
+                />
               </TouchableOpacity>
               {activeFaq === idx && (
                 <LinearGradient
@@ -168,9 +213,17 @@ export default function SupportHub() {
           <Text style={styles.cardTitle}>Contact Support</Text>
           {submitted && ticketNumber ? (
             <View style={styles.successBox}>
-              <Ionicons name="checkmark-circle" size={48} color={appShell.cta} style={{ marginBottom: 8 }} />
+              <Ionicons
+                name="checkmark-circle"
+                size={48}
+                color={appShell.cta}
+                style={{ marginBottom: 8 }}
+              />
               <Text style={styles.successTitle}>Thank you!</Text>
-              <Text style={styles.successText}>Your request <Text style={styles.ticketNumber}>#{ticketNumber}</Text> has been received.</Text>
+              <Text style={styles.successText}>
+                Your request <Text style={styles.ticketNumber}>#{ticketNumber}</Text> has been
+                received.
+              </Text>
               <Text style={styles.successText}>Our team will get back to you within 24 hours.</Text>
             </View>
           ) : (
@@ -178,13 +231,23 @@ export default function SupportHub() {
               {error && <Text style={styles.errorText}>{error}</Text>}
               <Text style={styles.label}>What is your issue about?</Text>
               <View style={styles.issueOptionsRow}>
-                {ISSUE_OPTIONS.map(opt => (
+                {ISSUE_OPTIONS.map((opt) => (
                   <TouchableOpacity
                     key={opt.value}
-                    style={[styles.issueOption, issueType === opt.value && styles.issueOptionActive]}
+                    style={[
+                      styles.issueOption,
+                      issueType === opt.value && styles.issueOptionActive,
+                    ]}
                     onPress={() => setIssueType(opt.value)}
                   >
-                    <Text style={[styles.issueOptionText, issueType === opt.value && styles.issueOptionTextActive]}>{opt.label}</Text>
+                    <Text
+                      style={[
+                        styles.issueOptionText,
+                        issueType === opt.value && styles.issueOptionTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -211,7 +274,10 @@ export default function SupportHub() {
                 <Text style={{ color: appShell.cta, marginLeft: 6 }}>Pick Image</Text>
               </TouchableOpacity>
               {image && (
-                <Image source={{ uri: image.uri }} style={{ width: 100, height: 100, borderRadius: 8, marginTop: 8 }} />
+                <Image
+                  source={{ uri: image.uri }}
+                  style={{ width: 100, height: 100, borderRadius: 8, marginTop: 8 }}
+                />
               )}
               <PrimaryButton
                 style={styles.saveButton}

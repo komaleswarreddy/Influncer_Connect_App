@@ -1,10 +1,26 @@
-import { Link, Stack } from 'expo-router';
+import { Link, Redirect, Stack, usePathname } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
+function isOAuthDeepLinkPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return (
+    /auth\/callback/i.test(pathname) ||
+    /instagram-connected/i.test(pathname) ||
+    pathname === '/callback'
+  );
+}
+
 export default function NotFoundScreen() {
+  const pathname = usePathname();
+
+  // Belt-and-suspenders: never flash the Oops UI for OAuth return URLs.
+  if (isOAuthDeepLinkPath(pathname)) {
+    return <Redirect href={'/auth/callback' as never} />;
+  }
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />

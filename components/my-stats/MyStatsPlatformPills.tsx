@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { appShell, radius, spacing } from '@/theme';
+import { radius, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import { getPlatformLabel, type SupportedPlatform } from '@/lib/post-url-parser';
 
@@ -13,27 +13,29 @@ type Props = {
   platformCounts: Record<string, number>;
 };
 
-export function MyStatsPlatformPills({
-  selected,
-  onSelect,
-  totalCount,
-  platformCounts,
-}: Props) {
+export function MyStatsPlatformPills({ selected, onSelect, totalCount, platformCounts }: Props) {
+  const shell = useAppShell();
   const platforms = Object.keys(platformCounts) as SupportedPlatform[];
 
   const renderPill = (platform: PlatformFilter) => {
     const active = selected === platform;
-    const count = platform === 'all' ? totalCount : platformCounts[platform] ?? 0;
+    const count = platform === 'all' ? totalCount : (platformCounts[platform] ?? 0);
     const label = platform === 'all' ? 'All' : getPlatformLabel(platform);
 
     return (
       <TouchableOpacity
         key={platform}
-        style={[styles.pill, active && styles.pillActive]}
+        style={[
+          styles.pill,
+          {
+            backgroundColor: active ? shell.cta : shell.canvasAlt,
+            borderColor: active ? shell.cta : shell.cardBorder,
+          },
+        ]}
         onPress={() => onSelect(platform)}
         activeOpacity={0.85}
       >
-        <Text style={[styles.pillText, active && styles.pillTextActive]}>
+        <Text style={[styles.pillText, { color: active ? '#FFFFFF' : shell.textPrimary }]}>
           {label} {count}
         </Text>
       </TouchableOpacity>
@@ -67,20 +69,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#E5E7EB',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  pillActive: {
-    backgroundColor: appShell.cta,
-    borderColor: appShell.cta,
   },
   pillText: {
     fontFamily: fonts.semiBold,
     fontSize: 12,
-    color: appShell.textPrimary,
-  },
-  pillTextActive: {
-    color: '#FFFFFF',
   },
 });

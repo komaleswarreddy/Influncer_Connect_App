@@ -1,15 +1,24 @@
 import React from 'react';
 import { TextInput, StyleSheet, type TextInputProps } from 'react-native';
-import { appShell, radius, spacing } from '@/theme';
+import { radius, spacing, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 type Props = TextInputProps;
 
 export function PremiumTextInput({ style, placeholderTextColor, ...rest }: Props) {
+  const shell = useAppShell();
   return (
     <TextInput
-      style={[styles.input, style]}
-      placeholderTextColor={placeholderTextColor ?? appShell.textMuted}
+      style={[
+        styles.input,
+        {
+          backgroundColor: shell.canvasAlt,
+          borderColor: shell.borderSubtle,
+          color: shell.textPrimary,
+        },
+        style,
+      ]}
+      placeholderTextColor={placeholderTextColor ?? shell.textMuted}
       {...rest}
     />
   );
@@ -17,13 +26,10 @@ export function PremiumTextInput({ style, placeholderTextColor, ...rest }: Props
 
 const styles = StyleSheet.create({
   input: {
-    backgroundColor: appShell.canvasAlt,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.borderSubtle,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
-    color: appShell.textPrimary,
     fontFamily: fonts.regular,
     fontSize: 13,
   },

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import type { CampaignPaySummary, CampaignPaymentModel } from '../lib/campaign-pay-summary';
 
 export interface Campaign {
   id: string;
@@ -13,6 +14,7 @@ export interface Campaign {
   requiredInfluencerNiche: string;
   basicGuidelines: string;
   preferredSocialMedia: string;
+  brandLogoUrl?: string | null;
   contentRequirements: {
     type: string;
     count: number;
@@ -20,6 +22,9 @@ export interface Campaign {
     description?: string;
   }[];
   commissionRate?: number;
+  paymentModel?: CampaignPaymentModel | null;
+  paySummary?: CampaignPaySummary | null;
+  valueProposition?: unknown;
   metrics: {
     totalReach: number;
     engagementRate: number;
@@ -53,6 +58,9 @@ export interface ParticipationCampaignEmbed {
   status: string;
   type?: string | null;
   commissionRate?: number | null;
+  brandLogoUrl?: string | null;
+  paymentModel?: CampaignPaymentModel | null;
+  paySummary?: CampaignPaySummary | null;
   tenant?: {
     id?: string | null;
     tenantName?: string | null;
@@ -115,7 +123,11 @@ interface AppNotification {
   createdAt: string;
   campaignId?: string | null;
   inviteId?: string | null;
-  metadata?: { bookingId?: string } | null;
+  metadata?: {
+    bookingId?: string;
+    participationId?: string;
+    status?: string;
+  } | null;
 }
 
 interface CampaignState {
@@ -189,7 +201,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       const raw = await api.get('/api/campaigns/participations');
       const data = Array.isArray(raw)
         ? raw
-        : raw && typeof raw === 'object' && Array.isArray((raw as { participations?: CampaignParticipation[] }).participations)
+        : raw &&
+            typeof raw === 'object' &&
+            Array.isArray((raw as { participations?: CampaignParticipation[] }).participations)
           ? (raw as { participations: CampaignParticipation[] }).participations
           : [];
       set({
@@ -220,8 +234,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const raw = (await api.get('/api/campaign-applications/my')) as
-        | { success?: boolean; applications?: CampaignApplication[] }
-        | CampaignApplication[];
+        { success?: boolean; applications?: CampaignApplication[] } | CampaignApplication[];
       const list = Array.isArray(raw)
         ? raw
         : Array.isArray(raw?.applications)
@@ -375,12 +388,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     }
   },
 
-
   acceptContract: async (participationId: string, signature: string) => {
     set({ isLoading: true, error: null });
     try {
       await api.post(`/api/campaigns/${participationId}/accept-contract`, { signature });
-      await get().fetchParticipations();
+      await Promise.all([get().fetchParticipations(), get().fetchMyApplications()]);
       set({ isLoading: false });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to accept contract';
@@ -390,4 +402,4 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-})); 
+}));

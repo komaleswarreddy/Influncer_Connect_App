@@ -1,15 +1,20 @@
-﻿import { Stack } from 'expo-router';
-import { appShell } from '@/theme';
+import { Stack } from 'expo-router';
+import { useAppShell } from '@/theme';
 
 export default function CampaignsLayout() {
+  const shell = useAppShell();
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: appShell.canvas },
-        headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: appShell.textPrimary },
-        headerTintColor: appShell.cta,
+        headerStyle: { backgroundColor: shell.canvas },
+        headerTitleStyle: {
+          fontFamily: 'Inter_700Bold',
+          fontSize: 18,
+          color: shell.textPrimary,
+        },
+        headerTintColor: shell.cta,
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: appShell.canvas },
+        contentStyle: { backgroundColor: shell.canvas },
       }}
     >
       <Stack.Screen
@@ -28,4 +33,3 @@ export default function CampaignsLayout() {
     </Stack>
   );
 }
-

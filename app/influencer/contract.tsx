@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../lib/api';
@@ -7,10 +16,12 @@ import { useCampaignStore } from '../../store/campaign-store';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { appShell, palette, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { appShell, palette, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fonts } from '@/components/ui/typography';
-import { PremiumCard, PrimaryButton, SecondaryButton } from '@/components/ui';
+import { PremiumCard, PrimaryButton, SecondaryButton, showPremiumToast } from '@/components/ui';
+import { isParticipationEnrolled } from '@/lib/campaign-participation-ui';
 
 type ContractRow = {
   label: string;
@@ -34,7 +45,12 @@ function decodeHtml(value: string): string {
 }
 
 function cleanText(value: string): string {
-  return decodeHtml(value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  return decodeHtml(
+    value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 function parseContractSections(html: string): ContractSection[] {
@@ -53,7 +69,9 @@ function parseContractSections(html: string): ContractSection[] {
     const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rowMatch: RegExpExecArray | null;
     while ((rowMatch = rowRegex.exec(body)) !== null) {
-      const cells = [...rowMatch[1].matchAll(/<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi)].map((x) => cleanText(x[2]));
+      const cells = [...rowMatch[1].matchAll(/<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi)].map((x) =>
+        cleanText(x[2])
+      );
       if (cells.length >= 2) {
         rows.push({ label: cells[0], value: cells.slice(1).join(' · ') });
       }
@@ -67,9 +85,11 @@ function parseContractSections(html: string): ContractSection[] {
 }
 
 export default function ContractScreen() {
+  const shell = useAppShell();
   const { participationId } = useLocalSearchParams<{ participationId: string }>();
   const router = useRouter();
-  const { acceptContract } = useCampaignStore();
+  const { acceptContract, participations, applications, fetchParticipations, fetchMyApplications } =
+    useCampaignStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractHtml, setContractHtml] = useState('');
@@ -80,14 +100,64 @@ export default function ContractScreen() {
   const [uploading, setUploading] = useState(false);
   const [structuredSections, setStructuredSections] = useState<ContractSection[]>([]);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [acceptedSuccess, setAcceptedSuccess] = useState(false);
+
+  const participation = useMemo(
+    () => (participations || []).find((p) => String(p.id) === String(participationId)),
+    [participations, participationId]
+  );
+
+  const relatedApplication = useMemo(() => {
+    if (!participation?.campaignId) return null;
+    const cid = String(participation.campaignId);
+    return (
+      (applications || []).find((a) => String(a.campaignId ?? a.campaign?.id ?? '') === cid) ?? null
+    );
+  }, [applications, participation]);
+
+  const contractAlreadyComplete = useMemo(
+    () => isParticipationEnrolled(participation, relatedApplication?.status),
+    [participation, relatedApplication]
+  );
+
+  const goToProgress = useCallback(() => {
+    const campaignId = participation?.campaignId
+      ? String(participation.campaignId)
+      : participation?.campaign?.id
+        ? String(participation.campaign.id)
+        : undefined;
+    if (participationId) {
+      router.replace({
+        pathname: '/influencer/campaign-progress',
+        params: {
+          participationId: String(participationId),
+          ...(campaignId ? { campaignId } : {}),
+        },
+      } as never);
+    } else {
+      router.replace('/influencer/campaigns' as never);
+    }
+  }, [participation, participationId, router]);
 
   const contractSectionsToShow = useMemo(
     () =>
-      structuredSections.filter((s) => {
-        const t = s.title.trim().toLowerCase();
-        if (t === 'campaign information') return false;
-        return true;
-      }),
+      structuredSections
+        .filter((s) => {
+          const t = s.title.trim().toLowerCase();
+          if (t === 'campaign information') return false;
+          if (t === 'influencer details') return false;
+          return true;
+        })
+        .map((s) => ({
+          ...s,
+          rows: s.rows.filter((r) => {
+            const label = r.label.trim().toLowerCase();
+            if (label.includes('age')) return false;
+            if (label === 'target audience') return false;
+            return true;
+          }),
+        }))
+        .filter((s) => s.rows.length > 0 || s.paragraphs.length > 0),
     [structuredSections]
   );
 
@@ -118,7 +188,9 @@ export default function ContractScreen() {
       }
 
       try {
-        const adminSignatureResponse = await api.get(`/api/campaigns/contract/${id}/admin-signature`);
+        const adminSignatureResponse = await api.get(
+          `/api/campaigns/contract/${id}/admin-signature`
+        );
         const sigResponseData = adminSignatureResponse as any;
         console.log('Admin signature response:', sigResponseData);
 
@@ -129,14 +201,16 @@ export default function ContractScreen() {
           setAdminSignature('');
         }
       } catch (sigError: any) {
-        console.warn('Admin signature not available:', sigError.response?.data?.error || 'No admin signature found');
+        console.warn(
+          'Admin signature not available:',
+          sigError.response?.data?.error || 'No admin signature found'
+        );
         setAdminSignature('');
       }
     } catch (err: unknown) {
       console.error('Error in fetchContract:', err);
       const msg = err instanceof Error ? err.message : 'Failed to load contract';
-      const awaiting =
-        /application not approved yet|approve your application/i.test(msg);
+      const awaiting = /application not approved yet|approve your application/i.test(msg);
       setError(
         awaiting
           ? 'The brand still needs to approve your application before you can view or sign this contract.'
@@ -150,11 +224,13 @@ export default function ContractScreen() {
   useEffect(() => {
     if (participationId) {
       fetchContract();
+      void fetchParticipations();
+      void fetchMyApplications();
     } else {
       setError('No participation ID provided');
       setLoading(false);
     }
-  }, [participationId, fetchContract]);
+  }, [participationId, fetchContract, fetchParticipations, fetchMyApplications]);
 
   // Debug logging to help identify text node issues
   useEffect(() => {
@@ -185,7 +261,7 @@ export default function ContractScreen() {
       if (!result.canceled && result.assets[0]) {
         setUploading(true);
         const base64Data = result.assets[0].base64;
-        
+
         if (!base64Data) {
           throw new Error('Failed to encode image to base64');
         }
@@ -194,29 +270,33 @@ export default function ContractScreen() {
         const response = await api.post('/api/campaigns/upload-signature', {
           file: `data:image/jpeg;base64,${base64Data}`,
           filename: 'signature.jpg',
-          mimetype: 'image/jpeg'
+          mimetype: 'image/jpeg',
         });
 
         // The API client already returns the parsed JSON data
         const signatureUrl = (response as any).url;
-        
+
         if (!signatureUrl) {
           console.error('Invalid response structure:', response);
           throw new Error('No URL returned from signature upload');
         }
-        
+
         console.log('Signature upload successful, URL:', signatureUrl);
-        
+
         setSignatureImageUrl(signatureUrl);
         setSignature(signatureUrl);
         setUploading(false);
-        Alert.alert('Success', 'Signature uploaded successfully!');
       }
     } catch (error) {
       console.error('Error uploading signature:', error);
       setUploading(false);
       Alert.alert('Error', 'Failed to upload signature. Please try again.');
     }
+  };
+
+  const clearSignature = () => {
+    setSignatureImageUrl('');
+    setSignature('');
   };
 
   const handleAccept = async () => {
@@ -227,26 +307,13 @@ export default function ContractScreen() {
 
     try {
       setSaving(true);
-      
+
       // Use the signature (either drawn or uploaded)
       const finalSignature = signature || signatureImageUrl;
-      
+
       // Send signature to backend
       await acceptContract(participationId!, finalSignature);
-
-      Alert.alert(
-        'Contract Accepted',
-        'Your contract has been accepted successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate back to campaigns
-              router.push('/influencer/campaigns');
-            }
-          }
-        ]
-      );
+      setAcceptedSuccess(true);
     } catch (err: unknown) {
       console.error('Error accepting contract:', err);
       const msg =
@@ -266,7 +333,7 @@ export default function ContractScreen() {
   const handleDownloadPDF = async () => {
     try {
       setGeneratingPDF(true);
-      
+
       if (!contractHtml || typeof contractHtml !== 'string') {
         Alert.alert('Error', 'No contract content available for PDF generation');
         return;
@@ -279,7 +346,7 @@ export default function ContractScreen() {
         hasAdminSignature: !!adminSignature,
         signature: signature,
         signatureImageUrl: signatureImageUrl,
-        adminSignature: adminSignature
+        adminSignature: adminSignature,
       });
 
       // Create A4-sized PDF HTML with proper styling
@@ -557,17 +624,22 @@ export default function ContractScreen() {
           ${contractHtml}
           
           <!-- Add signature section if signatures are available -->
-          ${(signature || signatureImageUrl || adminSignature) ? `
+          ${
+            signature || signatureImageUrl || adminSignature
+              ? `
             <div class="signature-section">
               <h3>Digital Signatures</h3>
               <div class="signature-row">
-                ${adminSignature ? `
+                ${
+                  adminSignature
+                    ? `
                   <div class="signature-box">
                     <div class="signature-label">Tenant Admin Signature</div>
                     <img src="${adminSignature}" class="signature-image" alt="Admin Signature" crossorigin="anonymous" />
                     <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
                   </div>
-                ` : `
+                `
+                    : `
                   <div class="signature-box">
                     <div class="signature-label">Tenant Admin Signature</div>
                     <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 8px;">
@@ -575,15 +647,19 @@ export default function ContractScreen() {
                     </div>
                     <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
                   </div>
-                `}
+                `
+                }
                 
-                ${(signature || signatureImageUrl) ? `
+                ${
+                  signature || signatureImageUrl
+                    ? `
                   <div class="signature-box">
                     <div class="signature-label">Influencer Signature</div>
                     <img src="${signature || signatureImageUrl}" class="signature-image" alt="Influencer Signature" crossorigin="anonymous" />
                     <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
                   </div>
-                ` : `
+                `
+                    : `
                   <div class="signature-box">
                     <div class="signature-label">Influencer Signature</div>
                     <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 8px;">
@@ -591,10 +667,13 @@ export default function ContractScreen() {
                     </div>
                     <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
                   </div>
-                `}
+                `
+                }
               </div>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
           
           <div class="footer">
             <p>Generated by Zopkit AI-Powered Ecosystem | support@zopkit.com</p>
@@ -620,37 +699,52 @@ export default function ContractScreen() {
 
       // Check if sharing is available
       const isSharingAvailable = await Sharing.isAvailableAsync();
-      
+
       if (isSharingAvailable) {
         // Share the PDF file with download option
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
           dialogTitle: 'Download Contract PDF',
-          UTI: 'com.adobe.pdf'
+          UTI: 'com.adobe.pdf',
         });
-        
-        // Show success message after sharing
-        Alert.alert(
-          'PDF Generated Successfully',
-          'Contract PDF has been generated and is ready for download!',
-          [{ text: 'OK' }]
-        );
-      } else {
-        // Fallback: show success message
-        Alert.alert(
-          'PDF Generated',
-          'Contract PDF has been generated successfully!',
-          [{ text: 'OK' }]
-        );
       }
 
+      showPremiumToast({
+        title: 'PDF ready',
+        message: 'Opening your campaign progress…',
+        durationMs: 2200,
+      });
+
+      const participation = (participations || []).find(
+        (p) => String(p.id) === String(participationId)
+      );
+      const campaignId = participation?.campaignId
+        ? String(participation.campaignId)
+        : participation?.campaign?.id
+          ? String(participation.campaign.id)
+          : null;
+
+      if (participationId && campaignId) {
+        router.replace({
+          pathname: '/influencer/campaign-progress',
+          params: {
+            participationId: String(participationId),
+            campaignId,
+          },
+        } as never);
+      } else if (participationId) {
+        router.replace({
+          pathname: '/influencer/campaign-progress',
+          params: { participationId: String(participationId) },
+        } as never);
+      } else {
+        router.replace('/influencer/campaigns' as never);
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
-      Alert.alert(
-        'PDF Generation Failed',
-        'Failed to generate PDF. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('PDF Generation Failed', 'Failed to generate PDF. Please try again.', [
+        { text: 'OK' },
+      ]);
     } finally {
       setGeneratingPDF(false);
     }
@@ -658,10 +752,12 @@ export default function ContractScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={appShell.cta} />
-          <Text style={styles.loadingText}>Loading contract details...</Text>
+          <ActivityIndicator size="large" color={shell.cta} />
+          <Text style={[styles.loadingText, { color: shell.textSecondary }]}>
+            Loading contract details...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -669,13 +765,13 @@ export default function ContractScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorTitle}>Error Loading Contract</Text>
-          <Text style={styles.errorMessage}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <Text style={[styles.errorMessage, { color: shell.textSecondary }]}>{error}</Text>
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => router.push('/influencer/campaigns')}
           >
             <Text style={styles.backButtonText}>Back to Campaigns</Text>
@@ -685,17 +781,66 @@ export default function ContractScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
+  if (acceptedSuccess) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: shell.card, borderBottomColor: shell.borderSubtle },
+          ]}
         >
+          <View style={{ width: 50 }} />
+          <Text style={[styles.headerTitle, { color: shell.cta }]}>Contract Signed</Text>
+          <View style={{ width: 50 }} />
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.successContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.successHero}>
+            <LinearGradient
+              colors={[...premiumNavy.base.colors]}
+              locations={[...premiumNavy.base.locations]}
+              start={premiumNavy.base.start}
+              end={premiumNavy.base.end}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.successIconWrap, { zIndex: 1 }]}>
+              <Ionicons name="checkmark-circle" size={56} color="#7CFFB2" />
+            </View>
+            <Text style={[styles.successTitle, { zIndex: 1 }]}>Contract signed successfully</Text>
+            <Text style={[styles.successSubtitle, { zIndex: 1 }]}>
+              Your agreement is complete. Download a PDF copy for your records — we will take you to
+              campaign progress next.
+            </Text>
+          </View>
+          <View style={styles.actionButtons}>
+            <PrimaryButton
+              label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
+              onPress={handleDownloadPDF}
+              disabled={generatingPDF}
+            />
+            <SecondaryButton label="Go to progress" onPress={goToProgress} />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
+      {/* Header */}
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: shell.card, borderBottomColor: shell.borderSubtle },
+        ]}
+      >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Contract Agreement</Text>
+        <Text style={[styles.headerTitle, { color: shell.cta }]}>Contract Agreement</Text>
         <View style={{ width: 50 }} />
       </View>
 
@@ -720,16 +865,31 @@ export default function ContractScreen() {
             <Text style={styles.heroKicker}>Contract Review</Text>
             <Text style={styles.heroTitle}>Premium agreement flow</Text>
             <Text style={styles.heroSubtitle}>
-              Verify details, upload signature, and complete contract in one clean pass.
+              {contractAlreadyComplete
+                ? 'Your agreement is complete. Review the contract below or go straight to campaign progress.'
+                : 'Verify details, upload signature, and complete contract in one clean pass.'}
             </Text>
           </View>
         </View>
 
-        <PremiumCard comfortable style={styles.contractSection} padded={false}>
+        <PremiumCard
+          comfortable
+          style={[
+            styles.contractSection,
+            { backgroundColor: shell.card, borderColor: shell.cardBorder },
+          ]}
+          padded={false}
+        >
           {contractSectionsToShow.length > 0 ? (
             <View style={{ gap: spacing.sm }}>
               {contractSectionsToShow.map((section, idx) => (
-                <View key={`${section.title}-${idx}`} style={styles.sectionCard}>
+                <View
+                  key={`${section.title}-${idx}`}
+                  style={[
+                    styles.sectionCard,
+                    { backgroundColor: shell.card, borderColor: shell.cardBorder },
+                  ]}
+                >
                   <LinearGradient
                     colors={['#0a1128', '#141e33', '#1e2d4a', '#2a3f66']}
                     locations={[0, 0.35, 0.72, 1]}
@@ -749,15 +909,22 @@ export default function ContractScreen() {
                       {section.title}
                     </Text>
                   </LinearGradient>
-                  <View style={styles.sectionCardBody}>
+                  <View style={[styles.sectionCardBody, { backgroundColor: shell.card }]}>
                     {section.rows.map((row, rowIndex) => (
                       <View key={`${row.label}-${rowIndex}`} style={styles.kvRow}>
-                        <Text style={styles.kvLabel}>{row.label}</Text>
-                        <Text style={styles.kvValue}>{row.value || '—'}</Text>
+                        <Text style={[styles.kvLabel, { color: shell.textSecondary }]}>
+                          {row.label}
+                        </Text>
+                        <Text style={[styles.kvValue, { color: shell.textPrimary }]}>
+                          {row.value || '—'}
+                        </Text>
                       </View>
                     ))}
                     {section.paragraphs.map((p, pIndex) => (
-                      <Text key={`${section.title}-p-${pIndex}`} style={styles.sectionParagraph}>
+                      <Text
+                        key={`${section.title}-p-${pIndex}`}
+                        style={[styles.sectionParagraph, { color: shell.textSecondary }]}
+                      >
                         {p}
                       </Text>
                     ))}
@@ -766,62 +933,130 @@ export default function ContractScreen() {
               ))}
             </View>
           ) : (
-            <View style={styles.webViewPlaceholder}>
-              <Text style={styles.placeholderText}>Contract preview is unavailable right now.</Text>
-            </View>
-          )}
-        </PremiumCard>
-
-        <PremiumCard comfortable style={styles.signatureSection} title="Digital Signature">
-          <Text style={styles.sectionTitle}>Digital Signature</Text>
-          <Text style={styles.signatureDescription}>
-            Please upload your signature to accept the contract terms and conditions.
-          </Text>
-          
-          {/* Admin Signature Status */}
-          <View style={styles.signatureStatus}>
-            <View style={[styles.statusDot, adminSignature ? styles.statusDotGreen : styles.statusDotYellow]} />
-            <Text style={styles.statusText}>
-              {adminSignature 
-                ? 'Tenant Admin signature is available for PDF' 
-                : 'Tenant Admin signature will be added to PDF when available'
-              }
-            </Text>
-          </View>
-          
-          {/* Signature Upload */}
-          <View style={styles.uploadSurface}>
-            <TouchableOpacity
-              style={styles.uploadButton}
-              onPress={handleSignatureUpload}
-              disabled={uploading}
-            >
-              <Text style={styles.uploadButtonText}>
-                {uploading ? 'Uploading...' : 'Upload Signature Image'}
+            <View style={[styles.webViewPlaceholder, { backgroundColor: shell.card }]}>
+              <Text style={[styles.placeholderText, { color: shell.textSecondary }]}>
+                Contract preview is unavailable right now.
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          {signatureImageUrl && (
-            <View style={styles.signatureStatus}>
-              <Text style={styles.statusTextGreen}>✓ Signature uploaded successfully</Text>
             </View>
           )}
         </PremiumCard>
 
-        <View style={styles.actionButtons}>
-          <SecondaryButton
-            label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
-            onPress={handleDownloadPDF}
-            disabled={loading || generatingPDF}
-          />
-          
-          <PrimaryButton
-            label={saving ? 'Accepting...' : 'Accept & Complete'}
-            onPress={handleAccept}
-            disabled={(!signature && !signatureImageUrl) || saving}
-          />
-        </View>
+        {contractAlreadyComplete ? (
+          <View style={styles.actionButtons}>
+            <PrimaryButton label="Track progress" onPress={goToProgress} />
+            <SecondaryButton
+              label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
+              onPress={handleDownloadPDF}
+              disabled={generatingPDF}
+            />
+          </View>
+        ) : (
+          <>
+            <PremiumCard
+              comfortable
+              style={[
+                styles.signatureSection,
+                { backgroundColor: shell.card, borderColor: shell.cardBorder },
+              ]}
+              title="Digital Signature"
+            >
+              <Text style={styles.sectionTitle}>Digital Signature</Text>
+              <Text style={styles.signatureDescription}>
+                Please upload your signature to accept the contract terms and conditions.
+              </Text>
+
+              {/* Admin Signature Status */}
+              <View
+                style={[
+                  styles.signatureStatus,
+                  { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.statusDot,
+                    adminSignature ? styles.statusDotGreen : styles.statusDotYellow,
+                  ]}
+                />
+                <Text style={styles.statusText}>
+                  {adminSignature
+                    ? 'Tenant Admin signature is available for PDF'
+                    : 'Tenant Admin signature will be added to PDF when available'}
+                </Text>
+              </View>
+
+              {/* Signature Upload */}
+              <View
+                style={[
+                  styles.uploadSurface,
+                  { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.uploadButton,
+                    { backgroundColor: shell.card, borderColor: shell.cta },
+                  ]}
+                  onPress={handleSignatureUpload}
+                  disabled={uploading}
+                >
+                  <Text style={styles.uploadButtonText}>
+                    {uploading
+                      ? 'Uploading...'
+                      : signatureImageUrl
+                        ? 'Replace Signature'
+                        : 'Upload Signature Image'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {signatureImageUrl ? (
+                <View
+                  style={[
+                    styles.signaturePreviewBlock,
+                    { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: signatureImageUrl }}
+                    style={[styles.signaturePreviewImage, { backgroundColor: shell.canvas }]}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.signaturePreviewActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.previewActionBtn,
+                        { backgroundColor: shell.iceBlue, borderColor: shell.cardBorder },
+                      ]}
+                      onPress={handleSignatureUpload}
+                      disabled={uploading}
+                    >
+                      <Text style={styles.previewActionText}>Replace</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.previewActionBtn,
+                        { backgroundColor: shell.iceBlue, borderColor: shell.cardBorder },
+                      ]}
+                      onPress={clearSignature}
+                    >
+                      <Text style={styles.previewActionText}>Clear</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.statusTextGreen}>Signature ready — review then accept</Text>
+                </View>
+              ) : null}
+            </PremiumCard>
+
+            <View style={styles.actionButtons}>
+              <PrimaryButton
+                label={saving ? 'Accepting...' : 'Accept & Complete'}
+                onPress={handleAccept}
+                disabled={(!signature && !signatureImageUrl) || saving}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1082,6 +1317,73 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: appShell.success,
     fontFamily: fonts.semiBold,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  signaturePreviewBlock: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.1)',
+    backgroundColor: palette.white,
+    alignItems: 'center',
+  },
+  signaturePreviewImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: radius.sm,
+    backgroundColor: '#F7F8FB',
+  },
+  signaturePreviewActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  previewActionBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 30, 51, 0.14)',
+    backgroundColor: '#F1F4F9',
+  },
+  previewActionText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+    color: appShell.cta,
+  },
+  successContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  successHero: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    minHeight: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    ...shadow.card,
+  },
+  successIconWrap: {
+    marginBottom: spacing.md,
+  },
+  successTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  successSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(255,255,255,0.82)',
+    textAlign: 'center',
   },
   uploadSurface: {
     marginTop: 2,
@@ -1144,4 +1446,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fonts.semiBold,
   },
-}); 
+});

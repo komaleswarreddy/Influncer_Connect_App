@@ -1,26 +1,27 @@
 import { Stack } from 'expo-router';
-import { appShell } from '@/theme';
+import { useAppShell } from '@/theme';
 
 /**
  * Account flows (calculator, support, settings) — human titles only, no raw route paths.
  */
 export default function AccountScreensLayout() {
+  const shell = useAppShell();
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: appShell.canvas },
+        headerStyle: { backgroundColor: shell.canvas },
         headerTitleStyle: {
           fontFamily: 'Inter_700Bold',
           fontSize: 18,
-          color: appShell.textPrimary,
+          color: shell.textPrimary,
         },
-        headerTintColor: appShell.cta,
+        headerTintColor: shell.cta,
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: appShell.canvas },
+        contentStyle: { backgroundColor: shell.canvas },
       }}
     >
       <Stack.Screen name="rate-calculator" options={{ title: 'Rate Calculator' }} />
-      <Stack.Screen name="rate-card" options={{ title: 'Rate Card' }} />
+      <Stack.Screen name="rate-card" options={{ title: 'Price Card' }} />
       <Stack.Screen name="instagram-hub" options={{ title: 'Instagram' }} />
       <Stack.Screen name="schedule-content" options={{ title: 'Schedule Content' }} />
       <Stack.Screen name="create-scheduled-post" options={{ title: 'Schedule post' }} />
@@ -32,13 +33,13 @@ export default function AccountScreensLayout() {
       <Stack.Screen name="catalog-setup" options={{ title: 'Set up catalog' }} />
       <Stack.Screen name="catalog-builder" options={{ title: 'Build catalog' }} />
       <Stack.Screen name="catalog-preview" options={{ title: 'Preview' }} />
-      <Stack.Screen name="bookings" options={{ title: 'Bookings' }} />
+      <Stack.Screen name="bookings" options={{ title: 'PriceCard Bookings' }} />
       <Stack.Screen name="payments" options={{ title: 'Payments' }} />
       <Stack.Screen name="support-hub" options={{ title: 'Support' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="trending-ideas" options={{ title: 'Trending ideas' }} />
       <Stack.Screen name="affiliate-links" options={{ title: 'Affiliate links' }} />
-      <Stack.Screen name="ugc-earnings" options={{ title: 'UGC earnings' }} />
+      <Stack.Screen name="ugc-earnings" options={{ title: 'Payments' }} />
       <Stack.Screen name="ai-caption-results" options={{ title: 'AI captions' }} />
     </Stack>
   );

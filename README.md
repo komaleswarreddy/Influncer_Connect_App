@@ -12,12 +12,12 @@ npm start                   # Expo Go dev server (runs scripts/expo-preflight.js
 
 Useful variants:
 
-| Script | Use when |
-|---|---|
-| `npm run start:clear` | Metro cache issues |
-| `npm run start:tunnel` | Device not on the same LAN |
-| `npm run start:dev-client:usb` | Physical Android over USB (`npm run adb:reverse` forwards :8081/:3000) |
-| `npm run android` / `npm run ios` | Dev-client build launch |
+| Script                            | Use when                                                               |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `npm run start:clear`             | Metro cache issues                                                     |
+| `npm run start:tunnel`            | Device not on the same LAN                                             |
+| `npm run start:dev-client:usb`    | Physical Android over USB (`npm run adb:reverse` forwards :8081/:3003) |
+| `npm run android` / `npm run ios` | Dev-client build launch                                                |
 
 ## Builds (EAS)
 
@@ -45,6 +45,6 @@ patches/           patch-package patches
 
 ## Notes
 
-- Auth: Kinde (mobile keeps its own Kinde JWKS flow against `POST /api/auth/kinde/mobile-token-login` — independent of the web app's auth).
+- Auth: Cognito Hosted UI (Google) → `POST /api/auth/cognito/mobile-token-login` (same shared pool as web).
 - `EXPO_PUBLIC_USE_MOCK_AUTH` / `EXPO_PUBLIC_USE_MOCK_API` enable offline UI work without a backend; keep both `false` normally.
 - Mobile-specific guides live in [../docs/mobile/](../docs/mobile/) (APK without backend, UI test guide, known gaps).

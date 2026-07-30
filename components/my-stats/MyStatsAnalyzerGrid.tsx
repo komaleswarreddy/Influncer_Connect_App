@@ -10,7 +10,7 @@ import Svg, {
   Rect,
   Stop,
 } from 'react-native-svg';
-import { appShell, radius, shadow, spacing } from '@/theme';
+import { radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import type { MyStatsSummary } from '@/lib/my-stats-dashboard-stats';
 import { formatCompactNumber } from '@/lib/my-stats-dashboard-stats';
@@ -21,7 +21,6 @@ type Props = {
 
 const GRADIENT_START = '#8B5CF6';
 const GRADIENT_END = '#4F6EF7';
-const NAVY_ICON = '#0A1128';
 
 const neumorphicWell = Platform.select({
   ios: {
@@ -52,8 +51,8 @@ function AnalyzerCardDecor() {
           </SvgLinearGradient>
         </Defs>
         <Rect x={220} y={0} width={140} height={90} fill={`url(#${dotId})`} />
-        <Circle cx={310} cy={28} r={22} fill="rgba(255, 255, 255, 0.92)" />
-        <Circle cx={306} cy={24} r={18} fill="rgba(226, 232, 240, 0.55)" />
+        <Circle cx={310} cy={28} r={22} fill="rgba(255, 255, 255, 0.12)" />
+        <Circle cx={306} cy={24} r={18} fill="rgba(226, 232, 240, 0.2)" />
         <Path
           d="M 200 70 Q 250 20 300 45 T 360 30"
           stroke={`url(#${waveGradId})`}
@@ -73,8 +72,20 @@ function AnalyzerCardDecor() {
   );
 }
 
-function NeumorphicWell({ children }: { children: React.ReactNode }) {
-  return <View style={[styles.neuWell, neumorphicWell]}>{children}</View>;
+function NeumorphicWell({
+  children,
+  backgroundColor,
+  borderColor,
+}: {
+  children: React.ReactNode;
+  backgroundColor: string;
+  borderColor: string;
+}) {
+  return (
+    <View style={[styles.neuWell, { backgroundColor, borderColor }, neumorphicWell]}>
+      {children}
+    </View>
+  );
 }
 
 function GradientBarChartIcon() {
@@ -120,9 +131,9 @@ function GradientPeopleIcon() {
 
 type MetricVariant = 'posts' | 'er' | 'reach';
 
-function MetricIcon({ variant }: { variant: MetricVariant }) {
+function MetricIcon({ variant, iconColor }: { variant: MetricVariant; iconColor: string }) {
   if (variant === 'posts') {
-    return <Ionicons name="document-text-outline" size={17} color={NAVY_ICON} />;
+    return <Ionicons name="document-text-outline" size={17} color={iconColor} />;
   }
   if (variant === 'er') {
     return <GradientBarChartIcon />;
@@ -134,56 +145,97 @@ function MetricColumn({
   variant,
   value,
   label,
+  wellBg,
+  wellBorder,
+  textPrimary,
+  textSecondary,
+  iconColor,
 }: {
   variant: MetricVariant;
   value: string;
   label: string;
+  wellBg: string;
+  wellBorder: string;
+  textPrimary: string;
+  textSecondary: string;
+  iconColor: string;
 }) {
   return (
     <View style={styles.metricCol}>
-      <NeumorphicWell>
-        <MetricIcon variant={variant} />
+      <NeumorphicWell backgroundColor={wellBg} borderColor={wellBorder}>
+        <MetricIcon variant={variant} iconColor={iconColor} />
       </NeumorphicWell>
-      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+      <Text
+        style={[styles.metricValue, { color: textPrimary }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
         {value}
       </Text>
-      <Text style={styles.metricLabel} numberOfLines={1}>
+      <Text style={[styles.metricLabel, { color: textSecondary }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
   );
 }
 
-function ColumnDivider() {
-  return <View style={styles.divider} />;
-}
-
 export function MyStatsAnalyzerGrid({ summary }: Props) {
+  const shell = useAppShell();
+  const wellBg = shell.isDark ? shell.canvasAlt : '#FFFFFF';
+  const wellBorder = shell.cardBorder;
+  const divider = shell.isDark ? 'rgba(255,255,255,0.12)' : '#E5E7EB';
+
   return (
     <View style={styles.wrap}>
-      <View style={[styles.card, shadow.card]}>
+      <View
+        style={[
+          styles.card,
+          shadow.card,
+          { backgroundColor: shell.card, borderColor: shell.cardBorder },
+        ]}
+      >
         <AnalyzerCardDecor />
 
         <View style={styles.headerRow}>
-          <NeumorphicWell>
-            <Ionicons name="trending-up-outline" size={16} color={NAVY_ICON} />
+          <NeumorphicWell backgroundColor={wellBg} borderColor={wellBorder}>
+            <Ionicons name="trending-up-outline" size={16} color={shell.cta} />
           </NeumorphicWell>
-          <Text style={styles.sectionTitle}>Post analyzer</Text>
+          <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>Post analyzer</Text>
         </View>
 
         <View style={styles.metricsRow}>
-          <MetricColumn variant="posts" value={String(summary.totalPosts)} label="Total Posts" />
-          <ColumnDivider />
+          <MetricColumn
+            variant="posts"
+            value={String(summary.totalPosts)}
+            label="Total Posts"
+            wellBg={wellBg}
+            wellBorder={wellBorder}
+            textPrimary={shell.textPrimary}
+            textSecondary={shell.textSecondary}
+            iconColor={shell.cta}
+          />
+          <View style={[styles.divider, { backgroundColor: divider }]} />
           <MetricColumn
             variant="er"
             value={`${summary.avgER.toFixed(2)}%`}
             label="Avg ER"
+            wellBg={wellBg}
+            wellBorder={wellBorder}
+            textPrimary={shell.textPrimary}
+            textSecondary={shell.textSecondary}
+            iconColor={shell.cta}
           />
-          <ColumnDivider />
+          <View style={[styles.divider, { backgroundColor: divider }]} />
           <MetricColumn
             variant="reach"
             value={formatCompactNumber(summary.totalReach)}
             label="Total Reach"
+            wellBg={wellBg}
+            wellBorder={wellBorder}
+            textPrimary={shell.textPrimary}
+            textSecondary={shell.textSecondary}
+            iconColor={shell.cta}
           />
         </View>
       </View>
@@ -196,10 +248,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(20, 30, 51, 0.06)',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.md + 2,
@@ -223,7 +273,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: fonts.bold,
     fontSize: 17,
-    color: appShell.textPrimary,
     letterSpacing: -0.35,
   },
   metricsRow: {
@@ -240,9 +289,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(15, 23, 42, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -250,7 +297,6 @@ const styles = StyleSheet.create({
   metricValue: {
     fontFamily: fonts.bold,
     fontSize: 19,
-    color: appShell.textPrimary,
     letterSpacing: -0.5,
     width: '100%',
     ...Platform.select({ android: { includeFontPadding: false } }),
@@ -259,11 +305,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontFamily: fonts.regular,
     fontSize: 11,
-    color: appShell.textSecondary,
   },
   divider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: '#E5E7EB',
     marginHorizontal: 6,
     marginTop: 6,
     marginBottom: 2,

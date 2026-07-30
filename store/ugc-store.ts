@@ -71,13 +71,23 @@ export function canDeliverContent(item: UgcApplicationRow): boolean {
 }
 
 export function applicationStatusLabel(item: UgcApplicationRow): string {
-  const appStatus = appFromRow(item).status;
-  const dStatus = deliverableStatus(item);
+  const appStatus = String(appFromRow(item).status ?? '')
+    .trim()
+    .toLowerCase();
+  const dStatus = String(deliverableStatus(item) ?? '')
+    .trim()
+    .toLowerCase();
+  const pay = String(item.payment?.status ?? '')
+    .trim()
+    .toLowerCase();
   if (dStatus === 'pending_review') return 'Submitted — awaiting brand review';
   if (dStatus === 'revision_requested') return 'Revision requested — resubmit content';
-  if (dStatus === 'approved') return 'Approved — payment released';
+  if (dStatus === 'approved' || pay === 'released' || appStatus === 'completed') {
+    return pay === 'released' ? 'Approved — payment released' : 'Approved by brand';
+  }
   if (dStatus === 'rejected') return 'Deliverable rejected';
   if (appStatus === 'accepted') return 'Accepted — tap to deliver content';
+  if (appStatus === 'in_progress') return 'In progress — check delivery status';
   if (appStatus === 'pending') return 'Pending brand review';
   if (appStatus === 'rejected') return 'Declined by brand';
   return appStatus || '—';

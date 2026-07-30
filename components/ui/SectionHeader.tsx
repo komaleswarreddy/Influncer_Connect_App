@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { appShell, spacing } from '@/theme';
+import { spacing, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 type Props = {
@@ -15,16 +15,46 @@ type Props = {
   comfortable?: boolean;
 };
 
-export function SectionHeader({ title, subtitle, overline, right, compact = true, comfortable = false }: Props) {
+export function SectionHeader({
+  title,
+  subtitle,
+  overline,
+  right,
+  compact = true,
+  comfortable = false,
+}: Props) {
+  const shell = useAppShell();
   const isCompact = compact && !comfortable;
   return (
     <View style={[styles.row, isCompact && styles.rowCompact]}>
       <View style={styles.textBlock}>
         {overline ? (
-          <Text style={[styles.overline, isCompact && styles.overlineCompact]}>{overline}</Text>
+          <Text
+            style={[
+              styles.overline,
+              { color: shell.textSecondary },
+              isCompact && styles.overlineCompact,
+            ]}
+          >
+            {overline}
+          </Text>
         ) : null}
-        <Text style={[styles.title, isCompact && styles.titleCompact]}>{title}</Text>
-        {subtitle ? <Text style={[styles.subtitle, isCompact && styles.subtitleCompact]}>{subtitle}</Text> : null}
+        <Text
+          style={[styles.title, { color: shell.textPrimary }, isCompact && styles.titleCompact]}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={[
+              styles.subtitle,
+              { color: shell.textSecondary },
+              isCompact && styles.subtitleCompact,
+            ]}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {right}
     </View>
@@ -46,21 +76,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: 11,
     letterSpacing: 1.4,
-    color: appShell.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   title: {
     fontFamily: fonts.bold,
     fontSize: 26,
-    color: appShell.textPrimary,
     letterSpacing: -0.7,
     lineHeight: 32,
   },
   subtitle: {
     fontFamily: fonts.regular,
     fontSize: 14,
-    color: appShell.textSecondary,
     marginTop: 6,
     lineHeight: 21,
   },

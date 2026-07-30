@@ -4,7 +4,7 @@
  * Useful when some Android USB connections intermittently flip offline/online.
  *
  * Usage:
- *   node scripts/adb-reverse-watch.js [8081] [3000 ...]
+ *   node scripts/adb-reverse-watch.js [8081] [3003 ...]
  */
 const { spawnSync } = require('child_process');
 const { getAdbPath } = require('./adb-path');
@@ -12,7 +12,7 @@ const { getAdbPath } = require('./adb-path');
 const ports =
   process.argv.slice(2).length > 0
     ? process.argv.slice(2).map((p) => parseInt(p, 10)).filter((n) => Number.isFinite(n) && n > 0)
-    : [8081, 3000];
+    : [8081, 3003];
 
 const adb = getAdbPath();
 let lastState = '';

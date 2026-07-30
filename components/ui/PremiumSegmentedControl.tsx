@@ -1,14 +1,7 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  type ViewStyle,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, type ViewStyle, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { appShell, palette, premiumButton, radius } from '@/theme';
+import { palette, premiumButton, radius, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 export type PremiumSegmentTone = 'default' | 'danger';
@@ -39,15 +32,20 @@ function tintIconForActive(icon: React.ReactNode | undefined): React.ReactNode {
   return icon;
 }
 
-export function PremiumSegmentedControl({
-  segments,
-  value,
-  onChange,
-  compact,
-  style,
-}: Props) {
+export function PremiumSegmentedControl({ segments, value, onChange, compact, style }: Props) {
+  const shell = useAppShell();
   return (
-    <View style={[styles.track, style]}>
+    <View
+      style={[
+        styles.track,
+        {
+          backgroundColor: shell.card,
+          borderColor: shell.cardBorder,
+        },
+        style,
+      ]}
+    >
+      {' '}
       {segments.map((seg) => {
         const isDanger = seg.tone === 'danger';
         const active = !isDanger && value === seg.key;
@@ -105,11 +103,21 @@ export function PremiumSegmentedControl({
                 </View>
               </LinearGradient>
             ) : (
-              <View style={[styles.segmentInactive, compact && styles.segmentInactiveCompact]}>
+              <View
+                style={[
+                  styles.segmentInactive,
+                  compact && styles.segmentInactiveCompact,
+                  { backgroundColor: shell.canvasAlt },
+                ]}
+              >
                 <View style={styles.segmentContent}>
                   {seg.icon}
                   <Text
-                    style={[styles.labelInactive, compact && styles.labelInactiveCompact]}
+                    style={[
+                      styles.labelInactive,
+                      compact && styles.labelInactiveCompact,
+                      { color: shell.textSecondary },
+                    ]}
                     numberOfLines={2}
                   >
                     {seg.label}
@@ -127,11 +135,9 @@ export function PremiumSegmentedControl({
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    backgroundColor: appShell.card,
     borderRadius: radius.lg,
     padding: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     gap: 4,
     ...Platform.select({
       ios: {
@@ -184,7 +190,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 6,
-    backgroundColor: appShell.canvasAlt,
     borderRadius: radius.md,
   },
   segmentInactiveCompact: {
@@ -212,7 +217,6 @@ const styles = StyleSheet.create({
   labelInactive: {
     fontFamily: fonts.semiBold,
     fontSize: 12,
-    color: appShell.textSecondary,
     textAlign: 'center',
     flexShrink: 1,
   },

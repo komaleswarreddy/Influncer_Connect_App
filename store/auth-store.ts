@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../lib/api';
+import { api, getApiBaseUrl } from '../lib/api';
 import { useMockAuth } from '../lib/auth-config';
 import {
   clearEntireSession,
@@ -11,12 +11,12 @@ import {
   setSessionUserJson,
 } from '../lib/secure-session';
 
-export type AuthNextStep = 'COMPLETE_INFLUENCER_PROFILE' | 'PENDING_PLATFORM_APPROVAL' | null;
+export type AuthNextStep = 'SET_USERNAME' | 'COMPLETE_INFLUENCER_PROFILE' | null;
 
 /** Where to send the user after sign-in (Cognito or password) based on server `nextStep`. */
 export function getInfluencerEntryPath(nextStep: AuthNextStep | null | undefined): string {
-  if (nextStep === 'PENDING_PLATFORM_APPROVAL') return '/influencer/pending-approval';
-  if (nextStep === 'COMPLETE_INFLUENCER_PROFILE') return '/account-screens/settings';
+  if (nextStep === 'SET_USERNAME') return '/influencer/set-username';
+  // Legacy COMPLETE_INFLUENCER_PROFILE sessions → Home (profile settings are optional)
   return '/influencer/dashboard';
 }
 
@@ -25,9 +25,16 @@ export type User = {
   email: string;
   firstName: string;
   lastName: string;
+  /** Influencer app username from onboarding (`SET_USERNAME`). */
+  username?: string | null;
   role: { roleName: string };
   tenantId?: string;
   profileCompleted?: boolean | null;
+};
+
+type RefreshSessionOptions = {
+  /** When false, a 401 keeps the cached SecureStore session (used during boot / Fast Refresh). */
+  logoutOnUnauthorized?: boolean;
 };
 
 interface AuthState {
@@ -41,7 +48,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (data: any) => Promise<void>;
   exchangeCognitoIdToken: (idToken: string) => Promise<void>;
-  refreshSession: () => Promise<void>;
+  refreshSession: (options?: RefreshSessionOptions) => Promise<void>;
   clearProfileGate: () => void;
   logout: () => Promise<void>;
   setAuth: (token: string, user: User, nextStep?: AuthNextStep) => Promise<void>;
@@ -64,6 +71,7 @@ type MeResponse = {
     tenantId?: string;
     influencerStatus?: string | null;
     profileCompleted?: boolean | null;
+    influencerUsername?: string | null;
     nextStep?: AuthNextStep;
   };
   role?: { id: string; roleName: string };
@@ -89,11 +97,23 @@ function mapMeUser(u: MeResponse['user'], role?: { roleName: string }): User {
     email: u.email,
     firstName: u.firstName,
     lastName: u.lastName,
+    username: u.influencerUsername ?? null,
     role: { roleName: role?.roleName || u.role || 'influencer' },
     tenantId: u.tenantId,
     profileCompleted: u.profileCompleted ?? null,
   };
 }
+
+type AuthSnap = Pick<
+  AuthState,
+  'user' | 'token' | 'isAuthenticated' | 'isInitialized' | 'isLoading' | 'error' | 'nextStep'
+>;
+
+type AuthStoreGlobal = {
+  __affiliateAuthSnap?: AuthSnap;
+};
+
+const authGlobal = globalThis as typeof globalThis & AuthStoreGlobal;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -128,7 +148,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
           nextStep: nextStep || null,
         });
-        await get().refreshSession();
+        // Soft refresh: never wipe session on boot if /me briefly fails (local API wake, Fast Refresh).
+        await get().refreshSession({ logoutOnUnauthorized: false });
       } else {
         set({
           token: null,
@@ -229,9 +250,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   exchangeCognitoIdToken: async (idToken: string) => {
     set({ isLoading: true, error: null });
     try {
+      const t0 = Date.now();
+      const base = getApiBaseUrl().replace(/\/+$/, '');
+      // Only warm free-tier Render — local/LAN health hits the DB and adds useless latency.
+      if (/onrender\.com/i.test(base)) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 12000);
+          await fetch(`${base}/api/health`, { method: 'GET', signal: controller.signal });
+          clearTimeout(t);
+          if (__DEV__) console.log(`[auth] render warm ${Date.now() - t0}ms`);
+        } catch {
+          /* cold start may still succeed on the login POST */
+        }
+      }
+
+      const tLogin = Date.now();
       const data = (await api.post('/api/auth/cognito/mobile-token-login', {
         idToken,
       })) as MobileTokenLoginResponse;
+      if (__DEV__) console.log(`[auth] mobile-token-login ${Date.now() - tLogin}ms`);
+
       if (!data?.token || !data?.user || !data?.role) {
         throw new Error('Invalid Cognito login response from server');
       }
@@ -247,8 +286,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         tenantId,
         profileCompleted: nextStep ? false : true,
       };
+      // Token-login already returns user + nextStep — skip extra /api/auth/me round-trip.
       await get().setAuth(data.token, user, nextStep);
-      await get().refreshSession();
+      if (__DEV__) console.log(`[auth] cognito exchange total ${Date.now() - t0}ms`);
     } catch (error: any) {
       console.error('Cognito exchange error:', error);
       set({ error: error.message || 'Cognito sign-in failed', isLoading: false });
@@ -258,7 +298,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  refreshSession: async () => {
+  refreshSession: async (options?: RefreshSessionOptions) => {
+    const logoutOnUnauthorized = options?.logoutOnUnauthorized !== false;
     const token = get().token;
     if (!token) return;
     try {
@@ -273,7 +314,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const msg = e instanceof Error ? e.message : String(e);
       const isAuthFailure =
         /Token expired|Unauthorized|Invalid token|401/i.test(msg) || /status:\s*401/i.test(msg);
-      if (isAuthFailure) {
+      if (isAuthFailure && logoutOnUnauthorized) {
         await get().logout();
         return;
       }
@@ -343,3 +384,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+/** Keep session across Metro Fast Refresh so UI edits don't bounce to login. */
+if (__DEV__) {
+  const prev = authGlobal.__affiliateAuthSnap;
+  if (prev?.isAuthenticated && prev.token) {
+    useAuthStore.setState(prev);
+  }
+  useAuthStore.subscribe((state) => {
+    authGlobal.__affiliateAuthSnap = {
+      user: state.user,
+      token: state.token,
+      isAuthenticated: state.isAuthenticated,
+      isInitialized: state.isInitialized,
+      isLoading: state.isLoading,
+      error: state.error,
+      nextStep: state.nextStep,
+    };
+  });
+}

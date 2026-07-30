@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Affiliate Platform",
+    "name": "Influencer Connect",
     "slug": "affiliate-platform",
-    "version": "1.0.3",
+    "version": "1.0.7",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/App_icon.png",
     "scheme": "affiliateplatform",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
@@ -13,10 +13,10 @@
       "bundleIdentifier": "com.affiliateplatform.app"
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 12,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/App_icon.png",
+        "backgroundColor": "#0B1F3A"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.affiliateplatform.app",
@@ -26,6 +26,24 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            {
+              "scheme": "affiliateplatform",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ]
+        },
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [{ "scheme": "affiliateplatform" }, { "scheme": "affiliate-platform" }]
+        }
       ]
     },
     "web": {
@@ -38,10 +56,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/App_icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0B1F3A"
         }
       ]
     ],
@@ -52,9 +70,12 @@
       "apiUrl": "",
       "useMockAuth": false,
       "useMockApi": false,
-      "kindeDomain": "",
-      "kindeClientId": "",
-      "kindeConnectionId": "",
+      "cognitoRegion": "",
+      "cognitoUserPoolId": "",
+      "cognitoDomain": "",
+      "cognitoClientId": "",
+      "cognitoRedirectUri": "",
+      "cognitoLogoutUri": "",
       "router": {},
       "eas": {
         "projectId": "d3840417-c495-4426-aa7e-c1567e0079f4"

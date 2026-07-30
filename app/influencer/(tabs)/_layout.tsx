@@ -1,9 +1,10 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { PremiumTabBar } from '@/components/PremiumTabBar';
-import { appShell } from '@/theme';
+import { useAppShell } from '@/theme/useAppShell';
 
 export default function InfluencerTabsLayout() {
+  const shell = useAppShell();
   return (
     <Tabs
       tabBar={(props) => <PremiumTabBar {...props} />}
@@ -12,15 +13,15 @@ export default function InfluencerTabsLayout() {
         headerTitleStyle: {
           fontFamily: 'Inter_700Bold',
           fontSize: 18,
-          color: appShell.textPrimary,
+          color: shell.textPrimary,
         },
         headerStyle: {
-          backgroundColor: appShell.canvas,
+          backgroundColor: shell.canvas,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: appShell.cta,
+        headerTintColor: shell.cta,
         tabBarShowLabel: true,
       }}
     >
@@ -29,7 +30,10 @@ export default function InfluencerTabsLayout() {
         options={{
           title: 'Home',
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -37,7 +41,9 @@ export default function InfluencerTabsLayout() {
         options={{
           title: 'Campaigns',
           tabBarLabel: 'Campaigns',
-          tabBarIcon: ({ color, size }) => <Ionicons name="layers-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="layers-outline" size={size} color={color} />
+          ),
           headerShown: false,
         }}
       />
@@ -48,7 +54,9 @@ export default function InfluencerTabsLayout() {
           title: 'My Stats',
           tabBarLabel: 'Stats',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -56,7 +64,9 @@ export default function InfluencerTabsLayout() {
         options={{
           title: 'Settings',
           tabBarLabel: 'Settings',
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen name="ugc-jobs" options={{ href: null }} />

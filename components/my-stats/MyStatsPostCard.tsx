@@ -10,15 +10,11 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { appShell, radius, shadow, spacing } from '@/theme';
+import { radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import type { PostAnalysis } from '@/lib/post-analyzer-api';
 import { formatCompactNumber } from '@/lib/my-stats-dashboard-stats';
-import {
-  getPlatformColor,
-  getPlatformLabel,
-  type SupportedPlatform,
-} from '@/lib/post-url-parser';
+import { getPlatformColor, getPlatformLabel, type SupportedPlatform } from '@/lib/post-url-parser';
 import { AuthenticityGradeBadge } from '@/components/ui/AuthenticityGradeBadge';
 
 type Props = {
@@ -40,13 +36,37 @@ function platformIconName(platform: string): keyof typeof Ionicons.glyphMap {
   }
 }
 
+function MetricCell({
+  icon,
+  value,
+  label,
+  iconColor,
+  valueColor,
+  labelColor,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  label: string;
+  iconColor: string;
+  valueColor: string;
+  labelColor: string;
+}) {
+  return (
+    <View style={styles.metricCell}>
+      <Ionicons name={icon} size={14} color={iconColor} />
+      <Text style={[styles.metricValue, { color: valueColor }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: labelColor }]}>{label}</Text>
+    </View>
+  );
+}
+
 export function MyStatsPostCard({ item }: Props) {
+  const shell = useAppShell();
   const [menuOpen, setMenuOpen] = useState(false);
   const platform = item.platform as SupportedPlatform;
   const platformColor = getPlatformColor(platform);
   const displayName = item.creatorFullName || item.creatorUsername;
-  const views =
-    typeof item.views === 'number' ? formatCompactNumber(item.views) : '—';
+  const views = typeof item.views === 'number' ? formatCompactNumber(item.views) : '—';
 
   const openPost = () => {
     setMenuOpen(false);
@@ -54,24 +74,32 @@ export function MyStatsPostCard({ item }: Props) {
   };
 
   return (
-    <View style={[styles.card, shadow.card]}>
+    <View
+      style={[
+        styles.card,
+        shadow.card,
+        { backgroundColor: shell.card, borderColor: shell.cardBorder },
+      ]}
+    >
       <View style={styles.headerRow}>
         <View style={styles.profileRow}>
           {item.creatorProfilePic ? (
             <Image source={{ uri: item.creatorProfilePic }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: platformColor }]}>
+            <View
+              style={[styles.avatar, styles.avatarFallback, { backgroundColor: platformColor }]}
+            >
               <Ionicons name={platformIconName(platform)} size={18} color="#FFFFFF" />
             </View>
           )}
           <View style={styles.profileCopy}>
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={[styles.name, { color: shell.textPrimary }]} numberOfLines={1}>
               {displayName}
             </Text>
-            <Text style={styles.handle} numberOfLines={1}>
+            <Text style={[styles.handle, { color: shell.textSecondary }]} numberOfLines={1}>
               @{item.creatorUsername}
             </Text>
-            <Text style={styles.followers}>
+            <Text style={[styles.followers, { color: shell.textSecondary }]}>
               {formatCompactNumber(item.creatorFollowers)} followers
             </Text>
           </View>
@@ -89,29 +117,53 @@ export function MyStatsPostCard({ item }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Post options"
           >
-            <Ionicons name="ellipsis-vertical" size={18} color={appShell.textSecondary} />
+            <Ionicons name="ellipsis-vertical" size={18} color={shell.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.metricsBar}>
-        <MetricCell icon="thumbs-up-outline" value={formatCompactNumber(item.likes)} label="Likes" />
+      <View style={[styles.metricsBar, { backgroundColor: shell.canvasAlt }]}>
+        <MetricCell
+          icon="thumbs-up-outline"
+          value={formatCompactNumber(item.likes)}
+          label="Likes"
+          iconColor={shell.textSecondary}
+          valueColor={shell.textPrimary}
+          labelColor={shell.textSecondary}
+        />
         <MetricCell
           icon="chatbubble-outline"
           value={formatCompactNumber(item.comments)}
           label="Comments"
+          iconColor={shell.textSecondary}
+          valueColor={shell.textPrimary}
+          labelColor={shell.textSecondary}
         />
-        <MetricCell icon="eye-outline" value={views} label="Views" />
+        <MetricCell
+          icon="eye-outline"
+          value={views}
+          label="Views"
+          iconColor={shell.textSecondary}
+          valueColor={shell.textPrimary}
+          labelColor={shell.textSecondary}
+        />
       </View>
 
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpen(false)}
+      >
         <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
-          <View style={styles.menuSheet}>
+          <View style={[styles.menuSheet, { backgroundColor: shell.card }]}>
             <TouchableOpacity style={styles.menuItem} onPress={openPost}>
-              <Ionicons name="open-outline" size={18} color={appShell.textPrimary} />
-              <Text style={styles.menuItemText}>Open post</Text>
+              <Ionicons name="open-outline" size={18} color={shell.textPrimary} />
+              <Text style={[styles.menuItemText, { color: shell.textPrimary }]}>Open post</Text>
             </TouchableOpacity>
-            <Text style={styles.menuMeta}>{getPlatformLabel(platform)}</Text>
+            <Text style={[styles.menuMeta, { color: shell.textSecondary }]}>
+              {getPlatformLabel(platform)}
+            </Text>
           </View>
         </Pressable>
       </Modal>
@@ -119,30 +171,10 @@ export function MyStatsPostCard({ item }: Props) {
   );
 }
 
-function MetricCell({
-  icon,
-  value,
-  label,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  value: string;
-  label: string;
-}) {
-  return (
-    <View style={styles.metricCell}>
-      <Ionicons name={icon} size={14} color={appShell.textSecondary} />
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: appShell.card,
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
@@ -151,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   profileRow: {
     flex: 1,
@@ -176,19 +208,16 @@ const styles = StyleSheet.create({
   name: {
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: appShell.textPrimary,
     letterSpacing: -0.2,
   },
   handle: {
     fontFamily: fonts.regular,
     fontSize: 11,
-    color: appShell.textSecondary,
     marginTop: 1,
   },
   followers: {
     fontFamily: fonts.regular,
     fontSize: 11,
-    color: appShell.textSecondary,
     marginTop: 2,
   },
   headerActions: {
@@ -201,7 +230,6 @@ const styles = StyleSheet.create({
   },
   metricsBar: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
@@ -214,12 +242,10 @@ const styles = StyleSheet.create({
   metricValue: {
     fontFamily: fonts.bold,
     fontSize: 12,
-    color: appShell.textPrimary,
   },
   metricLabel: {
     fontFamily: fonts.regular,
     fontSize: 9,
-    color: appShell.textSecondary,
   },
   menuBackdrop: {
     flex: 1,
@@ -227,7 +253,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   menuSheet: {
-    backgroundColor: appShell.card,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing.lg,
@@ -242,12 +267,10 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontFamily: fonts.semiBold,
     fontSize: 15,
-    color: appShell.textPrimary,
   },
   menuMeta: {
     marginTop: spacing.xs,
     fontFamily: fonts.regular,
     fontSize: 12,
-    color: appShell.textSecondary,
   },
 });

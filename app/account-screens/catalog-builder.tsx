@@ -13,10 +13,11 @@ import { ScrollScreen, PrimaryButton, PremiumCard, SectionHeader } from '@/compo
 import { CatalogProductSheet } from '@/components/catalog/CatalogProductSheet';
 import { useCatalogStore } from '@/store/catalog-store';
 import { catalogProductCount, formatCatalogInr, type CatalogProduct } from '@/lib/catalog-api';
-import { appShell, spacing, radius } from '@/theme';
+import { spacing, radius, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 export default function CatalogBuilderScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const {
     catalog,
@@ -75,13 +76,16 @@ export default function CatalogBuilderScreen() {
   if (isLoading && !catalog) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={shell.cta} style={{ marginTop: spacing.xl }} />
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']} scrollProps={{ contentContainerStyle: { paddingBottom: 100 } }}>
+    <ScrollScreen
+      safeAreaEdges={['bottom']}
+      scrollProps={{ contentContainerStyle: { paddingBottom: 100 } }}
+    >
       <SectionHeader
         title={catalog?.storeName ?? 'Build catalog'}
         subtitle={`${productCount} product${productCount === 1 ? '' : 's'} in catalog`}
@@ -89,13 +93,25 @@ export default function CatalogBuilderScreen() {
 
       <View style={styles.addCategoryRow}>
         <TextInput
-          style={[styles.input, { flex: 1 }]}
+          style={[
+            styles.input,
+            {
+              flex: 1,
+              borderColor: shell.cardBorder,
+              color: shell.textPrimary,
+              backgroundColor: shell.card,
+            },
+          ]}
           value={newCategoryName}
           onChangeText={setNewCategoryName}
           placeholder="New category name"
-          placeholderTextColor={appShell.textMuted}
+          placeholderTextColor={shell.textMuted}
         />
-        <TouchableOpacity style={styles.addCatBtn} onPress={() => void onAddCategory()} disabled={isSaving}>
+        <TouchableOpacity
+          style={[styles.addCatBtn, { backgroundColor: shell.cta }]}
+          onPress={() => void onAddCategory()}
+          disabled={isSaving}
+        >
           <Text style={styles.addCatText}>+ Add</Text>
         </TouchableOpacity>
       </View>
@@ -103,7 +119,7 @@ export default function CatalogBuilderScreen() {
       {catalog?.categories.map((cat) => (
         <PremiumCard key={cat.id} style={styles.categoryCard}>
           <View style={styles.categoryHeader}>
-            <Text style={styles.categoryTitle}>{cat.name}</Text>
+            <Text style={[styles.categoryTitle, { color: shell.textPrimary }]}>{cat.name}</Text>
             <TouchableOpacity
               onPress={() => {
                 Alert.alert('Delete category?', `Remove "${cat.name}" and all its products?`, [
@@ -120,13 +136,15 @@ export default function CatalogBuilderScreen() {
             </TouchableOpacity>
           </View>
           {cat.products.map((p) => (
-            <View key={p.id} style={styles.productRow}>
+            <View key={p.id} style={[styles.productRow, { borderTopColor: shell.cardBorder }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.productName}>{p.name}</Text>
-                <Text style={styles.productPrice}>{formatCatalogInr(p.price)}</Text>
+                <Text style={[styles.productName, { color: shell.textPrimary }]}>{p.name}</Text>
+                <Text style={[styles.productPrice, { color: shell.textSecondary }]}>
+                  {formatCatalogInr(p.price)}
+                </Text>
               </View>
               <TouchableOpacity onPress={() => openEditProduct(cat.id, p)}>
-                <Text style={styles.link}>Edit</Text>
+                <Text style={[styles.link, { color: shell.cta }]}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
@@ -140,12 +158,15 @@ export default function CatalogBuilderScreen() {
                   ]);
                 }}
               >
-                <Text style={[styles.link, styles.deleteText]}>Delete</Text>
+                <Text style={[styles.link, styles.deleteText, { color: '#DC2626' }]}>Delete</Text>
               </TouchableOpacity>
             </View>
           ))}
-          <TouchableOpacity style={styles.addProductBtn} onPress={() => openAddProduct(cat.id)}>
-            <Text style={styles.addProductText}>+ Add product</Text>
+          <TouchableOpacity
+            style={[styles.addProductBtn, { backgroundColor: shell.iceBlue }]}
+            onPress={() => openAddProduct(cat.id)}
+          >
+            <Text style={[styles.addProductText, { color: shell.cta }]}>+ Add product</Text>
           </TouchableOpacity>
         </PremiumCard>
       ))}
@@ -181,15 +202,12 @@ const styles = StyleSheet.create({
   addCategoryRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   input: {
     borderWidth: 1,
-    borderColor: appShell.cardBorder,
+
     borderRadius: radius.md,
     padding: spacing.sm,
     fontFamily: fonts.regular,
-    color: appShell.textPrimary,
-    backgroundColor: appShell.card,
   },
   addCatBtn: {
-    backgroundColor: appShell.cta,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     justifyContent: 'center',
@@ -202,7 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  categoryTitle: { fontFamily: fonts.bold, fontSize: 16, color: appShell.textPrimary },
+  categoryTitle: { fontFamily: fonts.bold, fontSize: 16 },
   deleteText: { color: '#DC2626', fontFamily: fonts.semiBold, fontSize: 13 },
   productRow: {
     flexDirection: 'row',
@@ -210,18 +228,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appShell.cardBorder,
   },
-  productName: { fontFamily: fonts.semiBold, color: appShell.textPrimary },
-  productPrice: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary },
-  link: { color: appShell.cta, fontFamily: fonts.semiBold, fontSize: 13 },
+  productName: { fontFamily: fonts.semiBold },
+  productPrice: { fontFamily: fonts.regular, fontSize: 13 },
+  link: { fontFamily: fonts.semiBold, fontSize: 13 },
   addProductBtn: {
     marginTop: spacing.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
     borderRadius: radius.md,
-    backgroundColor: appShell.iceBlue,
   },
-  addProductText: { fontFamily: fonts.semiBold, color: appShell.cta },
+  addProductText: { fontFamily: fonts.semiBold },
   stickyActions: { marginTop: spacing.lg },
 });

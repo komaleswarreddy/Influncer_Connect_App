@@ -1,15 +1,23 @@
-﻿import { Stack, Redirect, useSegments } from 'expo-router';
+import { Stack, Redirect, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/auth-store';
-import { appShell } from '@/theme';
+import { useThemeStore } from '@/store/theme-store';
+import { useAppShell } from '@/theme/useAppShell';
 
 export default function InfluencerLayout() {
+  const shell = useAppShell();
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
   const { isAuthenticated, isInitialized, refreshSession, nextStep } = useAuthStore();
   const segments = useSegments();
 
   useEffect(() => {
+    void hydrateTheme();
+  }, [hydrateTheme]);
+
+  useEffect(() => {
     if (isAuthenticated && isInitialized) {
-      void refreshSession();
+      // Soft refresh — don't kick to login if /me fails briefly while editing UI.
+      void refreshSession({ logoutOnUnauthorized: false });
     }
   }, [isAuthenticated, isInitialized, refreshSession]);
 
@@ -21,35 +29,35 @@ export default function InfluencerLayout() {
     return <Redirect href="/login" />;
   }
 
-  const onPendingScreen = segments.includes('pending-approval');
-  if (nextStep === 'PENDING_PLATFORM_APPROVAL' && !onPendingScreen) {
-    return <Redirect href="/influencer/pending-approval" />;
+  const onUsernameScreen = segments.includes('set-username');
+  if (nextStep === 'SET_USERNAME' && !onUsernameScreen) {
+    return <Redirect href="/influencer/set-username" />;
   }
 
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: appShell.canvas },
-        headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: appShell.textPrimary },
-        headerTintColor: appShell.cta,
-        contentStyle: { backgroundColor: appShell.canvas },
+        headerStyle: { backgroundColor: shell.canvas },
+        headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: shell.textPrimary },
+        headerTintColor: shell.cta,
+        contentStyle: { backgroundColor: shell.canvas },
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="pending-approval" options={{ title: 'Approval', headerShown: true }} />
-      <Stack.Screen 
-        name="contract" 
-        options={{ 
+      <Stack.Screen name="set-username" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="contract"
+        options={{
           headerShown: false,
-          presentation: 'card'
-        }} 
+          presentation: 'card',
+        }}
       />
-      <Stack.Screen 
-        name="campaign-progress" 
-        options={{ 
+      <Stack.Screen
+        name="campaign-progress"
+        options={{
           headerShown: false,
-          presentation: 'card'
-        }} 
+          presentation: 'card',
+        }}
       />
       <Stack.Screen name="ugc-brief-detail" options={{ title: 'UGC Brief' }} />
       <Stack.Screen name="ugc-deliver" options={{ title: 'Deliver' }} />
@@ -57,4 +65,4 @@ export default function InfluencerLayout() {
       <Stack.Screen name="rating-cards" options={{ title: 'Campaign Ratings' }} />
     </Stack>
   );
-} 
+}

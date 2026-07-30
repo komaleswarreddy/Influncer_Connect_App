@@ -1,12 +1,11 @@
 /** Status rail + pill tones for PremiumOpportunityCard (bookings + UGC). */
+import {
+  canOpenCampaignContract,
+  isParticipationEnrolled,
+  normParticipationStatus,
+} from '@/lib/campaign-participation-ui';
 export type OpportunityStatusTone =
-  | 'pending'
-  | 'active'
-  | 'review'
-  | 'success'
-  | 'declined'
-  | 'warning'
-  | 'neutral';
+  'pending' | 'active' | 'review' | 'success' | 'declined' | 'warning' | 'neutral';
 
 export const OPPORTUNITY_RAIL: Record<OpportunityStatusTone, string> = {
   pending: '#F59E0B',
@@ -38,7 +37,9 @@ export const OPPORTUNITY_PILL_TEXT: Record<OpportunityStatusTone, string> = {
   neutral: '#475569',
 };
 
-export function platformForContentType(contentType: string): 'instagram' | 'youtube' | 'twitter' | 'ugc' {
+export function platformForContentType(
+  contentType: string
+): 'instagram' | 'youtube' | 'twitter' | 'ugc' {
   const k = contentType.toLowerCase();
   if (k.includes('instagram')) return 'instagram';
   if (k.includes('youtube')) return 'youtube';
@@ -97,14 +98,22 @@ export function ugcApplicationTone(item: {
   application?: { status?: string };
   status?: string;
   deliverable?: { status?: string } | null;
+  payment?: { status?: string } | null;
   brief?: Record<string, unknown> | null;
 }): OpportunityStatusTone {
-  const appStatus = item.application?.status ?? item.status ?? '';
-  const d = item.deliverable?.status;
-  if (d === 'approved') return 'success';
+  const appStatus = String(item.application?.status ?? item.status ?? '')
+    .trim()
+    .toLowerCase();
+  const d = String(item.deliverable?.status ?? '')
+    .trim()
+    .toLowerCase();
+  const pay = String(item.payment?.status ?? '')
+    .trim()
+    .toLowerCase();
+  if (d === 'approved' || pay === 'released' || appStatus === 'completed') return 'success';
   if (d === 'pending_review') return 'review';
   if (d === 'revision_requested') return 'warning';
-  if (appStatus === 'rejected') return 'declined';
+  if (appStatus === 'rejected' || d === 'rejected') return 'declined';
   if (appStatus === 'pending') return 'pending';
   if (appStatus === 'accepted' || appStatus === 'in_progress') return 'active';
   return 'neutral';
@@ -114,15 +123,26 @@ export function ugcApplicationShort(item: {
   application?: { status?: string };
   status?: string;
   deliverable?: { status?: string } | null;
+  payment?: { status?: string } | null;
 }): string {
-  const appStatus = item.application?.status ?? item.status ?? '';
-  const d = item.deliverable?.status;
-  if (d === 'approved') return 'Paid';
+  const appStatus = String(item.application?.status ?? item.status ?? '')
+    .trim()
+    .toLowerCase();
+  const d = String(item.deliverable?.status ?? '')
+    .trim()
+    .toLowerCase();
+  const pay = String(item.payment?.status ?? '')
+    .trim()
+    .toLowerCase();
+  if (d === 'approved' || pay === 'released' || appStatus === 'completed') {
+    return pay === 'released' || d === 'approved' ? 'Approved' : 'Completed';
+  }
   if (d === 'pending_review') return 'In review';
   if (d === 'revision_requested') return 'Revision';
   if (appStatus === 'accepted') return 'Accepted';
+  if (appStatus === 'in_progress') return 'In progress';
   if (appStatus === 'pending') return 'Pending';
-  if (appStatus === 'rejected') return 'Declined';
+  if (appStatus === 'rejected' || d === 'rejected') return 'Declined';
   return 'Applied';
 }
 
@@ -131,7 +151,9 @@ export function ugcJobTone(hasApplied: boolean): OpportunityStatusTone {
 }
 
 export function campaignAvailableTone(status: string): OpportunityStatusTone {
-  const s = String(status ?? '').trim().toLowerCase();
+  const s = String(status ?? '')
+    .trim()
+    .toLowerCase();
   if (s === 'active') return 'success';
   if (s === 'draft' || s === 'pending' || s === 'scheduled') return 'pending';
   if (s === 'completed' || s === 'closed') return 'neutral';
@@ -157,9 +179,77 @@ export function campaignParticipationLabel(
 ): string {
   if (kind === 'joined') return 'Active';
   if (kind === 'available') return 'Open';
-  const st = String(appStatus ?? '').trim().toLowerCase();
+  const st = String(appStatus ?? '')
+    .trim()
+    .toLowerCase();
   if (st === 'rejected') return 'Not approved';
   if (['applied', 'pending_review'].includes(st)) return 'Pending';
   if (['approved', 'contract_pending', 'contract_signed'].includes(st)) return 'Ready';
   return 'Applied';
+}
+
+type MineParticipationContext = {
+  id?: string;
+  campaignId?: string;
+  status?: string;
+  inviteId?: string | null;
+  campaign?: { id?: string } | null;
+};
+
+type MineApplicationContext = {
+  campaignId?: string;
+  campaign?: { id?: string };
+  status?: string;
+};
+
+/** Status pill for My Campaigns cards — mirrors Campaign Details flow. */
+export function buildMineCampaignStatus(
+  campaignId: string,
+  participations: MineParticipationContext[] | undefined,
+  applications: MineApplicationContext[] | undefined
+): { label: string; tone: OpportunityStatusTone } {
+  const cid = String(campaignId ?? '')
+    .trim()
+    .toLowerCase();
+  const participation = (participations ?? []).find((p) => {
+    if (!p) return false;
+    const pid = String(p.campaignId ?? '')
+      .trim()
+      .toLowerCase();
+    const nested = String(p.campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
+    return pid === cid || nested === cid;
+  });
+  const application = (applications ?? []).find((a) => {
+    if (!a) return false;
+    const aid = String(a.campaignId ?? '')
+      .trim()
+      .toLowerCase();
+    const nested = String(a.campaign?.id ?? '')
+      .trim()
+      .toLowerCase();
+    return aid === cid || nested === cid;
+  });
+
+  const pSt = normParticipationStatus(participation?.status);
+  const appSt = normParticipationStatus(application?.status);
+  const enrolled = isParticipationEnrolled(participation, appSt);
+  const canShowContract = canOpenCampaignContract(participation, application);
+
+  if (enrolled && pSt === 'completed') return { label: 'Completed', tone: 'success' };
+  if (enrolled) return { label: 'Active', tone: 'active' };
+  if (canShowContract) return { label: 'Open contract', tone: 'review' };
+  if (appSt === 'approved' && !participation?.id) {
+    return { label: 'Approved', tone: 'active' };
+  }
+  if (['applied', 'pending_review'].includes(appSt) && !participation) {
+    return { label: 'Application submitted', tone: 'pending' };
+  }
+  if (appSt === 'rejected') return { label: 'Not approved', tone: 'declined' };
+  if (participation) {
+    const label = pSt ? pSt.replace(/_/g, ' ') : 'In progress';
+    return { label: label.charAt(0).toUpperCase() + label.slice(1), tone: 'neutral' };
+  }
+  return { label: 'Applied', tone: 'pending' };
 }

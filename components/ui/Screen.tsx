@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, type ScrollViewProps, type ViewProps } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { appShell, spacing } from '@/theme';
+import { useAppShell } from '@/theme/useAppShell';
 import { DotBackground } from './DotBackground';
 import { useTabBarInset } from '@/lib/tab-bar-inset';
 
@@ -25,10 +26,16 @@ export function Screen({
   style,
   ...rest
 }: ScreenProps) {
+  const shell = useAppShell();
+  const showDots = dotBackground && shell.showDotBackground;
   return (
-    <SafeAreaView style={[styles.safe, style]} edges={safeAreaEdges} {...rest}>
-      <View style={[styles.fill, { backgroundColor: appShell.canvas }]}>
-        {dotBackground ? <DotBackground /> : null}
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: shell.canvas }, style]}
+      edges={safeAreaEdges}
+      {...rest}
+    >
+      <View style={[styles.fill, { backgroundColor: shell.canvas }]}>
+        {showDots ? <DotBackground /> : null}
         <View style={[styles.inner, { paddingHorizontal: padH }]}>{children}</View>
       </View>
     </SafeAreaView>
@@ -54,6 +61,7 @@ export function ScrollScreen({
   canvasColor,
   contentInsetBottom = false,
 }: ScrollScreenProps) {
+  const shell = useAppShell();
   const tabBarInset = useTabBarInset();
   const inset =
     contentInsetBottom === true
@@ -61,23 +69,27 @@ export function ScrollScreen({
       : typeof contentInsetBottom === 'number'
         ? contentInsetBottom
         : 0;
-  const bg = canvasColor ?? appShell.canvas;
+  const bg = canvasColor ?? shell.canvas;
+  const showDots = dotBackground && shell.showDotBackground;
+  const { contentContainerStyle: scrollContentStyle, ...restScrollProps } = scrollProps ?? {};
   const mergedContentStyle = [
     styles.scrollContent,
-    { paddingHorizontal: padH, paddingBottom: spacing.lg + inset },
-    scrollProps?.contentContainerStyle,
+    { paddingHorizontal: padH, paddingBottom: spacing.sm + inset },
+    scrollContentStyle,
   ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }, style]} edges={safeAreaEdges}>
       <View style={[styles.fill, { backgroundColor: bg }]}>
-        {dotBackground ? <DotBackground /> : null}
+        {showDots ? <DotBackground /> : null}
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={mergedContentStyle}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          {...scrollProps}
+          bounces
+          alwaysBounceVertical
+          {...restScrollProps}
+          contentContainerStyle={mergedContentStyle}
         >
           {children}
         </ScrollView>

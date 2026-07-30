@@ -10,13 +10,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { appShell, premiumNavy, radius, shadow, spacing } from '@/theme';
+import { appShell, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
 import { fonts } from './typography';
 import { GlassSocialIcon, type GlassSocialPlatform } from './GlassSocialIcon';
-import {
-  OPPORTUNITY_RAIL,
-  type OpportunityStatusTone,
-} from '@/lib/opportunity-card-ui';
+import { OPPORTUNITY_RAIL, type OpportunityStatusTone } from '@/lib/opportunity-card-ui';
 
 export type OpportunityPlatform = GlassSocialPlatform | 'ugc';
 
@@ -75,11 +72,17 @@ export function PremiumOpportunityCard({
   detailRows,
   style,
 }: PremiumOpportunityCardProps) {
+  const shell = useAppShell();
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => {
     if (!onPress) return;
-    Animated.spring(scale, { toValue: 0.985, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+    Animated.spring(scale, {
+      toValue: 0.985,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 0,
+    }).start();
   };
   const onPressOut = () => {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
@@ -94,7 +97,11 @@ export function PremiumOpportunityCard({
       style={[
         styles.shell,
         shadow.cardLight,
-        { borderLeftColor: railColor },
+        {
+          borderLeftColor: railColor,
+          backgroundColor: shell.card,
+          borderColor: shell.cardBorder,
+        },
         highlighted && styles.shellHighlighted,
         fillHeight && styles.shellFillHeight,
         style,
@@ -139,18 +146,24 @@ export function PremiumOpportunityCard({
         </View>
       </View>
 
-      <View style={[styles.body, fillHeight && styles.bodyFillHeight]}>
+      <View
+        style={[styles.body, fillHeight && styles.bodyFillHeight, { backgroundColor: shell.card }]}
+      >
         <View style={fillHeight ? styles.bodyMain : undefined}>
           <View style={styles.amountRow}>
             <View style={styles.amountBlock}>
-              <Text style={styles.amountPrimary}>{amountPrimary}</Text>
+              <Text style={[styles.amountPrimary, { color: shell.textPrimary }]}>
+                {amountPrimary}
+              </Text>
               {amountSecondary ? (
-                <Text style={styles.amountSecondary}>{amountSecondary}</Text>
+                <Text style={[styles.amountSecondary, { color: shell.textSecondary }]}>
+                  {amountSecondary}
+                </Text>
               ) : null}
             </View>
             {showChevron && onPress ? (
               <View style={styles.chevronWrap}>
-                <Ionicons name="chevron-forward" size={18} color={appShell.textMuted} />
+                <Ionicons name="chevron-forward" size={18} color={shell.textMuted} />
               </View>
             ) : null}
           </View>
@@ -159,8 +172,13 @@ export function PremiumOpportunityCard({
             <View style={styles.detailRows}>
               {detailRows.map((row) => (
                 <View key={row.label} style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>{row.label}</Text>
-                  <Text style={styles.detailValue} numberOfLines={2}>
+                  <Text style={[styles.detailLabel, { color: shell.textSecondary }]}>
+                    {row.label}
+                  </Text>
+                  <Text
+                    style={[styles.detailValue, { color: shell.textPrimary }]}
+                    numberOfLines={2}
+                  >
                     {row.value}
                   </Text>
                 </View>
@@ -169,9 +187,13 @@ export function PremiumOpportunityCard({
           ) : null}
 
           {quote ? (
-            <View style={styles.quoteBlock}>
-              {quoteLabel ? <Text style={styles.quoteLabel}>{quoteLabel}</Text> : null}
-              <Text style={styles.quoteText} numberOfLines={3}>
+            <View style={[styles.quoteBlock, { backgroundColor: shell.canvasAlt }]}>
+              {quoteLabel ? (
+                <Text style={[styles.quoteLabel, { color: shell.textSecondary }]}>
+                  {quoteLabel}
+                </Text>
+              ) : null}
+              <Text style={[styles.quoteText, { color: shell.textPrimary }]} numberOfLines={3}>
                 {quote}
               </Text>
             </View>
@@ -185,14 +207,20 @@ export function PremiumOpportunityCard({
 
   if (!onPress) {
     return (
-      <View style={[fillHeight && styles.fillWrap, style]}>
+      <View style={[fillHeight && styles.fillWrap, { marginBottom: spacing.md }, style]}>
         {inner}
       </View>
     );
   }
 
   return (
-    <Animated.View style={[fillHeight && styles.fillWrap, { marginBottom: spacing.sm, transform: [{ scale }] }, style]}>
+    <Animated.View
+      style={[
+        fillHeight && styles.fillWrap,
+        { marginBottom: spacing.md, transform: [{ scale }] },
+        style,
+      ]}
+    >
       <Pressable
         onPress={onPress}
         onPressIn={onPressIn}

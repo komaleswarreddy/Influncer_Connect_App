@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, type ViewProps } from 'react-native';
-import { appShell, radius, spacing, shadow } from '@/theme';
+import { radius, spacing, shadow, useAppShell } from '@/theme';
 import { fonts } from './typography';
 
 type Props = ViewProps & {
@@ -26,13 +26,34 @@ export function PremiumCard({
   style,
   ...rest
 }: Props) {
+  const shell = useAppShell();
   const isCompact = compact && !comfortable;
   return (
-    <View style={[styles.card, isCompact && styles.cardCompact, shadow.card, style]} {...rest}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: shell.card,
+          borderColor: shell.cardBorder,
+        },
+        isCompact && styles.cardCompact,
+        shadow.card,
+        style,
+      ]}
+      {...rest}
+    >
       {title ? (
         <View style={[styles.headerRow, isCompact && styles.headerRowCompact]}>
-          <Text style={[styles.title, isCompact && styles.titleInlineCompact]}>{title}</Text>
-          {headerRight}
+          <Text
+            style={[
+              styles.title,
+              { color: shell.textPrimary },
+              isCompact && styles.titleInlineCompact,
+            ]}
+          >
+            {title}
+          </Text>
+          {headerRight != null && React.isValidElement(headerRight) ? headerRight : null}
         </View>
       ) : null}
       <View
@@ -42,7 +63,8 @@ export function PremiumCard({
                 styles.bodyPad,
                 isCompact && styles.bodyPadCompact,
                 title ? styles.bodyPadAfterHeader : styles.bodyPadNoHeader,
-                isCompact && (title ? styles.bodyPadAfterHeaderCompact : styles.bodyPadNoHeaderCompact),
+                isCompact &&
+                  (title ? styles.bodyPadAfterHeaderCompact : styles.bodyPadNoHeaderCompact),
               ]
             : undefined
         }
@@ -55,10 +77,8 @@ export function PremiumCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: appShell.card,
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     overflow: 'hidden',
   },
   cardCompact: {
@@ -80,7 +100,6 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fonts.bold,
     fontSize: 18,
-    color: appShell.textPrimary,
     letterSpacing: -0.3,
   },
   titleInlineCompact: {

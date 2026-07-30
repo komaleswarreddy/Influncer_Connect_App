@@ -5,10 +5,13 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { ScrollScreen, PrimaryButton, SectionHeader } from '@/components/ui';
 import { useCatalogStore } from '@/store/catalog-store';
 import { formatCatalogInr } from '@/lib/catalog-api';
-import { appShell, premiumNavy, spacing, radius } from '@/theme';
+import { premiumNavy, spacing, radius, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
+const IMAGE_SIZE = 80;
+
 export default function CatalogPreviewScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const { catalog, isLoading, fetchMyCatalog, submitForReview, isSaving } = useCatalogStore();
 
@@ -31,7 +34,10 @@ export default function CatalogPreviewScreen() {
               if (ok) {
                 router.replace('/account-screens/catalog' as never);
               } else {
-                Alert.alert('Could not submit', useCatalogStore.getState().error ?? 'Check all products have photos.');
+                Alert.alert(
+                  'Could not submit',
+                  useCatalogStore.getState().error ?? 'Check all products have photos.'
+                );
               }
             });
           },
@@ -43,7 +49,7 @@ export default function CatalogPreviewScreen() {
   if (isLoading && !catalog) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={shell.cta} style={{ marginTop: spacing.xl }} />
       </ScrollScreen>
     );
   }
@@ -67,32 +73,57 @@ export default function CatalogPreviewScreen() {
 
       {catalog?.categories.map((cat) => (
         <View key={cat.id} style={styles.section}>
-          <Text style={styles.sectionTitle}>{cat.name}</Text>
-          {cat.products.map((p) => (
-            <View key={p.id} style={styles.productCard}>
-              <View style={styles.imageFrame}>
-                {p.imageUrl ? (
-                  <Image
-                    source={{ uri: p.imageUrl }}
-                    style={styles.productImage}
-                    resizeMode="contain"
-                    accessibilityLabel={`${p.name} photo`}
-                  />
-                ) : (
-                  <View style={styles.imagePlaceholder} />
-                )}
-              </View>
-              <View style={styles.productBody}>
-                <Text style={styles.productName}>{p.name}</Text>
-                {p.description ? (
-                  <Text style={styles.productDesc} numberOfLines={2}>
-                    {p.description}
+          <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>{cat.name}</Text>
+          <View
+            style={[
+              styles.menuCard,
+              { backgroundColor: shell.card, borderColor: shell.cardBorder },
+            ]}
+          >
+            {cat.products.map((p, index) => (
+              <View
+                key={p.id}
+                style={[
+                  styles.productRow,
+                  index > 0
+                    ? [styles.productRowBorder, { borderTopColor: shell.borderSubtle }]
+                    : null,
+                ]}
+              >
+                <View style={styles.productBody}>
+                  <Text
+                    style={[styles.productName, { color: shell.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {p.name}
                   </Text>
-                ) : null}
-                <Text style={styles.productPrice}>{formatCatalogInr(p.price)}</Text>
+                  {p.description ? (
+                    <Text
+                      style={[styles.productDesc, { color: shell.textSecondary }]}
+                      numberOfLines={2}
+                    >
+                      {p.description}
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.productPrice, { color: shell.textPrimary }]}>
+                    {formatCatalogInr(p.price)}
+                  </Text>
+                </View>
+                <View style={[styles.imageFrame, { backgroundColor: shell.canvasAlt }]}>
+                  {p.imageUrl ? (
+                    <Image
+                      source={{ uri: p.imageUrl }}
+                      style={styles.productImage}
+                      resizeMode="cover"
+                      accessibilityLabel={`${p.name} photo`}
+                    />
+                  ) : (
+                    <View style={styles.imagePlaceholder} />
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       ))}
 
@@ -111,8 +142,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     padding: spacing.lg,
-    marginBottom: spacing.lg,
-    minHeight: 120,
+    marginBottom: spacing.md,
+    minHeight: 112,
   },
   heroTitle: {
     fontFamily: fonts.bold,
@@ -133,57 +164,68 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: 'rgba(255,255,255,0.85)',
   },
-  section: { marginBottom: spacing.lg },
+  section: { marginBottom: spacing.md },
   sectionTitle: {
     fontFamily: fonts.bold,
-    fontSize: 18,
-    color: appShell.textPrimary,
-    marginBottom: spacing.sm,
+    fontSize: 16,
+    letterSpacing: -0.2,
+
+    marginBottom: spacing.xs,
+    paddingHorizontal: 2,
   },
-  productCard: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    backgroundColor: appShell.card,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    marginBottom: spacing.sm,
+  menuCard: {
+    backgroundColor: 'transparent',
+    borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
-    minHeight: 120,
+
+    overflow: 'hidden',
+  },
+  productRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minHeight: IMAGE_SIZE + 8,
+  },
+  productRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  productBody: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+    gap: 4,
+    paddingRight: 4,
+  },
+  productName: {
+    fontFamily: fonts.semiBold,
+    fontSize: 15,
+    letterSpacing: -0.2,
+  },
+  productDesc: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  productPrice: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+
+    marginTop: 2,
   },
   imageFrame: {
-    width: 120,
-    height: 120,
-    backgroundColor: '#F8FAFC',
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: appShell.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xs,
+    width: IMAGE_SIZE,
+    height: IMAGE_SIZE,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
   },
   productImage: { width: '100%', height: '100%' },
   imagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: appShell.iceBlue,
-    borderRadius: radius.sm,
-  },
-  productBody: {
-    flex: 1,
-    padding: spacing.md,
-    justifyContent: 'center',
-  },
-  productName: { fontFamily: fonts.bold, fontSize: 16, color: appShell.textPrimary },
-  productDesc: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    color: appShell.textSecondary,
-    marginTop: 4,
-  },
-  productPrice: {
-    fontFamily: fonts.bold,
-    fontSize: 18,
-    color: appShell.textPrimary,
-    marginTop: spacing.sm,
+    backgroundColor: 'transparent',
   },
 });

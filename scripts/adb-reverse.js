@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Usage: node scripts/adb-reverse.js [8081] [3000 ...]
+ * Usage: node scripts/adb-reverse.js [8081] [3003 ...]
  * Forwards each hostPort to the same port on the device (adb reverse).
- * Default: 8081 (Metro) and 3000 (local API).
+ * Default: 8081 (Metro) and 3003 (local API).
  *
  * Hardening:
  * - waits for a healthy "device" state (not "offline")
@@ -15,7 +15,7 @@ const { getAdbPath } = require('./adb-path');
 const ports =
   process.argv.slice(2).length > 0
     ? process.argv.slice(2).map((p) => parseInt(p, 10))
-    : [8081, 3000];
+    : [8081, 3003];
 
 const adb = getAdbPath();
 

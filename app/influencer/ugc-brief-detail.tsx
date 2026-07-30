@@ -1,14 +1,25 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollScreen, PremiumCard, SectionHeader } from '@/components/ui';
 import { ugcApi } from '@/lib/ugc-api';
+import { applicationStatusLabel, type UgcApplicationRow } from '@/store/ugc-store';
 import { appShell, spacing } from '@/theme';
 
 type BriefResponse = {
   brief?: Record<string, unknown>;
   hasApplied?: boolean;
   applicationStatus?: string | null;
+  deliverableStatus?: string | null;
+  paymentStatus?: string | null;
 };
 
 export default function UgcBriefDetailScreen() {
@@ -19,6 +30,8 @@ export default function UgcBriefDetailScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
+  const [deliverableStatus, setDeliverableStatus] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [pitch, setPitch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,6 +49,8 @@ export default function UgcBriefDetailScreen() {
       setBrief(res.brief);
       setHasApplied(Boolean(res.hasApplied));
       setApplicationStatus(res.applicationStatus ?? null);
+      setDeliverableStatus(res.deliverableStatus ?? null);
+      setPaymentStatus(res.paymentStatus ?? null);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Failed to load brief');
       setBrief(null);
@@ -47,6 +62,24 @@ export default function UgcBriefDetailScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const statusRow = useMemo((): UgcApplicationRow | null => {
+    if (!hasApplied) return null;
+    return {
+      application: {
+        id: 'brief-detail',
+        status: applicationStatus ?? 'pending',
+      },
+      deliverable: deliverableStatus ? { status: deliverableStatus } : null,
+      payment: paymentStatus ? { status: paymentStatus } : null,
+    };
+  }, [hasApplied, applicationStatus, deliverableStatus, paymentStatus]);
+
+  const statusLabel = statusRow ? applicationStatusLabel(statusRow) : null;
+  const isTerminalApproved =
+    deliverableStatus === 'approved' ||
+    paymentStatus === 'released' ||
+    applicationStatus === 'completed';
 
   const apply = async () => {
     if (!id || !pitch.trim()) {
@@ -60,7 +93,10 @@ export default function UgcBriefDetailScreen() {
     setSubmitting(true);
     try {
       await ugcApi.apply(id, { coverNote: pitch });
-      Alert.alert('Applied', 'Your application was submitted. The brand will review it on the web dashboard.');
+      Alert.alert(
+        'Applied',
+        'Your application was submitted. The brand will review it on the web dashboard.'
+      );
       router.back();
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Apply failed');
@@ -111,17 +147,19 @@ export default function UgcBriefDetailScreen() {
         ) : null}
       </PremiumCard>
 
-      {hasApplied ? (
-        <PremiumCard style={{ marginTop: spacing.sm }}>
-          <Text style={styles.applied}>
-            Application status: {applicationStatus ?? 'submitted'}
-          </Text>
-          {applicationStatus === 'accepted' ? (
+      {hasApplied && statusLabel ? (
+        <PremiumCard style={{ marginTop: spacing.md }}>
+          <Text style={styles.applied}>{statusLabel}</Text>
+          {isTerminalApproved ? (
             <Text style={styles.metaSmall}>
-              Go to My applications and tap this job to open Deliver content.
+              Your submission was accepted. Payment release is shown under Mine.
             </Text>
-          ) : applicationStatus === 'in_progress' ? (
-            <Text style={styles.metaSmall}>Check My applications for delivery status.</Text>
+          ) : applicationStatus === 'accepted' ? (
+            <Text style={styles.metaSmall}>
+              Open the Mine tab and tap this job to deliver content.
+            </Text>
+          ) : deliverableStatus === 'pending_review' || applicationStatus === 'in_progress' ? (
+            <Text style={styles.metaSmall}>Check Mine for the latest delivery status.</Text>
           ) : null}
         </PremiumCard>
       ) : null}
@@ -152,7 +190,12 @@ export default function UgcBriefDetailScreen() {
 const styles = StyleSheet.create({
   body: { fontFamily: 'Inter_400Regular', color: appShell.textPrimary, marginBottom: spacing.sm },
   meta: { fontFamily: 'Inter_600SemiBold', color: appShell.cta, marginBottom: 4 },
-  metaSmall: { fontFamily: 'Inter_400Regular', color: appShell.textSecondary, fontSize: 13, marginTop: 2 },
+  metaSmall: {
+    fontFamily: 'Inter_400Regular',
+    color: appShell.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
+  },
   applied: { fontFamily: 'Inter_600SemiBold', color: appShell.textPrimary },
   error: { color: appShell.textSecondary, marginBottom: spacing.md },
   input: {

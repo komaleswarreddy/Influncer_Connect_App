@@ -23,20 +23,18 @@ import {
   MyStatsPostCard,
   type PlatformFilter,
 } from '@/components/my-stats';
-import {
-  buildMyStatsSummary,
-  buildRatingSummary,
-} from '@/lib/my-stats-dashboard-stats';
+import { buildMyStatsSummary, buildRatingSummary } from '@/lib/my-stats-dashboard-stats';
 import { PremiumCard, PrimaryButton } from '@/components/ui';
 import { PostMetricsCard } from '@/components/PostMetricsCard';
-import { appShell, radius, spacing } from '@/theme';
+import { appShell, radius, spacing, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 import { useTabBarInset } from '@/lib/tab-bar-inset';
-import type { PostAnalysis } from '../../../lib/post-analyzer-api';
-const MY_STATS_CANVAS = '#F3F4F6';
+import { isPostAnalyzerDailyLimitError, type PostAnalysis } from '../../../lib/post-analyzer-api';
+
 const ANALYZER_SCROLL_OFFSET = 520;
 
 export default function MyStatsScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const listRef = useRef<FlatList<PostAnalysis>>(null);
   const tabBarInset = useTabBarInset();
@@ -57,8 +55,15 @@ export default function MyStatsScreen() {
     analyzeUrl,
     isAnalyzing,
     analyzeError,
+    dailyLimitError,
     currentMetrics,
   } = usePostAnalyzerStore();
+
+  const limitNotice =
+    dailyLimitError ||
+    (analyzeError && isPostAnalyzerDailyLimitError(analyzeError) ? analyzeError : null);
+  const hardAnalyzeError =
+    analyzeError && !isPostAnalyzerDailyLimitError(analyzeError) ? analyzeError : null;
 
   const loadScreenData = useCallback(async () => {
     await Promise.all([fetchHistory(undefined, 1), fetchParticipations()]);
@@ -146,24 +151,58 @@ export default function MyStatsScreen() {
       <MyStatsAnalyzerGrid summary={summary} />
 
       <PremiumCard style={[styles.section, styles.analyzerCard]}>
-        <Text style={styles.analyzerLabel}>Analyze post URL</Text>
+        <Text style={[styles.analyzerLabel, { color: shell.textPrimary }]}>Analyze post URL</Text>
         <TextInput
-          style={styles.analyzerInput}
+          style={[
+            styles.analyzerInput,
+            {
+              borderColor: shell.borderSubtle,
+              backgroundColor: shell.canvasAlt,
+              color: shell.textPrimary,
+            },
+          ]}
           value={analyzeInput}
           onChangeText={setAnalyzeInput}
           placeholder="https://instagram.com/p/..."
-          placeholderTextColor={appShell.textMuted}
+          placeholderTextColor={shell.textMuted}
           autoCapitalize="none"
+          autoCorrect={false}
+          selectionColor={shell.cta}
         />
         <PrimaryButton
           label={isAnalyzing ? 'Analyzing…' : 'Analyze'}
           onPress={async () => {
-            if (!analyzeInput.trim()) return;
-            await analyzeUrl(analyzeInput.trim());
+            const url = analyzeInput.trim();
+            if (!url) return;
+            const metrics = await analyzeUrl(url);
+            const limitHit = Boolean(usePostAnalyzerStore.getState().dailyLimitError);
+            // Clear after a successful run or a quota notice — keep URL on hard failures for retry.
+            if (metrics || limitHit) {
+              setAnalyzeInput('');
+            }
             await fetchHistory(undefined, 1);
           }}
         />
-        {analyzeError ? <Text style={styles.errorText}>{analyzeError}</Text> : null}
+        {limitNotice ? (
+          <View
+            style={[
+              styles.limitNotice,
+              {
+                backgroundColor: shell.iceBlue,
+                borderColor: shell.cardBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.limitNoticeTitle, { color: shell.textPrimary }]}>
+              Daily analysis limit reached
+            </Text>
+            <Text style={[styles.limitNoticeBody, { color: shell.textSecondary }]}>
+              Your free analysis resets at midnight (UTC). You can still open posts you already
+              analyzed today — that does not use another slot.
+            </Text>
+          </View>
+        ) : null}
+        {hardAnalyzeError ? <Text style={styles.errorText}>{hardAnalyzeError}</Text> : null}
         {currentMetrics ? (
           <View style={{ marginTop: spacing.sm }}>
             <PostMetricsCard metrics={currentMetrics} compact showThumbnail={false} />
@@ -196,7 +235,10 @@ export default function MyStatsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: shell.canvas }]}
+      edges={['top', 'left', 'right']}
+    >
       <FlatList
         ref={listRef}
         data={filteredHistory}
@@ -214,9 +256,7 @@ export default function MyStatsScreen() {
               onPress={() => void fetchHistory(undefined, historyPage + 1)}
               disabled={historyLoading}
             >
-              <Text style={styles.loadMoreText}>
-                {historyLoading ? 'Loading...' : 'Load more'}
-              </Text>
+              <Text style={styles.loadMoreText}>{historyLoading ? 'Loading...' : 'Load more'}</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.footerSpacer} />
@@ -230,19 +270,33 @@ export default function MyStatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  analyzerLabel: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.textPrimary, marginBottom: spacing.xs },
+  analyzerLabel: { fontFamily: fonts.semiBold, fontSize: 14, marginBottom: spacing.xs },
   analyzerInput: {
     borderWidth: 1,
-    borderColor: appShell.border,
     borderRadius: radius.md,
     padding: spacing.sm,
     fontFamily: fonts.regular,
-    color: appShell.textPrimary,
     marginBottom: spacing.sm,
+  },
+  limitNotice: {
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    gap: 4,
+  },
+  limitNoticeTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+  },
+  limitNoticeBody: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
   },
   container: {
     flex: 1,
-    backgroundColor: MY_STATS_CANVAS,
   },
   listContent: {
     paddingHorizontal: spacing.md,

@@ -1,6 +1,7 @@
 package com.affiliateplatform.app
 import expo.modules.splashscreen.SplashScreenManager
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 
@@ -21,6 +22,17 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+  }
+
+  /**
+   * Required for OAuth / Cognito deep links on newer Android: when Custom Tabs
+   * return to this singleTask activity, the new Intent must replace the old one
+   * or Linking / AuthSession may miss affiliateplatform://auth/callback.
+   * See expo/expo#44284
+   */
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
   }
 
   /**

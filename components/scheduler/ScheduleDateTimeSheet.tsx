@@ -1,6 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PremiumCard, PrimaryButton, SecondaryButton } from '@/components/ui';
 import { appShell, spacing, radius } from '@/theme';
@@ -10,6 +18,10 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 const PERIODS = ['AM', 'PM'] as const;
+
+const WHEEL_ITEM_HEIGHT = 40;
+const WHEEL_VISIBLE_ROWS = 3;
+const WHEEL_HEIGHT = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS;
 
 export type ScheduleDateTimeValue = {
   date: Date;
@@ -76,6 +88,81 @@ export function formatScheduleWhen(value: ScheduleDateTimeValue, tz?: string): s
   } catch {
     return when.toLocaleString();
   }
+}
+
+type WheelColumnProps<T extends string | number> = {
+  items: readonly T[];
+  selected: T;
+  onChange: (value: T) => void;
+  formatLabel: (value: T) => string;
+};
+
+function WheelColumn<T extends string | number>({
+  items,
+  selected,
+  onChange,
+  formatLabel,
+}: WheelColumnProps<T>) {
+  const scrollRef = useRef<ScrollView>(null);
+  const selectedIndex = Math.max(0, items.indexOf(selected));
+  const pad = Math.floor(WHEEL_VISIBLE_ROWS / 2);
+
+  useEffect(() => {
+    const y = selectedIndex * WHEEL_ITEM_HEIGHT;
+    const id = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y, animated: false });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [selectedIndex]);
+
+  const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const index = Math.min(items.length - 1, Math.max(0, Math.round(y / WHEEL_ITEM_HEIGHT)));
+    const next = items[index];
+    if (next !== undefined && next !== selected) onChange(next);
+    scrollRef.current?.scrollTo({ y: index * WHEEL_ITEM_HEIGHT, animated: true });
+  };
+
+  return (
+    <View style={styles.wheelFrame}>
+      <View style={styles.wheelHighlight} pointerEvents="none" />
+      <ScrollView
+        ref={scrollRef}
+        style={styles.wheelScroll}
+        contentContainerStyle={{
+          paddingVertical: pad * WHEEL_ITEM_HEIGHT,
+        }}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={WHEEL_ITEM_HEIGHT}
+        decelerationRate="fast"
+        onMomentumScrollEnd={onMomentumEnd}
+        onScrollEndDrag={onMomentumEnd}
+      >
+        {items.map((item) => {
+          const active = item === selected;
+          return (
+            <TouchableOpacity
+              key={String(item)}
+              style={styles.wheelItem}
+              activeOpacity={0.7}
+              onPress={() => {
+                onChange(item);
+                const index = items.indexOf(item);
+                scrollRef.current?.scrollTo({
+                  y: Math.max(0, index) * WHEEL_ITEM_HEIGHT,
+                  animated: true,
+                });
+              }}
+            >
+              <Text style={[styles.wheelItemText, active && styles.wheelItemTextActive]}>
+                {formatLabel(item)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 }
 
 export default function ScheduleDateTimeSheet({ visible, value, onClose, onConfirm }: Props) {
@@ -192,42 +279,30 @@ export default function ScheduleDateTimeSheet({ visible, value, onClose, onConfi
           <View style={styles.pickerRow}>
             <View style={styles.pickerCol}>
               <Text style={styles.pickerLabel}>Hour</Text>
-              <Picker
-                selectedValue={pickerHour}
-                onValueChange={(v) => setPickerHour(Number(v))}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-              >
-                {HOURS.map((h) => (
-                  <Picker.Item key={h} label={String(h)} value={h} />
-                ))}
-              </Picker>
+              <WheelColumn
+                items={HOURS}
+                selected={pickerHour}
+                onChange={setPickerHour}
+                formatLabel={(h) => String(h)}
+              />
             </View>
             <View style={styles.pickerCol}>
               <Text style={styles.pickerLabel}>Min</Text>
-              <Picker
-                selectedValue={pickerMinute}
-                onValueChange={(v) => setPickerMinute(Number(v))}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-              >
-                {MINUTES.map((m) => (
-                  <Picker.Item key={m} label={String(m).padStart(2, '0')} value={m} />
-                ))}
-              </Picker>
+              <WheelColumn
+                items={MINUTES}
+                selected={pickerMinute}
+                onChange={setPickerMinute}
+                formatLabel={(m) => String(m).padStart(2, '0')}
+              />
             </View>
             <View style={styles.pickerCol}>
               <Text style={styles.pickerLabel}>AM/PM</Text>
-              <Picker
-                selectedValue={pickerPeriod}
-                onValueChange={(v) => setPickerPeriod(v as 'AM' | 'PM')}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-              >
-                {PERIODS.map((p) => (
-                  <Picker.Item key={p} label={p} value={p} />
-                ))}
-              </Picker>
+              <WheelColumn
+                items={PERIODS}
+                selected={pickerPeriod}
+                onChange={setPickerPeriod}
+                formatLabel={(p) => p}
+              />
             </View>
           </View>
 
@@ -252,11 +327,22 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
-  sheetTitle: { fontFamily: fonts.bold, fontSize: 18, color: appShell.textPrimary, textAlign: 'center' },
+  sheetTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    color: appShell.textPrimary,
+    textAlign: 'center',
+  },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthLabel: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
   weekdayRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  weekday: { flex: 1, textAlign: 'center', fontFamily: fonts.semiBold, fontSize: 11, color: appShell.textMuted },
+  weekday: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: appShell.textMuted,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: {
     width: '14.28%',
@@ -270,17 +356,52 @@ const styles = StyleSheet.create({
   cellText: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.textPrimary },
   cellTextSelected: { color: '#fff' },
   cellTextDisabled: { color: appShell.textMuted },
-  pickerRow: { flexDirection: 'row', gap: spacing.xs },
+  pickerRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
   pickerCol: { flex: 1 },
   pickerLabel: {
     fontFamily: fonts.semiBold,
     fontSize: 11,
     color: appShell.textMuted,
     textAlign: 'center',
-    marginBottom: -8,
+    marginBottom: spacing.xs,
   },
-  picker: { height: 140 },
-  pickerItem: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
+  wheelFrame: {
+    height: WHEEL_HEIGHT,
+    borderRadius: radius.md,
+    backgroundColor: '#F3F4F6',
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  wheelHighlight: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    top: WHEEL_ITEM_HEIGHT,
+    height: WHEEL_ITEM_HEIGHT,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    zIndex: 1,
+  },
+  wheelScroll: {
+    height: WHEEL_HEIGHT,
+    zIndex: 2,
+  },
+  wheelItem: {
+    height: WHEEL_ITEM_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wheelItemText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 16,
+    color: appShell.textMuted,
+  },
+  wheelItemTextActive: {
+    color: appShell.textPrimary,
+    fontFamily: fonts.bold,
+    fontSize: 18,
+  },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   actionBtn: { flex: 1 },
 });

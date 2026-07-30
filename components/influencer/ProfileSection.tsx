@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,18 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth-store';
 import { api } from '../../lib/api';
 import { INFLUENCER_COUNTRIES, INFLUENCER_NICHES } from '../../constants/influencer-profile';
-import { appShell, shadow } from '@/theme';
+import { shadow, useAppShell } from '@/theme';
 
 interface ProfileSectionProps {
   onUpdate?: () => void;
 }
 
 interface ProfileData {
-  firstName: string;
-  lastName: string;
+  username: string;
   email: string;
   phone: string;
   country: string;
@@ -35,6 +35,7 @@ interface ProfileData {
 interface ProfileResponse {
   id: string;
   userId: string;
+  username?: string | null;
   niche: string;
   country: string;
   bio: string;
@@ -59,15 +60,51 @@ interface ProfileResponse {
   };
 }
 
+function normalizeUsername(raw: string): string {
+  return raw.replace(/^@+/, '').trim().replace(/\s+/g, ' ');
+}
+
+/** Ignore server placeholders like niche=general / country=US that aren't in the chip lists. */
+function allowedNiche(raw?: string | null): string {
+  const v = (raw || '').trim();
+  return (INFLUENCER_NICHES as readonly string[]).includes(v) ? v : '';
+}
+
+function allowedCountry(raw?: string | null): string {
+  const v = (raw || '').trim();
+  return (INFLUENCER_COUNTRIES as readonly string[]).includes(v) ? v : '';
+}
+
+function getValidationError(formData: ProfileData): string | null {
+  const username = normalizeUsername(formData.username);
+  if (!username || username.length < 3) return 'Username must be at least 3 characters';
+  if (username.length > 30) return 'Username must be at most 30 characters';
+  if (!/^[a-zA-Z0-9_ ]+$/.test(username)) {
+    return 'Username can only contain letters, numbers, spaces, and underscores';
+  }
+  if (!formData.email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email.trim())) {
+    return 'Please enter a valid email address';
+  }
+  if (!allowedNiche(formData.niche)) return 'Please select your niche';
+  if (!allowedCountry(formData.country)) return 'Please select a country';
+  const ig = formData.socialMedia.instagram.trim();
+  const yt = formData.socialMedia.youtube.trim();
+  if (ig && !/^https?:\/\/.+/.test(ig)) return 'Invalid Instagram URL';
+  if (yt && !/^https?:\/\/.+/.test(yt)) return 'Invalid YouTube URL';
+  if (formData.bio && formData.bio.length > 500) return 'Bio must be less than 500 characters';
+  return null;
+}
+
 export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
+  const shell = useAppShell();
+  const router = useRouter();
+  const navigation = useNavigation();
   const user = useAuthStore((s) => s.user);
-  const nextStep = useAuthStore((s) => s.nextStep);
   const refreshSession = useAuthStore((s) => s.refreshSession);
+  const clearProfileGate = useAuthStore((s) => s.clearProfileGate);
   const [isLoading, setIsLoading] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formData, setFormData] = useState<ProfileData>({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
+    username: normalizeUsername(user?.username || ''),
     email: user?.email || '',
     phone: '',
     country: '',
@@ -79,10 +116,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
     },
   });
 
-  const needsTerms =
-    user?.profileCompleted === false ||
-    nextStep === 'COMPLETE_INFLUENCER_PROFILE' ||
-    nextStep === 'PENDING_PLATFORM_APPROVAL';
+  const canSave = useMemo(() => getValidationError(formData) === null, [formData]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -90,9 +124,11 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         const response = (await api.get('/api/influencers/profile')) as ProfileResponse;
         setFormData((prev) => ({
           ...prev,
+          username: normalizeUsername(response.username || user?.username || prev.username),
+          email: response.user.email || prev.email,
           phone: response.user.phone || '',
-          country: response.country || '',
-          niche: response.niche || '',
+          country: allowedCountry(response.country),
+          niche: allowedNiche(response.niche),
           bio: response.bio || '',
           socialMedia: {
             instagram: response.socialMedia?.instagram || '',
@@ -104,46 +140,26 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
       }
     };
     loadProfile();
-  }, []);
-
-  const validate = (): string | null => {
-    if (!formData.firstName?.trim()) return 'First name is required';
-    if (!formData.lastName?.trim()) return 'Last name is required';
-    if (!formData.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email)) {
-      return 'Invalid email address';
-    }
-    const ig = formData.socialMedia.instagram.trim();
-    const yt = formData.socialMedia.youtube.trim();
-    if (ig && !/^https?:\/\/.+/.test(ig)) return 'Invalid Instagram URL';
-    if (yt && !/^https?:\/\/.+/.test(yt)) return 'Invalid YouTube URL';
-    if (!formData.niche) return 'Please select your niche';
-    if (!formData.country) return 'Please select a country';
-    if (formData.bio && formData.bio.length > 500) return 'Bio must be less than 500 characters';
-    if (needsTerms && !agreedToTerms) return 'You must agree to the terms and conditions';
-    return null;
-  };
+  }, [user?.username]);
 
   const handleSave = async () => {
-    const err = validate();
+    const err = getValidationError(formData);
     if (err) {
-      Alert.alert('Validation', err);
+      Alert.alert('Required fields', err);
       return;
     }
 
     setIsLoading(true);
     try {
       const body: Record<string, unknown> = {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
+        username: normalizeUsername(formData.username),
         email: formData.email.trim(),
         phone: formData.phone.trim() || undefined,
         country: formData.country,
         niche: formData.niche,
         bio: formData.bio.trim() || undefined,
+        termsAccepted: true,
       };
-      if (needsTerms) {
-        body.termsAccepted = true;
-      }
       const ig = formData.socialMedia.instagram.trim();
       const yt = formData.socialMedia.youtube.trim();
       if (ig || yt) {
@@ -153,10 +169,21 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         };
       }
       await api.patch('/api/influencers/profile', body);
-      await refreshSession();
-      setAgreedToTerms(false);
-      Alert.alert('Success', 'Profile updated successfully');
+      const savedUsername = normalizeUsername(formData.username);
+      const auth = useAuthStore.getState();
+      if (auth.token && auth.user) {
+        await auth.setAuth(auth.token, { ...auth.user, username: savedUsername }, auth.nextStep);
+      }
+      await refreshSession({ logoutOnUnauthorized: false });
+      clearProfileGate();
       if (onUpdate) onUpdate();
+
+      // One step back (Account → Settings → Save); fallback Home if no history
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        router.replace('/influencer/dashboard');
+      }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to update profile';
       Alert.alert('Error', msg);
@@ -166,89 +193,141 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Personal Information</Text>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View
+        style={[styles.section, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
+        <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>
+          Personal Information
+        </Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>First Name *</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>User Name *</Text>
           <TextInput
-            style={styles.input}
-            value={formData.firstName}
-            onChangeText={(text) => setFormData((prev) => ({ ...prev, firstName: text }))}
-            placeholder="Enter your first name"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
+            value={formData.username}
+            onChangeText={(text) =>
+              setFormData((prev) => ({
+                ...prev,
+                username: text.replace(/^@+/, '').replace(/[^a-zA-Z0-9_ ]/g, ''),
+              }))
+            }
+            placeholder="Your Username"
+            autoCapitalize="words"
+            autoCorrect={false}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Last Name *</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Email *</Text>
           <TextInput
-            style={styles.input}
-            value={formData.lastName}
-            onChangeText={(text) => setFormData((prev) => ({ ...prev, lastName: text }))}
-            placeholder="Enter your last name"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email *</Text>
-          <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
             value={formData.email}
             onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone (optional)</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Phone (optional)</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
             value={formData.phone}
             onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
             placeholder="Enter your phone number"
             keyboardType="phone-pad"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Influencer Profile</Text>
+      <View
+        style={[styles.section, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
+        <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>Influencer Profile</Text>
 
-        <Text style={styles.label}>Niche *</Text>
+        <Text style={[styles.label, { color: shell.textPrimary }]}>Niche *</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
           {INFLUENCER_NICHES.map((niche) => (
             <TouchableOpacity
               key={niche}
-              style={[styles.chip, formData.niche === niche && styles.chipSelected]}
+              style={[
+                styles.chip,
+                { borderColor: shell.borderSubtle },
+                formData.niche === niche && [
+                  styles.chipSelected,
+                  { backgroundColor: shell.cta, borderColor: shell.cta },
+                ],
+              ]}
               onPress={() => setFormData((prev) => ({ ...prev, niche }))}
             >
-              <Text style={formData.niche === niche ? styles.chipTextSelected : styles.chipText}>
+              <Text
+                style={
+                  formData.niche === niche
+                    ? styles.chipTextSelected
+                    : [styles.chipText, { color: shell.textPrimary }]
+                }
+              >
                 {niche}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Country *</Text>
+        <Text style={[styles.label, { marginTop: 12, color: shell.textPrimary }]}>Country *</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
           {INFLUENCER_COUNTRIES.map((country) => (
             <TouchableOpacity
               key={country}
-              style={[styles.chip, formData.country === country && styles.chipSelected]}
+              style={[
+                styles.chip,
+                { borderColor: shell.borderSubtle },
+                formData.country === country && [
+                  styles.chipSelected,
+                  { backgroundColor: shell.cta, borderColor: shell.cta },
+                ],
+              ]}
               onPress={() => setFormData((prev) => ({ ...prev, country }))}
             >
-              <Text style={formData.country === country ? styles.chipTextSelected : styles.chipText}>
+              <Text
+                style={
+                  formData.country === country
+                    ? styles.chipTextSelected
+                    : [styles.chipText, { color: shell.textPrimary }]
+                }
+              >
                 {country}
               </Text>
             </TouchableOpacity>
@@ -256,9 +335,19 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         </ScrollView>
 
         <View style={[styles.inputGroup, { marginTop: 16 }]}>
-          <Text style={styles.label}>Bio (optional, max 500 chars)</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>
+            Bio (optional, max 500 chars)
+          </Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[
+              styles.input,
+              styles.textArea,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
             value={formData.bio}
             onChangeText={(text) => setFormData((prev) => ({ ...prev, bio: text }))}
             placeholder="Tell us about yourself..."
@@ -266,19 +355,28 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             numberOfLines={4}
             textAlignVertical="top"
             maxLength={500}
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Social Media Links</Text>
+      <View
+        style={[styles.section, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
+      >
+        <Text style={[styles.sectionTitle, { color: shell.textPrimary }]}>Social Media Links</Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Instagram (optional)</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>Instagram (optional)</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
             value={formData.socialMedia.instagram}
             onChangeText={(text) =>
               setFormData((prev) => ({
@@ -288,15 +386,22 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             }
             placeholder="https://instagram.com/yourusername"
             autoCapitalize="none"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>YouTube (optional)</Text>
+          <Text style={[styles.label, { color: shell.textPrimary }]}>YouTube (optional)</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor: shell.borderSubtle,
+                backgroundColor: shell.canvasAlt,
+                color: shell.textPrimary,
+              },
+            ]}
             value={formData.socialMedia.youtube}
             onChangeText={(text) =>
               setFormData((prev) => ({
@@ -306,32 +411,26 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             }
             placeholder="https://youtube.com/@yourchannel"
             autoCapitalize="none"
-            placeholderTextColor="#6b7280"
-            selectionColor={appShell.cta}
+            placeholderTextColor={shell.textMuted}
+            selectionColor={shell.cta}
           />
         </View>
       </View>
 
-      {needsTerms ? (
-        <View style={styles.section}>
-          <View style={styles.checkboxRow}>
-            <TouchableOpacity
-              onPress={() => setAgreedToTerms((v) => !v)}
-              style={styles.checkbox}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: agreedToTerms }}
-            >
-              <Text>{agreedToTerms ? '☑' : '☐'}</Text>
-            </TouchableOpacity>
-            <Text style={styles.checkboxLabel}>I agree to the terms and conditions</Text>
-          </View>
-        </View>
+      {!canSave ? (
+        <Text style={[styles.requiredHint, { color: shell.textMuted }]}>
+          Select niche and country, then save.
+        </Text>
       ) : null}
 
       <TouchableOpacity
-        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+        style={[
+          styles.saveButton,
+          { backgroundColor: shell.cta },
+          (!canSave || isLoading) && styles.saveButtonDisabled,
+        ]}
         onPress={handleSave}
-        disabled={isLoading}
+        disabled={!canSave || isLoading}
       >
         {isLoading ? (
           <ActivityIndicator color="#fff" size="small" />
@@ -349,19 +448,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   section: {
-    backgroundColor: appShell.card,
     marginHorizontal: 12,
     marginVertical: 6,
     padding: 12,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
     ...shadow.cardLight,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#111827',
     marginBottom: 12,
   },
   inputGroup: {
@@ -370,18 +466,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    backgroundColor: '#fff',
-    color: '#111827',
   },
   textArea: {
     height: 100,
@@ -400,39 +492,20 @@ const styles = StyleSheet.create({
     marginRight: 8,
     alignSelf: 'flex-start',
   },
-  chipSelected: {
-    backgroundColor: appShell.cta,
-    borderColor: appShell.cta,
-  },
+  chipSelected: {},
   chipText: {
-    color: '#111827',
     fontSize: 13,
   },
   chipTextSelected: {
     color: '#fff',
     fontSize: 13,
   },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkbox: {
-    width: 28,
-    height: 28,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 4,
-  },
-  checkboxLabel: {
-    marginLeft: 10,
-    flex: 1,
-    fontSize: 14,
-    color: '#374151',
+  requiredHint: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    fontSize: 12,
   },
   saveButton: {
-    backgroundColor: appShell.cta,
     marginHorizontal: 12,
     marginVertical: 12,
     paddingVertical: 12,

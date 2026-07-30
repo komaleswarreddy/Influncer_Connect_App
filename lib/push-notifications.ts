@@ -1,52 +1,32 @@
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { pushApi } from './push-api';
+/**
+ * Push helpers.
+ *
+ * IMPORTANT: Do NOT import `expo-notifications` from this module.
+ * Loading that package in Expo Go (SDK 53+) runs DevicePushTokenAutoRegistration.fx,
+ * which calls addPushTokenListener → console.error LogBox on Android.
+ *
+ * Real push registration belongs in a development/production build only.
+ * Wire it back behind a dedicated entry that never loads in Expo Go.
+ */
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
-export async function ensureAndroidChannel() {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
+export function isExpoGo(): boolean {
+  // Kept for callers; push is disabled for all runtimes from app root.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { isRunningInExpoGo } = require('expo') as { isRunningInExpoGo: () => boolean };
+    return isRunningInExpoGo();
+  } catch {
+    return true;
   }
 }
 
+/** Always no-op — Expo Go must never touch expo-notifications. */
 export async function registerForPushNotifications(): Promise<string | null> {
-  if (!Device.isDevice) return null;
-  if (Constants.appOwnership === 'expo') return null;
+  return null;
+}
 
-  await ensureAndroidChannel();
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-  if (existing !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return null;
-
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
-  const tokenData = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined
-  );
-  const token = tokenData.data;
-  const platform = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'unknown';
-  await pushApi.register(token, platform);
-  return token;
+export async function ensureAndroidChannel(): Promise<void> {
+  return;
 }
 
 export type PushDeepLinkData = {
@@ -55,14 +35,46 @@ export type PushDeepLinkData = {
   campaignId?: string;
   inviteId?: string;
   bookingId?: string;
+  participationId?: string;
+  status?: string;
+  title?: string;
 };
 
 export function routeFromPushData(data: PushDeepLinkData): string | null {
   const type = String(data.type || '');
+  const title = String(data.title || '').toLowerCase();
+  const approved =
+    data.status === 'approved' || title.includes('approv') || type.toLowerCase().includes('approv');
+
   if (type === 'campaign_invite') return '/influencer/invites';
-  if (type === 'campaign_activated' || type === 'campaign_update') return '/influencer/(tabs)/campaigns';
-  if (type.startsWith('rate_card_booking')) return '/account-screens/bookings';
-  if (type.startsWith('ugc_')) return '/influencer/(tabs)/campaigns';
+  if (approved && data.participationId) {
+    return `/influencer/contract?participationId=${encodeURIComponent(data.participationId)}`;
+  }
+  if (type === 'campaign_activated' || type === 'campaign_update') {
+    return data.campaignId
+      ? `/influencer/campaigns?campaignId=${encodeURIComponent(data.campaignId)}`
+      : '/influencer/(tabs)/campaigns';
+  }
+  if (type === 'invite_accepted' || type === 'invite_declined' || type === 'invite_expired') {
+    return '/influencer/(tabs)/campaigns';
+  }
+  if (type === 'rate_card_deliverable_submitted' || type.startsWith('rate_card_booking')) {
+    return data.bookingId
+      ? `/account-screens/bookings?bookingId=${encodeURIComponent(data.bookingId)}`
+      : '/account-screens/bookings';
+  }
+  if (type.startsWith('ugc_')) {
+    return data.campaignId
+      ? `/influencer/campaigns?campaignId=${encodeURIComponent(data.campaignId)}`
+      : '/influencer/(tabs)/campaigns';
+  }
   if (type === 'payment_received') return '/account-screens/payments';
   return '/influencer/invites';
+}
+
+/** Always no-op — no notification listeners in Expo Go / current app entry. */
+export function subscribeToNotificationResponses(
+  _onResponse: (data: Record<string, unknown>) => void
+): () => void {
+  return () => undefined;
 }

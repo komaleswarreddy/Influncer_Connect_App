@@ -78,7 +78,7 @@ export default function RateCardScreen() {
       setIsPublic(Boolean(card.isPublic));
       setIsOpen(Boolean(card.isOpenForBookings));
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load rate card');
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load price card');
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function RateCardScreen() {
       const body: Record<string, unknown> = { isPublic, isOpenForBookings: isOpen };
       for (const [key] of FIELDS) body[key] = Number(rates[key] ?? 0);
       await rateCardsApi.updateMy(body);
-      Alert.alert('Saved', 'Rate card updated.');
+      Alert.alert('Saved', 'Price card updated.');
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Save failed');
     }
@@ -161,7 +161,7 @@ export default function RateCardScreen() {
   if (loading) {
     return (
       <ScrollScreen>
-        <SectionHeader title="Rate card" subtitle="Set your public booking rates (INR)" />
+        <SectionHeader title="Price card" subtitle="Set your public booking prices (INR)" />
         <View style={styles.centered}>
           <ActivityIndicator color={appShell.cta} />
         </View>
@@ -172,15 +172,18 @@ export default function RateCardScreen() {
   return (
     <ScrollScreen>
       <SectionHeader
-        title="Rate card"
-        subtitle="Set public rates so brands can request direct bookings"
+        title="Price card"
+        subtitle="Set public prices so brands can request direct bookings"
       />
 
       {!profileReady ? (
         <PremiumCard style={styles.banner}>
           <Text style={styles.bannerTitle}>Profile settings required</Text>
           <Text style={styles.bannerText}>{PROFILE_INCOMPLETE_HINT}</Text>
-          <TouchableOpacity style={styles.bannerBtn} onPress={() => router.push('/account-screens/settings')}>
+          <TouchableOpacity
+            style={styles.bannerBtn}
+            onPress={() => router.push('/account-screens/settings')}
+          >
             <Text style={styles.bannerBtnText}>Go to profile settings</Text>
           </TouchableOpacity>
         </PremiumCard>
@@ -205,11 +208,15 @@ export default function RateCardScreen() {
                 {suggestionMeta.niche && suggestionMeta.country
                   ? `${suggestionMeta.niche} · ${suggestionMeta.country}`
                   : ''}
-                {suggestionMeta.source === 'llm' ? ' · AI' : suggestionMeta.source ? ' · rules' : ''}
+                {suggestionMeta.source === 'llm'
+                  ? ' · AI'
+                  : suggestionMeta.source
+                    ? ' · rules'
+                    : ''}
               </Text>
             ) : null}
             <TouchableOpacity style={styles.applyBtn} onPress={applySuggested}>
-              <Text style={styles.applyBtnText}>Apply suggested rates</Text>
+              <Text style={styles.applyBtnText}>Apply suggested prices</Text>
             </TouchableOpacity>
           </>
         ) : null}
@@ -235,7 +242,7 @@ export default function RateCardScreen() {
           </View>
         ))}
         <View style={styles.switchRow}>
-          <Text style={styles.label}>Public rate card</Text>
+          <Text style={styles.label}>Public price card</Text>
           <Switch value={isPublic} onValueChange={setIsPublic} />
         </View>
         <View style={styles.switchRow}>
@@ -253,8 +260,18 @@ export default function RateCardScreen() {
 const styles = StyleSheet.create({
   centered: { paddingVertical: spacing.xl, alignItems: 'center' },
   banner: { marginBottom: spacing.md },
-  bannerTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, color: appShell.textPrimary, marginBottom: 6 },
-  bannerText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: appShell.textSecondary, lineHeight: 18 },
+  bannerTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+    color: appShell.textPrimary,
+    marginBottom: 6,
+  },
+  bannerText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: appShell.textSecondary,
+    lineHeight: 18,
+  },
   bannerBtn: {
     marginTop: spacing.md,
     backgroundColor: appShell.cta,
@@ -310,6 +327,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  btn: { backgroundColor: appShell.cta, padding: spacing.md, borderRadius: 12, alignItems: 'center' },
+  btn: {
+    backgroundColor: appShell.cta,
+    padding: spacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
   btnText: { color: '#fff', fontFamily: 'Inter_700Bold' },
 });

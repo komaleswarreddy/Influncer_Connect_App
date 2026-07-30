@@ -4,10 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../store/auth-store';
-import { kindeConfigured } from '../../../lib/auth-config';
-import { AccountKindeLogout } from '../../../components/AccountKindeLogout';
+import { cognitoConfigured } from '../../../lib/auth-config';
+import { AccountCognitoLogout } from '../../../components/AccountCognitoLogout';
 import { ScrollScreen, PremiumCard, ListRow, SectionHeader } from '@/components/ui';
-import { appShell, palette, premiumNavy, spacing, radius, shadow } from '@/theme';
+import { appShell, palette, premiumNavy, spacing, radius, shadow, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 type AccountLink = {
@@ -18,29 +18,70 @@ type AccountLink = {
   badge?: string;
 };
 
+const CREATOR_TOOL_LINKS: AccountLink[] = [
+  {
+    key: 'price-card',
+    label: 'Price Card',
+    icon: 'pricetag-outline' as const,
+    path: '/account-screens/rate-card',
+  },
+  {
+    key: 'rate-calculator',
+    label: 'Rate Calculator',
+    icon: 'calculator-outline' as const,
+    path: '/account-screens/rate-calculator',
+  },
+  {
+    key: 'create-products',
+    label: 'Create Products',
+    icon: 'cube-outline' as const,
+    path: '/account-screens/catalog',
+  },
+];
+
 const MONETIZATION_LINKS: AccountLink[] = [
-  { key: 'bookings', label: 'Bookings', icon: 'calendar-outline' as const, path: '/account-screens/bookings' },
-  { key: 'ugc-earnings', label: 'UGC earnings', icon: 'cash-outline' as const, path: '/account-screens/ugc-earnings' },
+  {
+    key: 'bookings',
+    label: 'PriceCard Bookings',
+    icon: 'calendar-outline' as const,
+    path: '/account-screens/bookings',
+  },
 ];
 
 const ACCOUNT_LINKS: AccountLink[] = [
-  { key: 'rate-calculator', label: 'Rate Calculator', icon: 'calculator-outline' as const, path: '/account-screens/rate-calculator' },
-  { key: 'rate-card', label: 'Rate Card', icon: 'pricetag-outline' as const, path: '/account-screens/rate-card' },
-  { key: 'instagram', label: 'Instagram', icon: 'logo-instagram' as const, path: '/account-screens/instagram-hub', badge: 'NEW' },
-  { key: 'trending-ideas', label: 'Trending ideas', icon: 'bulb-outline' as const, path: '/account-screens/trending-ideas' },
-  { key: 'catalog', label: 'Catalog', icon: 'storefront-outline' as const, path: '/account-screens/catalog' },
-  { key: 'payments', label: 'Payments', icon: 'wallet-outline' as const, path: '/account-screens/payments' },
-  { key: 'support-hub', label: 'Support', icon: 'help-circle-outline' as const, path: '/account-screens/support-hub' },
-  { key: 'settings', label: 'Settings', icon: 'settings-outline' as const, path: '/account-screens/settings' },
+  {
+    key: 'instagram',
+    label: 'Instagram',
+    icon: 'logo-instagram' as const,
+    path: '/account-screens/instagram-hub',
+    badge: 'NEW',
+  },
+  {
+    key: 'payments',
+    label: 'Payments',
+    icon: 'wallet-outline' as const,
+    path: '/account-screens/payments',
+  },
+  {
+    key: 'support-hub',
+    label: 'Support',
+    icon: 'help-circle-outline' as const,
+    path: '/account-screens/support-hub',
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: 'settings-outline' as const,
+    path: '/account-screens/settings',
+  },
 ];
 
 export default function AccountScreen() {
+  const shell = useAppShell();
   const router = useRouter();
   const { logout, user, nextStep } = useAuthStore();
   const profileIncomplete =
-    user?.profileCompleted === false ||
-    nextStep === 'COMPLETE_INFLUENCER_PROFILE' ||
-    nextStep === 'PENDING_PLATFORM_APPROVAL';
+    user?.profileCompleted === false || nextStep === 'COMPLETE_INFLUENCER_PROFILE';
 
   const handleItemPress = (link: AccountLink) => {
     if (link.path) {
@@ -87,7 +128,7 @@ export default function AccountScreen() {
               <Text style={styles.profileBannerOverline}>Recommended</Text>
               <Text style={styles.profileBannerTitle}>Complete your profile</Text>
               <Text style={styles.profileBannerHint}>
-                Add your details in Settings â€” unlock campaigns tailored to you.
+                Add your details in Settings to unlock campaigns tailored to you.
               </Text>
             </View>
             <View style={styles.profileBannerChevron}>
@@ -97,16 +138,16 @@ export default function AccountScreen() {
         </TouchableOpacity>
       ) : null}
 
-      <SectionHeader title="Monetization" subtitle="Bookings and UGC payouts" />
+      <SectionHeader title="Creator tools" subtitle="Pricing, rates, and catalog" />
       <PremiumCard style={{ marginBottom: spacing.sm }}>
-        {MONETIZATION_LINKS.map((link, i) => (
+        {CREATOR_TOOL_LINKS.map((link, i) => (
           <View key={link.key} style={i > 0 ? styles.rowBorder : undefined}>
             <ListRow
               compact
               title={link.label}
               iconName={link.icon}
-              iconColor={appShell.cta}
-              iconWellColor={appShell.iceBlue}
+              iconColor={shell.cta}
+              iconWellColor={shell.iceBlue}
               showChevron
               onPress={() => handleItemPress(link)}
             />
@@ -114,7 +155,24 @@ export default function AccountScreen() {
         ))}
       </PremiumCard>
 
-      <SectionHeader title="Tools" subtitle="Instagram, catalog, and more" />
+      <SectionHeader title="Monetization" subtitle="Price card bookings" />
+      <PremiumCard style={{ marginBottom: spacing.sm }}>
+        {MONETIZATION_LINKS.map((link, i) => (
+          <View key={link.key} style={i > 0 ? styles.rowBorder : undefined}>
+            <ListRow
+              compact
+              title={link.label}
+              iconName={link.icon}
+              iconColor={shell.cta}
+              iconWellColor={shell.iceBlue}
+              showChevron
+              onPress={() => handleItemPress(link)}
+            />
+          </View>
+        ))}
+      </PremiumCard>
+
+      <SectionHeader title="Tools" subtitle="Instagram, payments, and more" />
       <PremiumCard style={{ marginBottom: spacing.sm }}>
         {ACCOUNT_LINKS.map((link, i) => (
           <View key={link.key} style={i > 0 ? styles.rowBorder : undefined}>
@@ -122,8 +180,8 @@ export default function AccountScreen() {
               compact
               title={link.label}
               iconName={link.icon}
-              iconColor={appShell.cta}
-              iconWellColor={appShell.iceBlue}
+              iconColor={shell.cta}
+              iconWellColor={shell.iceBlue}
               showChevron={!link.badge}
               trailing={
                 link.badge ? (
@@ -138,8 +196,8 @@ export default function AccountScreen() {
         ))}
       </PremiumCard>
 
-      {kindeConfigured ? (
-        <AccountKindeLogout />
+      {cognitoConfigured ? (
+        <AccountCognitoLogout />
       ) : (
         <TouchableOpacity
           style={styles.logout}
@@ -148,7 +206,12 @@ export default function AccountScreen() {
             router.replace('/login');
           }}
         >
-          <Ionicons name="log-out-outline" size={22} color={palette.error} style={{ marginRight: spacing.sm }} />
+          <Ionicons
+            name="log-out-outline"
+            size={22}
+            color={palette.error}
+            style={{ marginRight: spacing.sm }}
+          />
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
       )}
@@ -230,7 +293,7 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appShell.borderSubtle,
+    borderTopColor: 'rgba(148, 163, 184, 0.25)',
   },
   logout: {
     flexDirection: 'row',

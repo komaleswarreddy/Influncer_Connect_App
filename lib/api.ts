@@ -97,6 +97,15 @@ export function getApiBaseUrl(): string {
   const ex = (Constants.expoConfig?.extra as { apiUrl?: string })?.apiUrl?.trim();
   let raw = env || ex || '';
 
+  // Local Expo Go / Metro must never hit Render — cold starts make login/signup feel broken.
+  if (__DEV__ && /onrender\.com/i.test(raw)) {
+    console.warn(
+      '[api] EXPO_PUBLIC_API_URL points at Render in __DEV__. Forcing http://localhost:3003 ' +
+        '(rewritten to Metro LAN / adb). Update mobile/.env for local testing.'
+    );
+    raw = 'http://localhost:3003';
+  }
+
   if (!raw && !warnedMissingApiUrl) {
     warnedMissingApiUrl = true;
     console.warn(
@@ -162,7 +171,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
       },
       tenant: { id: 'mock-tenant' },
       role: { id: 'mock-role', roleName: 'potential_influencer' },
-      nextStep: 'COMPLETE_INFLUENCER_PROFILE',
+      nextStep: null,
     },
     '/api/content-ideas/trending': {
       success: true,
@@ -203,7 +212,7 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
         tenantId: 'mock-tenant',
         influencerStatus: 'pending',
         profileCompleted: false,
-        nextStep: 'COMPLETE_INFLUENCER_PROFILE',
+        nextStep: null,
       },
       tenant: { id: 'mock-tenant' },
       role: { id: 'mock-role', roleName: 'potential_influencer' },
@@ -322,10 +331,23 @@ class ApiClient {
         return await handleMockResponse(endpoint, options.method || 'GET', options.body);
       }
 
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(`${API_URL}${endpoint}`, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
+      } catch (fetchError) {
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('The request timed out. Your connection may be slow — please try again.');
+        }
+        throw fetchError;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       let data = {};
       try {
