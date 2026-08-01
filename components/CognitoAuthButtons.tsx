@@ -24,7 +24,7 @@ type Props = {
 };
 
 function ssoLabel(mode: 'login' | 'register') {
-  return mode === 'register' ? 'Sign up with Single Sign-On' : 'Continue with Single Sign-On';
+  return mode === 'register' ? 'Sign up' : 'Sign in';
 }
 
 export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
@@ -87,23 +87,13 @@ export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
                 {busy ? (
                   <ActivityIndicator color={premiumButton.labelColor} size="small" />
                 ) : (
-                  <>
-                    <View style={styles.iconSlot}>
-                      <MaterialCommunityIcons
-                        name="shield-account"
-                        size={24}
-                        color={premiumButton.iconColor}
-                      />
-                    </View>
-                    <Text
-                      style={styles.premiumLabel}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.85}
-                    >
-                      {label}
-                    </Text>
-                  </>
+                  <View style={styles.iconSlot}>
+                    <MaterialCommunityIcons
+                      name="shield-account"
+                      size={24}
+                      color={premiumButton.iconColor}
+                    />
+                  </View>
                 )}
               </View>
             </View>
@@ -209,7 +199,6 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
   premiumLabel: {
     flexShrink: 1,
