@@ -141,7 +141,7 @@ export default function LoginScreen() {
 
               <View style={styles.signInSection}>
                 <View style={styles.signInInner}>
-                  <RNText style={styles.signInTitle}>Sign in</RNText>
+                  {!cognitoConfigured ? <RNText style={styles.signInTitle}>Sign in</RNText> : null}
                   {useMockAuth ? (
                     <RNText style={styles.signInHint}>
                       {cognitoConfigured
@@ -152,7 +152,7 @@ export default function LoginScreen() {
 
                   {cognitoConfigured ? (
                     <>
-                      <View style={{ height: useMockAuth ? 20 : 12 }} />
+                      <View style={{ height: useMockAuth ? 20 : 4 }} />
                       <CognitoAuthButtons mode="login" appearance="premium" />
                       {useMockAuth ? (
                         <View style={styles.dividerRow}>

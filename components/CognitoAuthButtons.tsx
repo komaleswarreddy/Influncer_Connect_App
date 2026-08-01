@@ -87,13 +87,18 @@ export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
                 {busy ? (
                   <ActivityIndicator color={premiumButton.labelColor} size="small" />
                 ) : (
-                  <View style={styles.iconSlot}>
-                    <MaterialCommunityIcons
-                      name="shield-account"
-                      size={24}
-                      color={premiumButton.iconColor}
-                    />
-                  </View>
+                  <>
+                    <View style={styles.iconSlot}>
+                      <MaterialCommunityIcons
+                        name="shield-account"
+                        size={24}
+                        color={premiumButton.iconColor}
+                      />
+                    </View>
+                    <Text style={styles.premiumLabel} numberOfLines={1}>
+                      {label}
+                    </Text>
+                  </>
                 )}
               </View>
             </View>
@@ -199,9 +204,10 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   premiumLabel: {
-    flexShrink: 1,
+    flexShrink: 0,
     fontSize: 17,
     fontWeight: '800',
     color: premiumButton.labelColor,
