@@ -127,7 +127,7 @@ function truncateDescription(text: string, max = 110): string {
   return `${cleaned.slice(0, max - 1).trimEnd()}…`;
 }
 
-export function CampaignReferenceCard({
+export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
   title,
   brandName,
   metaLine,
@@ -299,7 +299,7 @@ export function CampaignReferenceCard({
       {content}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   shell: {

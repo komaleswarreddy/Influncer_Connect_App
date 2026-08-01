@@ -1,8 +1,22 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollScreen, SectionHeader, PremiumCard, PrimaryButton, SecondaryButton } from '@/components/ui';
+import {
+  ScrollScreen,
+  SectionHeader,
+  PremiumCard,
+  PrimaryButton,
+  SecondaryButton,
+} from '@/components/ui';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import { useSchedulerStore } from '@/store/scheduler-store';
 import { appShell, spacing, radius, palette } from '@/theme';
@@ -79,11 +93,15 @@ export default function InstagramHubScreen() {
         </PremiumCard>
         <PremiumCard style={styles.previewCard}>
           <Text style={styles.previewTitle}>Schedule Content</Text>
-          <Text style={styles.previewBody}>Upload reels and posts, write captions, and pick a publish time.</Text>
+          <Text style={styles.previewBody}>
+            Upload reels and posts, write captions, and pick a publish time.
+          </Text>
         </PremiumCard>
         <PremiumCard style={styles.previewCard}>
           <Text style={styles.previewTitle}>DM Automation</Text>
-          <Text style={styles.previewBody}>Auto-reply to comments, story replies, and DM keywords on specific content.</Text>
+          <Text style={styles.previewBody}>
+            Auto-reply to comments, story replies, and DM keywords on specific content.
+          </Text>
         </PremiumCard>
       </ScrollScreen>
     );
@@ -100,11 +118,16 @@ export default function InstagramHubScreen() {
             <View style={styles.bannerCopy}>
               <Text style={styles.bannerTitle}>Reconnect to schedule posts</Text>
               <Text style={styles.bannerBody}>
-                Publishing permission is missing. Reconnect Instagram to enable the content scheduler.
+                Publishing permission is missing. Reconnect Instagram to enable the content
+                scheduler.
               </Text>
             </View>
           </View>
-          <PrimaryButton label="Reconnect Instagram" onPress={() => void connectInstagram()} loading={isSaving} />
+          <PrimaryButton
+            label="Reconnect Instagram"
+            onPress={() => void connectInstagram()}
+            loading={isSaving}
+          />
         </PremiumCard>
       ) : null}
 
@@ -119,12 +142,17 @@ export default function InstagramHubScreen() {
           )}
           <View style={styles.profileCopy}>
             <Text style={styles.username}>@{connection?.instagramUsername}</Text>
-            <Text style={styles.followers}>{formatCount(connection?.followerCount ?? 0)} followers</Text>
+            <Text style={styles.followers}>
+              {formatCount(connection?.followerCount ?? 0)} followers
+            </Text>
           </View>
         </View>
       </PremiumCard>
 
-      <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/account-screens/schedule-content' as never)}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => router.push('/account-screens/schedule-content' as never)}
+      >
         <PremiumCard style={styles.navCard}>
           <View style={styles.navRow}>
             <View style={styles.navIcon}>
@@ -139,7 +167,10 @@ export default function InstagramHubScreen() {
         </PremiumCard>
       </TouchableOpacity>
 
-      <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/account-screens/dm-automation' as never)}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => router.push('/account-screens/dm-automation' as never)}
+      >
         <PremiumCard style={styles.navCard}>
           <View style={styles.navRow}>
             <View style={styles.navIcon}>
@@ -155,8 +186,10 @@ export default function InstagramHubScreen() {
       </TouchableOpacity>
 
       <SecondaryButton
-        label="Disconnect Instagram"
+        label={isSaving ? 'Disconnecting…' : 'Disconnect Instagram'}
+        disabled={isSaving}
         onPress={() => {
+          if (isSaving) return;
           Alert.alert(
             'Disconnect Instagram?',
             'DM automations will pause. Scheduled posts stay in your queue but will not publish until you reconnect.',
@@ -170,7 +203,7 @@ export default function InstagramHubScreen() {
             ]
           );
         }}
-        style={styles.disconnectBtn}
+        style={[styles.disconnectBtn, isSaving && styles.disconnectBtnDisabled]}
       />
     </ScrollScreen>
   );
@@ -179,7 +212,12 @@ export default function InstagramHubScreen() {
 const styles = StyleSheet.create({
   heroCard: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
   heroTitle: { fontFamily: fonts.bold, fontSize: 20, color: appShell.textPrimary },
-  heroBody: { fontFamily: fonts.regular, fontSize: 14, color: appShell.textMuted, textAlign: 'center' },
+  heroBody: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: appShell.textMuted,
+    textAlign: 'center',
+  },
   previewCard: { marginTop: spacing.sm },
   previewTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
   previewBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted, marginTop: 4 },
@@ -216,4 +254,5 @@ const styles = StyleSheet.create({
   navTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
   navBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted },
   disconnectBtn: { marginTop: spacing.md },
+  disconnectBtnDisabled: { opacity: 0.55 },
 });

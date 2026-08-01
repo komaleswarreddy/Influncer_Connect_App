@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { useAppShell } from '@/theme';
 
@@ -6,20 +7,24 @@ import { useAppShell } from '@/theme';
  */
 export default function AccountScreensLayout() {
   const shell = useAppShell();
+
+  const screenOptions = useMemo(
+    () => ({
+      headerStyle: { backgroundColor: shell.canvas },
+      headerTitleStyle: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: 18,
+        color: shell.textPrimary,
+      },
+      headerTintColor: shell.cta,
+      headerShadowVisible: false,
+      contentStyle: { backgroundColor: shell.canvas },
+    }),
+    [shell.canvas, shell.textPrimary, shell.cta]
+  );
+
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: shell.canvas },
-        headerTitleStyle: {
-          fontFamily: 'Inter_700Bold',
-          fontSize: 18,
-          color: shell.textPrimary,
-        },
-        headerTintColor: shell.cta,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: shell.canvas },
-      }}
-    >
+    <Stack screenOptions={screenOptions}>
       <Stack.Screen name="rate-calculator" options={{ title: 'Rate Calculator' }} />
       <Stack.Screen name="rate-card" options={{ title: 'Price Card' }} />
       <Stack.Screen name="instagram-hub" options={{ title: 'Instagram' }} />

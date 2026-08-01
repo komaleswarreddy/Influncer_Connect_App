@@ -22,6 +22,7 @@ import {
   ScrollScreen,
   HomeReferenceHeroCard,
   HomeQuickSetupSection,
+  HomeLinkAccountsCta,
   HomeNotificationBell,
   HomeMyCampaignsAccordion,
   HomeEarningsSummary,
@@ -82,7 +83,6 @@ export default function InfluencerDashboard() {
   const handle = useMemo(() => formatHandle(username), [username]);
   const avatarLetter = useMemo(() => (handle ? handle.slice(0, 1).toUpperCase() : '•'), [handle]);
   const {
-    isLoading,
     error,
     isConnected,
     isYtConnected,
@@ -261,6 +261,8 @@ export default function InfluencerDashboard() {
   );
 
   const hasAnySocialConnected = isConnected || isYtConnected || isTwitterConnected || igConnected;
+  /** Hero stays until Instagram is linked; then earnings replaces it. */
+  const instagramLinked = isConnected || igConnected;
 
   const createProductsDone = useMemo(() => isCreateProductsDone(catalog), [catalog]);
 
@@ -273,7 +275,6 @@ export default function InfluencerDashboard() {
         steps.push({
           key: 'priceCard',
           title: 'Price Card',
-          description: 'Set your prices for brands',
           variant: 'priceCard',
           onPress: () => router.push('/account-screens/rate-card' as never),
         });
@@ -282,7 +283,6 @@ export default function InfluencerDashboard() {
         steps.push({
           key: 'rateCalculator',
           title: 'Rate Calculator',
-          description: 'Verify your promotion pricing',
           variant: 'rateCalculator',
           onPress: () => {
             void markRateCalculatorVisited().then(() => setRateCalculatorVisited(true));
@@ -295,8 +295,7 @@ export default function InfluencerDashboard() {
     // Trending always
     steps.push({
       key: 'trending',
-      title: 'Trending Ideas',
-      description: 'Content hooks worth posting',
+      title: 'Trends',
       variant: 'trending',
       onPress: () => {
         void markTrendingIdeasVisited().then(() => setTrendingVisited(true));
@@ -308,7 +307,6 @@ export default function InfluencerDashboard() {
       steps.push({
         key: 'createProducts',
         title: 'Create Products',
-        description: 'Create your own business catalog',
         variant: 'createProducts',
         onPress: () => router.push('/account-screens/catalog' as never),
       });
@@ -319,15 +317,13 @@ export default function InfluencerDashboard() {
       steps.push(
         {
           key: 'schedule',
-          title: 'Schedule Content',
-          description: 'Plan posts ahead',
+          title: 'Schedule',
           variant: 'schedule',
           onPress: () => router.push('/account-screens/schedule-content' as never),
         },
         {
           key: 'autoDm',
           title: 'Auto DM',
-          description: 'Automate replies',
           variant: 'autoDm',
           onPress: () => router.push('/account-screens/dm-automation' as never),
         }
@@ -353,7 +349,7 @@ export default function InfluencerDashboard() {
     [isExistingUser, quickSetupSteps]
   );
 
-  const quickSectionTitle = hasSetupTiles ? 'Quick Setup' : 'Quick Actions';
+  const quickSectionTitle = hasSetupTiles ? 'Quick Setup' : null;
   const quickSectionSubtitle = hasSetupTiles
     ? 'Complete these steps to become campaign-ready.'
     : null;
@@ -363,7 +359,7 @@ export default function InfluencerDashboard() {
     return [
       { key: 'priceCard', title: 'Price Card', done: priceCardDone },
       { key: 'rateCalculator', title: 'Rate Calculator', done: rateCalculatorVisited },
-      { key: 'trending', title: 'Trending Ideas', done: trendingVisited },
+      { key: 'trending', title: 'Trends', done: trendingVisited },
       { key: 'createProducts', title: 'Create Products', done: createProductsDone },
     ];
   }, [isExistingUser, priceCardDone, rateCalculatorVisited, trendingVisited, createProductsDone]);
@@ -373,6 +369,9 @@ export default function InfluencerDashboard() {
       !isExistingUser && gettingStartedItems.length > 0 && gettingStartedItems.every((i) => i.done),
     [isExistingUser, gettingStartedItems]
   );
+
+  /** Post-setup / enrolled: show workspace modules so Home isn't empty. */
+  const showWorkspace = isExistingUser || setupAllDone;
 
   const progressItems = useMemo(() => {
     return [...activeParticipations]
@@ -450,7 +449,12 @@ export default function InfluencerDashboard() {
     </View>
   );
 
-  if (isLoading && !hasAnySocialConnected && !analyticsReady) {
+  // Gate on the initial fetch batch (analytics + participations + campaigns)
+  // finishing, not on whether a social account happens to already be
+  // connected from a prior session — otherwise a returning user with a
+  // connected account flashes ₹0 earnings / "no active campaigns" while that
+  // same batch is still in flight (a false empty state, not a real one).
+  if (!analyticsReady) {
     return (
       <ScrollScreen
         dotBackground={false}
@@ -504,7 +508,7 @@ export default function InfluencerDashboard() {
           </View>
         ) : null}
 
-        {isExistingUser ? (
+        {showWorkspace ? (
           <HomeEarningsSummary
             style={styles.section}
             myEarnings={paidTotal}
@@ -532,14 +536,21 @@ export default function InfluencerDashboard() {
         ) : null}
 
         <HomeQuickSetupSection
-          style={isExistingUser ? styles.section : styles.sectionLast}
+          style={showWorkspace ? styles.section : styles.sectionLast}
           steps={quickSetupSteps}
-          variant="adaptive"
+          variant={hasSetupTiles ? 'adaptive' : 'actions'}
           title={quickSectionTitle}
           subtitle={quickSectionSubtitle}
+          trailing={
+            !instagramLinked ? (
+              <HomeLinkAccountsCta
+                onPress={() => router.push('/account-screens/instagram-hub' as never)}
+              />
+            ) : null
+          }
         />
 
-        {isExistingUser ? (
+        {showWorkspace ? (
           <>
             <HomeMyCampaignsAccordion
               style={styles.section}
@@ -547,18 +558,22 @@ export default function InfluencerDashboard() {
               onPress={openMineTab}
             />
 
-            <HomeCampaignProgressCard
-              style={styles.section}
-              items={progressItems}
-              onPress={openCampaignProgress}
-            />
+            {progressItems.length > 0 ? (
+              <HomeCampaignProgressCard
+                style={styles.section}
+                items={progressItems}
+                onPress={openCampaignProgress}
+              />
+            ) : null}
 
-            <HomeCatalogPreviewCard
-              style={styles.sectionLast}
-              catalog={catalog}
-              loading={catalogLoading}
-              onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
-            />
+            {catalog && createProductsDone ? (
+              <HomeCatalogPreviewCard
+                style={styles.sectionLast}
+                catalog={catalog}
+                loading={catalogLoading}
+                onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
+              />
+            ) : null}
           </>
         ) : null}
       </View>

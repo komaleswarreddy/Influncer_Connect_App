@@ -41,7 +41,7 @@ export function HomeMyCampaignsAccordion({ activeCount, onPress, style }: Props)
       <View style={styles.headerCopy}>
         <Text style={[styles.title, { color: shell.textPrimary }]}>My Campaigns</Text>
         <Text style={[styles.subtitle, { color: shell.textSecondary }]}>
-          {activeCount === 0 ? 'No active campaigns' : `${activeCount} active`}
+          {activeCount === 0 ? 'Browse campaigns to get started' : `${activeCount} active`}
         </Text>
       </View>
       <View style={[styles.countPill, { backgroundColor: shell.isDark ? '#1E2A44' : '#141E33' }]}>

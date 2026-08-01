@@ -26,17 +26,20 @@ import { QuickSetupSymbolWell } from './QuickSetupSymbolWell';
 export type HomeQuickSetupStep = {
   key: string;
   title: string;
-  description: string;
+  description?: string;
   variant: HomeModuleIconVariant;
   onPress: () => void;
 };
 
 type Props = {
   steps: HomeQuickSetupStep[];
-  title?: string;
+  /** Omit or pass null to hide the section heading (e.g. Quick Actions). */
+  title?: string | null;
   subtitle?: string | null;
   /** Count-based layouts 1–6. Prefer adaptive. */
   variant?: 'adaptive' | 'setup' | 'actions';
+  /** Optional premium CTA beside the shortcuts row (e.g. Link accounts). */
+  trailing?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -101,7 +104,7 @@ function SetupStepItem({
         shadowLift.value = withSpring(0, SPRING);
       }}
       accessibilityRole="button"
-      accessibilityLabel={`${step.title}. ${step.description}`}
+      accessibilityLabel={step.title}
       style={styles.stepPressable}
     >
       <Animated.View style={[styles.stepInner, animatedWrap]}>
@@ -110,9 +113,6 @@ function SetupStepItem({
         </Animated.View>
         <Text style={[styles.tileTitle, { color: shell.textPrimary }]} numberOfLines={2}>
           {step.title}
-        </Text>
-        <Text style={[styles.tileDescription, { color: shell.textSecondary }]} numberOfLines={2}>
-          {step.description}
         </Text>
       </Animated.View>
     </Pressable>
@@ -144,66 +144,89 @@ function AnimatedStepCell({
  */
 export function HomeQuickSetupSection({
   steps,
-  title = 'Quick Actions',
+  title = null,
   subtitle = null,
   variant = 'adaptive',
+  trailing = null,
   style,
 }: Props) {
   const shell = useAppShell();
   const { width: windowWidth } = useWindowDimensions();
   const count = steps.length;
   const mode =
-    variant === 'setup'
-      ? 'wrap'
-      : variant === 'actions'
-        ? count <= 1
-          ? 'single'
-          : 'row'
-        : layoutModeForCount(count);
+    variant === 'setup' ? 'wrap' : variant === 'actions' ? 'row' : layoutModeForCount(count);
 
   const contentWidth = Math.max(0, windowWidth - spacing.lg * 2);
-  const rowCellWidth = count > 0 ? Math.floor(contentWidth / Math.max(count, 1)) : contentWidth;
+  const shortcutsBudget = trailing ? Math.floor(contentWidth * 0.42) : contentWidth;
+  const rowCellWidth =
+    count > 0 ? Math.floor(shortcutsBudget / Math.max(count, 1)) : shortcutsBudget;
 
   const iconSize =
     mode === 'wrap' ? 60 : mode === 'row' && count === 3 ? 64 : mode === 'single' ? 64 : 56;
   const discRatio = iconSize >= 60 ? 0.84 : 0.72;
+  const showHeader = Boolean(title);
+
+  const grid = (
+    <Animated.View
+      style={[
+        styles.grid,
+        !showHeader && !subtitle ? styles.gridNoHeader : null,
+        mode === 'single' ? styles.gridSingle : null,
+        mode === 'row' ? styles.gridRow : null,
+        mode === 'wrap' ? styles.gridWrap : null,
+        trailing && mode === 'row' ? styles.gridWithTrailing : null,
+      ]}
+      layout={LAYOUT_TRANSITION}
+    >
+      {steps.map((step, index) => {
+        const isLastOddWrap = mode === 'wrap' && count % 2 === 1 && index === count - 1;
+        const cellStyle =
+          mode === 'single'
+            ? styles.singleCell
+            : mode === 'row'
+              ? ([
+                  styles.rowCell,
+                  {
+                    width:
+                      count === 1 && !trailing
+                        ? Math.min(112, rowCellWidth)
+                        : Math.max(72, rowCellWidth),
+                  },
+                ] as const)
+              : ([styles.wrapCell, isLastOddWrap ? styles.wrapCellCentered : null] as const);
+
+        return (
+          <AnimatedStepCell
+            key={step.key}
+            step={step}
+            iconSize={iconSize}
+            discRatio={discRatio}
+            style={cellStyle}
+          />
+        );
+      })}
+    </Animated.View>
+  );
 
   return (
     <View style={[styles.shell, style]}>
-      <Text style={[styles.headerTitle, { color: shell.textPrimary }]}>{title}</Text>
+      {showHeader ? (
+        <Text style={[styles.headerTitle, { color: shell.textPrimary }]}>{title}</Text>
+      ) : null}
       {subtitle ? (
         <Text style={[styles.headerSubtitle, { color: shell.textSecondary }]}>{subtitle}</Text>
       ) : null}
 
-      <Animated.View
-        style={[
-          styles.grid,
-          mode === 'single' ? styles.gridSingle : null,
-          mode === 'row' ? styles.gridRow : null,
-          mode === 'wrap' ? styles.gridWrap : null,
-        ]}
-        layout={LAYOUT_TRANSITION}
-      >
-        {steps.map((step, index) => {
-          const isLastOddWrap = mode === 'wrap' && count % 2 === 1 && index === count - 1;
-          const cellStyle =
-            mode === 'single'
-              ? styles.singleCell
-              : mode === 'row'
-                ? ([styles.rowCell, { width: rowCellWidth }] as const)
-                : ([styles.wrapCell, isLastOddWrap ? styles.wrapCellCentered : null] as const);
-
-          return (
-            <AnimatedStepCell
-              key={step.key}
-              step={step}
-              iconSize={iconSize}
-              discRatio={discRatio}
-              style={cellStyle}
-            />
-          );
-        })}
-      </Animated.View>
+      {trailing && mode === 'row' ? (
+        <View
+          style={[styles.rowWithTrailing, !showHeader && !subtitle ? styles.gridNoHeader : null]}
+        >
+          {grid}
+          <View style={styles.trailingSlot}>{trailing}</View>
+        </View>
+      ) : (
+        grid
+      )}
     </View>
   );
 }
@@ -229,6 +252,25 @@ const styles = StyleSheet.create({
   grid: {
     marginTop: 12,
     width: '100%',
+  },
+  gridNoHeader: {
+    marginTop: 0,
+  },
+  gridWithTrailing: {
+    width: 'auto',
+    flexShrink: 0,
+    marginTop: 0,
+  },
+  rowWithTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    width: '100%',
+  },
+  trailingSlot: {
+    flex: 1,
+    minWidth: 0,
   },
   gridSingle: {
     alignItems: 'center',
@@ -281,17 +323,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     letterSpacing: -0.2,
     textAlign: 'center',
-    marginBottom: 4,
     width: '100%',
     ...Platform.select({ android: { includeFontPadding: false } }),
-  },
-  tileDescription: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    opacity: 0.85,
-    textAlign: 'center',
-    width: '100%',
-    paddingHorizontal: 4,
   },
 });

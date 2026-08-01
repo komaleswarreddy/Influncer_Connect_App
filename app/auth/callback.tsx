@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore, getInfluencerEntryPath } from '@/store/auth-store';
+import { tryCompletePendingCognitoAuth } from '@/lib/cognito-auth';
 import { appShell } from '@/theme';
 
 /**
@@ -9,6 +10,14 @@ import { appShell } from '@/theme';
  *
  * Without this file, Expo Router treats the deep link as unmatched and briefly
  * shows +not-found ("This screen does not exist") while token exchange finishes.
+ *
+ * Two ways this screen can end up authenticated:
+ *  1. CognitoAuthButtons's own in-process promise resolves and calls
+ *     exchangeCognitoIdToken itself (isLoading below reflects that).
+ *  2. Cold start: the app process was killed while the Hosted UI was open, so
+ *     nobody's left to finish that promise. This screen then completes the
+ *     exchange itself via tryCompletePendingCognitoAuth (below), using the
+ *     PKCE verifier persisted right before the browser was opened.
  */
 export default function CognitoAuthCallbackScreen() {
   const router = useRouter();
@@ -16,7 +25,32 @@ export default function CognitoAuthCallbackScreen() {
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const isLoading = useAuthStore((s) => s.isLoading);
   const nextStep = useAuthStore((s) => s.nextStep);
+  const exchangeCognitoIdToken = useAuthStore((s) => s.exchangeCognitoIdToken);
   const navigated = useRef(false);
+  const triedColdStart = useRef(false);
+
+  useEffect(() => {
+    if (isAuthenticated || isLoading || triedColdStart.current) return;
+    triedColdStart.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await tryCompletePendingCognitoAuth();
+        if (!result || cancelled) return;
+        await exchangeCognitoIdToken(result.idToken);
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : 'Sign-in failed';
+        if (__DEV__) console.warn('[auth/callback] cold-start token exchange failed:', msg);
+        Alert.alert('Sign in failed', msg);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading, exchangeCognitoIdToken]);
 
   useEffect(() => {
     if (!isInitialized || navigated.current) return;
@@ -27,10 +61,13 @@ export default function CognitoAuthCallbackScreen() {
       return;
     }
 
-    // CognitoAuthButtons is exchanging the ID token — stay on this quiet screen.
+    // CognitoAuthButtons — or the cold-start recovery above — is exchanging
+    // the ID token. Stay on this quiet screen.
     if (isLoading) return;
 
-    // Exchange finished elsewhere without auth, or deep link opened cold: leave quietly.
+    // Exchange finished elsewhere without auth, or there was truly nothing to
+    // recover (no code, or no pending verifier): leave, with a brief notice
+    // instead of bouncing silently.
     const t = setTimeout(() => {
       if (navigated.current) return;
       const state = useAuthStore.getState();
@@ -41,6 +78,7 @@ export default function CognitoAuthCallbackScreen() {
       }
       if (!state.isLoading) {
         navigated.current = true;
+        Alert.alert('Sign in timed out', 'Please try signing in again.');
         router.replace('/login' as never);
       }
     }, 12000);

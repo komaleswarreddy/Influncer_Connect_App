@@ -60,7 +60,7 @@ function MetricCell({
   );
 }
 
-export function MyStatsPostCard({ item }: Props) {
+export const MyStatsPostCard = React.memo(function MyStatsPostCard({ item }: Props) {
   const shell = useAppShell();
   const [menuOpen, setMenuOpen] = useState(false);
   const platform = item.platform as SupportedPlatform;
@@ -169,7 +169,7 @@ export function MyStatsPostCard({ item }: Props) {
       </Modal>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

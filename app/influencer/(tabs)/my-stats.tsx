@@ -171,7 +171,10 @@ export default function MyStatsScreen() {
         />
         <PrimaryButton
           label={isAnalyzing ? 'Analyzing…' : 'Analyze'}
+          loading={isAnalyzing}
+          disabled={isAnalyzing || !analyzeInput.trim()}
           onPress={async () => {
+            if (isAnalyzing) return;
             const url = analyzeInput.trim();
             if (!url) return;
             const metrics = await analyzeUrl(url);

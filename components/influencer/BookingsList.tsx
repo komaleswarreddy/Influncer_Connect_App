@@ -1,5 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  type ListRenderItemInfo,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { PremiumOpportunityCard, SectionHeader } from '@/components/ui';
 import { rateCardsApi } from '@/lib/rate-cards-api';
@@ -24,16 +34,19 @@ type Row = {
   deliverable?: Deliverable | null;
 };
 
+/**
+ * Owns its own scroll + pull-to-refresh via FlatList (real virtualization for
+ * bookings histories that grow over time) — do NOT render this inside another
+ * ScrollView/ScrollScreen with scrolling enabled, or virtualization is lost
+ * and you'll get the "VirtualizedLists nested in ScrollViews" warning.
+ * Host screens should use the non-scrolling `Screen` shell instead.
+ */
 export function BookingsList({
   showHeader = true,
   highlightBookingId,
-  refreshSignal,
-  onRefreshDone,
 }: {
   showHeader?: boolean;
   highlightBookingId?: string;
-  refreshSignal?: boolean;
-  onRefreshDone?: () => void;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
@@ -64,41 +77,115 @@ export function BookingsList({
     }, [load])
   );
 
-  useEffect(() => {
-    if (!refreshSignal) return;
-    void load(true).finally(() => onRefreshDone?.());
-  }, [refreshSignal, load, onRefreshDone]);
+  const respond = useCallback(
+    async (id: string, status: 'accepted' | 'declined') => {
+      try {
+        await rateCardsApi.respondBooking(id, status);
+        const message =
+          status === 'accepted'
+            ? 'Booking accepted. Submit your content when ready — payment is held in escrow until the brand approves.'
+            : 'Booking declined.';
+        setError(null);
+        await load(true);
+        Alert.alert('Done', message);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed';
+        setError(msg);
+      }
+    },
+    [load]
+  );
 
-  const respond = async (id: string, status: 'accepted' | 'declined') => {
-    try {
-      await rateCardsApi.respondBooking(id, status);
-      const message =
-        status === 'accepted'
-          ? 'Booking accepted. Submit your content when ready — payment is held in escrow until the brand approves.'
-          : 'Booking declined.';
-      setError(null);
-      await load(true);
-      Alert.alert('Done', message);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed';
-      setError(msg);
-    }
-  };
+  const openDeliver = useCallback(
+    (booking: Record<string, unknown>) => {
+      router.push({
+        pathname: '/influencer/booking-deliver',
+        params: {
+          bookingId: String(booking.id),
+          title: labelForContentType(String(booking.contentType)),
+        },
+      } as never);
+    },
+    [router]
+  );
 
-  const openDeliver = (booking: Record<string, unknown>) => {
-    router.push({
-      pathname: '/influencer/booking-deliver',
-      params: {
-        bookingId: String(booking.id),
-        title: labelForContentType(String(booking.contentType)),
-      },
-    } as never);
-  };
+  const keyExtractor = useCallback((row: Row) => String(row.booking.id), []);
+
+  const renderRow = useCallback(
+    ({ item }: ListRenderItemInfo<Row>) => {
+      const { booking, brand, deliverable } = item;
+      const id = String(booking.id);
+      const status = String(booking.status);
+      const contentType = String(booking.contentType ?? '');
+      const brandName = brand?.name ?? 'Brand';
+      const qty = String(booking.quantity ?? 1);
+      const tone = bookingStatusTone(status, deliverable);
+      const pill = bookingStatusShort(status, deliverable);
+      const platform = platformForContentType(contentType);
+      const quote =
+        deliverable?.brandFeedback && deliverable.status === 'revision_requested'
+          ? deliverable.brandFeedback
+          : booking.messageFromBrand
+            ? String(booking.messageFromBrand)
+            : undefined;
+      const quoteLabel =
+        deliverable?.brandFeedback && deliverable.status === 'revision_requested'
+          ? 'Brand feedback'
+          : quote
+            ? 'Brand note'
+            : undefined;
+
+      const hasFooter = status === 'pending' || canDeliver(status, deliverable);
+      const canOpenDeliver = canDeliver(status, deliverable);
+
+      const footer = (
+        <>
+          {status === 'pending' ? (
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.btn} onPress={() => void respond(id, 'accepted')}>
+                <Text style={styles.btnText}>Accept</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnOutline]}
+                onPress={() => void respond(id, 'declined')}
+              >
+                <Text style={[styles.btnText, styles.outlineText]}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {canOpenDeliver ? (
+            <TouchableOpacity style={styles.btn} onPress={() => openDeliver(booking)}>
+              <Text style={styles.btnText}>Deliver content</Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      );
+
+      return (
+        <PremiumOpportunityCard
+          highlighted={Boolean(highlightBookingId && highlightBookingId === id)}
+          title={labelForContentType(contentType)}
+          subtitle={`${brandName} · Direct booking`}
+          platform={platform === 'ugc' ? 'ugc' : platform}
+          statusLabel={pill}
+          statusTone={tone}
+          amountPrimary={`₹${Number(booking.totalAmount ?? 0).toLocaleString('en-IN')}`}
+          amountSecondary={`Qty ${qty}`}
+          quote={quote}
+          quoteLabel={quoteLabel}
+          showChevron={canOpenDeliver && !hasFooter}
+          onPress={canOpenDeliver && !hasFooter ? () => openDeliver(booking) : undefined}
+          footer={hasFooter ? footer : undefined}
+        />
+      );
+    },
+    [highlightBookingId, openDeliver, respond]
+  );
 
   const showEmptyRateCardCta = rows.length === 0 && !error && !loading;
 
-  return (
-    <View>
+  const listHeader = (
+    <>
       {showHeader ? (
         <SectionHeader
           title="PriceCard Bookings"
@@ -117,97 +204,52 @@ export function BookingsList({
 
       {loading && !refreshing ? (
         <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />
-      ) : rows.length === 0 && !error ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No booking requests yet.</Text>
-          {showEmptyRateCardCta ? (
-            <>
-              <Text style={styles.emptyHint}>
-                Enable Public price card and Open for direct bookings in your Price Card settings.
-              </Text>
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => router.push('/account-screens/rate-card' as never)}
-              >
-                <Text style={styles.linkBtnText}>Open Price Card</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-        </View>
-      ) : (
-        rows.map(({ booking, brand, deliverable }) => {
-          const id = String(booking.id);
-          const status = String(booking.status);
-          const contentType = String(booking.contentType ?? '');
-          const brandName = brand?.name ?? 'Brand';
-          const qty = String(booking.quantity ?? 1);
-          const tone = bookingStatusTone(status, deliverable);
-          const pill = bookingStatusShort(status, deliverable);
-          const platform = platformForContentType(contentType);
-          const quote =
-            deliverable?.brandFeedback && deliverable.status === 'revision_requested'
-              ? deliverable.brandFeedback
-              : booking.messageFromBrand
-                ? String(booking.messageFromBrand)
-                : undefined;
-          const quoteLabel =
-            deliverable?.brandFeedback && deliverable.status === 'revision_requested'
-              ? 'Brand feedback'
-              : quote
-                ? 'Brand note'
-                : undefined;
+      ) : null}
+    </>
+  );
 
-          const footer = (
-            <>
-              {status === 'pending' ? (
-                <View style={styles.actions}>
-                  <TouchableOpacity style={styles.btn} onPress={() => void respond(id, 'accepted')}>
-                    <Text style={styles.btnText}>Accept</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnOutline]}
-                    onPress={() => void respond(id, 'declined')}
-                  >
-                    <Text style={[styles.btnText, styles.outlineText]}>Decline</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              {canDeliver(status, deliverable) ? (
-                <TouchableOpacity style={styles.btn} onPress={() => openDeliver(booking)}>
-                  <Text style={styles.btnText}>Deliver content</Text>
-                </TouchableOpacity>
-              ) : null}
-            </>
-          );
+  const listEmpty =
+    loading || error ? null : (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>No booking requests yet.</Text>
+        {showEmptyRateCardCta ? (
+          <>
+            <Text style={styles.emptyHint}>
+              Enable Public price card and Open for direct bookings in your Price Card settings.
+            </Text>
+            <TouchableOpacity
+              style={styles.linkBtn}
+              onPress={() => router.push('/account-screens/rate-card' as never)}
+            >
+              <Text style={styles.linkBtnText}>Open Price Card</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+      </View>
+    );
 
-          const hasFooter = status === 'pending' || canDeliver(status, deliverable);
-          const canOpenDeliver = canDeliver(status, deliverable);
-
-          return (
-            <PremiumOpportunityCard
-              key={id}
-              highlighted={Boolean(highlightBookingId && highlightBookingId === id)}
-              title={labelForContentType(contentType)}
-              subtitle={`${brandName} · Direct booking`}
-              platform={platform === 'ugc' ? 'ugc' : platform}
-              statusLabel={pill}
-              statusTone={tone}
-              amountPrimary={`₹${Number(booking.totalAmount ?? 0).toLocaleString('en-IN')}`}
-              amountSecondary={`Qty ${qty}`}
-              quote={quote}
-              quoteLabel={quoteLabel}
-              showChevron={canOpenDeliver && !hasFooter}
-              onPress={canOpenDeliver && !hasFooter ? () => openDeliver(booking) : undefined}
-              footer={hasFooter ? footer : undefined}
-            />
-          );
-        })
-      )}
-    </View>
+  return (
+    <FlatList
+      data={rows}
+      keyExtractor={keyExtractor}
+      renderItem={renderRow}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={listEmpty}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load(true)}
+          tintColor={appShell.cta}
+        />
+      }
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 
 const styles = StyleSheet.create({
+  listContent: { flexGrow: 1 },
   empty: { marginTop: spacing.md, gap: spacing.sm },
   emptyText: { fontFamily: 'Inter_600SemiBold', color: appShell.textPrimary },
   emptyHint: { fontFamily: 'Inter_400Regular', color: appShell.textSecondary, lineHeight: 20 },

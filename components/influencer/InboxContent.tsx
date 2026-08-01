@@ -205,6 +205,105 @@ function navigateForNotification(
   pushCampaigns(router, n.campaignId);
 }
 
+type NotificationItem = ReturnType<typeof useCampaignStore.getState>['notifications'][number];
+type InviteItem = ReturnType<typeof useCampaignStore.getState>['invites'][number];
+
+/**
+ * Notifications and pending invites are both short, server-paginated lists
+ * (not the kind of unbounded history bookings/catalog screens accumulate),
+ * and they share one ScrollView specifically so "New invite" notifications
+ * can scroll the pending-invites card into view. Splitting them into two
+ * FlatLists would break that cross-list scroll-to behavior for a
+ * negligible virtualization win, so instead each row is memoized to avoid
+ * re-rendering the whole list on unrelated state changes.
+ */
+const NotificationRow = React.memo(function NotificationRow({
+  notification,
+  onOpen,
+}: {
+  notification: NotificationItem;
+  onOpen: (n: NotificationItem) => void;
+}) {
+  const shell = useAppShell();
+  const isUnread = !notification.isRead;
+  const statusTitle = notificationStatusTitle(notification);
+  const relativeTime = formatRelativeTime(notification.createdAt);
+  const icon = notificationIconForStatus(statusTitle);
+
+  return (
+    <View
+      style={[
+        styles.notificationRow,
+        { backgroundColor: shell.card, borderColor: shell.cardBorder },
+        !isUnread && styles.notificationRowRead,
+      ]}
+    >
+      <View style={styles.notificationLeft}>
+        <View style={[styles.notificationIconWrap, { backgroundColor: icon.bg }]}>
+          <Ionicons name={icon.name} size={18} color={icon.color} />
+        </View>
+        <Text
+          style={[
+            styles.title,
+            { color: isUnread ? shell.textPrimary : shell.textSecondary },
+            !isUnread && styles.titleRead,
+          ]}
+          numberOfLines={1}
+        >
+          {statusTitle}
+        </Text>
+      </View>
+      <View style={styles.notificationRight}>
+        <Text style={[styles.timeText, { color: shell.textMuted }]}>{relativeTime}</Text>
+        <PrimaryButton label="Open" compact pill onPress={() => onOpen(notification)} />
+      </View>
+    </View>
+  );
+});
+
+const InviteRow = React.memo(function InviteRow({
+  invite,
+  highlighted,
+  disabled,
+  onDecline,
+  onAccept,
+}: {
+  invite: InviteItem;
+  highlighted: boolean;
+  disabled: boolean;
+  onDecline: (invite: InviteItem) => void;
+  onAccept: (invite: InviteItem) => void;
+}) {
+  const shell = useAppShell();
+  return (
+    <View
+      style={[
+        styles.inviteCard,
+        highlighted
+          ? {
+              backgroundColor: shell.iceBlue,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: shell.cardBorder,
+            }
+          : null,
+      ]}
+    >
+      <View style={styles.inviteTopRow}>
+        <Text style={[styles.inviteTitle, { color: shell.textPrimary }]}>
+          {invite.campaign?.name || 'Campaign invite'}
+        </Text>
+      </View>
+      <Text style={[styles.muted, { color: shell.textSecondary }]}>
+        Expires: {invite.expiresAt ? new Date(invite.expiresAt).toLocaleString() : 'N/A'}
+      </Text>
+      <View style={styles.actions}>
+        <SecondaryButton label="Decline" onPress={() => onDecline(invite)} disabled={disabled} />
+        <PrimaryButton label="Accept" onPress={() => onAccept(invite)} disabled={disabled} />
+      </View>
+    </View>
+  );
+});
+
 export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
   const shell = useAppShell();
   const router = useRouter();
@@ -264,6 +363,48 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
     });
   }, [notifications]);
 
+  const onOpenNotification = useCallback(
+    async (n: NotifNav & { id: string; isRead: boolean }) => {
+      try {
+        if (!n.isRead) await markNotificationRead(n.id);
+        navigateForNotification(router, n, {
+          focusInvite: setFocusedInviteId,
+          scrollToPendingInvites,
+        });
+      } catch (e) {
+        Alert.alert('Notification', e instanceof Error ? e.message : 'Could not open notification');
+      }
+    },
+    [markNotificationRead, router, scrollToPendingInvites]
+  );
+
+  const onDeclineInvite = useCallback(
+    async (invite: { id: string }) => {
+      try {
+        await declineInvite(invite.id);
+        if (focusedInviteId === invite.id) setFocusedInviteId(null);
+      } catch (e) {
+        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not decline');
+      }
+    },
+    [declineInvite, focusedInviteId]
+  );
+
+  const onAcceptInvite = useCallback(
+    async (invite: { id: string }) => {
+      try {
+        await markInviteViewed(invite.id);
+        const participationId = await acceptInvite(invite.id);
+        if (participationId) {
+          router.push(`/influencer/contract?participationId=${participationId}`);
+        }
+      } catch (e) {
+        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not accept');
+      }
+    },
+    [markInviteViewed, acceptInvite, router]
+  );
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -289,65 +430,9 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
         {sortedNotifications.length === 0 ? (
           <Text style={[styles.muted, { color: shell.textSecondary }]}>No notifications yet.</Text>
         ) : (
-          sortedNotifications.map((n) => {
-            const isUnread = !n.isRead;
-            const statusTitle = notificationStatusTitle(n);
-            const relativeTime = formatRelativeTime(n.createdAt);
-            const icon = notificationIconForStatus(statusTitle);
-            return (
-              <View
-                key={n.id}
-                style={[
-                  styles.notificationRow,
-                  {
-                    backgroundColor: shell.card,
-                    borderColor: shell.cardBorder,
-                  },
-                  !isUnread && styles.notificationRowRead,
-                ]}
-              >
-                <View style={styles.notificationLeft}>
-                  <View style={[styles.notificationIconWrap, { backgroundColor: icon.bg }]}>
-                    <Ionicons name={icon.name} size={18} color={icon.color} />
-                  </View>
-                  <Text
-                    style={[
-                      styles.title,
-                      {
-                        color: isUnread ? shell.textPrimary : shell.textSecondary,
-                      },
-                      !isUnread && styles.titleRead,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {statusTitle}
-                  </Text>
-                </View>
-                <View style={styles.notificationRight}>
-                  <Text style={[styles.timeText, { color: shell.textMuted }]}>{relativeTime}</Text>
-                  <PrimaryButton
-                    label="Open"
-                    compact
-                    pill
-                    onPress={async () => {
-                      try {
-                        if (!n.isRead) await markNotificationRead(n.id);
-                        navigateForNotification(router, n, {
-                          focusInvite: setFocusedInviteId,
-                          scrollToPendingInvites,
-                        });
-                      } catch (e) {
-                        Alert.alert(
-                          'Notification',
-                          e instanceof Error ? e.message : 'Could not open notification'
-                        );
-                      }
-                    }}
-                  />
-                </View>
-              </View>
-            );
-          })
+          sortedNotifications.map((n) => (
+            <NotificationRow key={n.id} notification={n} onOpen={onOpenNotification} />
+          ))
         )}
       </PremiumCard>
 
@@ -360,62 +445,16 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
         {pendingInvites.length === 0 ? (
           <Text style={[styles.muted, { color: shell.textSecondary }]}>No pending invites.</Text>
         ) : (
-          pendingInvites.map((invite) => {
-            const highlighted = focusedInviteId != null && focusedInviteId === invite.id;
-            return (
-              <View
-                key={invite.id}
-                style={[
-                  styles.inviteCard,
-                  highlighted
-                    ? {
-                        backgroundColor: shell.iceBlue,
-                        borderWidth: StyleSheet.hairlineWidth,
-                        borderColor: shell.cardBorder,
-                      }
-                    : null,
-                ]}
-              >
-                <View style={styles.inviteTopRow}>
-                  <Text style={[styles.inviteTitle, { color: shell.textPrimary }]}>
-                    {invite.campaign?.name || 'Campaign invite'}
-                  </Text>
-                </View>
-                <Text style={[styles.muted, { color: shell.textSecondary }]}>
-                  Expires: {invite.expiresAt ? new Date(invite.expiresAt).toLocaleString() : 'N/A'}
-                </Text>
-                <View style={styles.actions}>
-                  <SecondaryButton
-                    label="Decline"
-                    onPress={async () => {
-                      try {
-                        await declineInvite(invite.id);
-                        if (focusedInviteId === invite.id) setFocusedInviteId(null);
-                      } catch (e) {
-                        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not decline');
-                      }
-                    }}
-                    disabled={isLoading}
-                  />
-                  <PrimaryButton
-                    label="Accept"
-                    onPress={async () => {
-                      try {
-                        await markInviteViewed(invite.id);
-                        const participationId = await acceptInvite(invite.id);
-                        if (participationId) {
-                          router.push(`/influencer/contract?participationId=${participationId}`);
-                        }
-                      } catch (e) {
-                        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not accept');
-                      }
-                    }}
-                    disabled={isLoading}
-                  />
-                </View>
-              </View>
-            );
-          })
+          pendingInvites.map((invite) => (
+            <InviteRow
+              key={invite.id}
+              invite={invite}
+              highlighted={focusedInviteId != null && focusedInviteId === invite.id}
+              disabled={isLoading}
+              onDecline={onDeclineInvite}
+              onAccept={onAcceptInvite}
+            />
+          ))
         )}
       </PremiumCard>
     </ScrollView>
@@ -457,7 +496,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12,
-    fontFamily: fonts.medium,
+    fontFamily: fonts.regular,
   },
   notificationRow: {
     marginBottom: spacing.sm,

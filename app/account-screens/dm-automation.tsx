@@ -12,16 +12,34 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollScreen, PrimaryButton, SectionHeader, PremiumCard, SecondaryButton } from '@/components/ui';
+import {
+  ScrollScreen,
+  PrimaryButton,
+  SectionHeader,
+  PremiumCard,
+  SecondaryButton,
+} from '@/components/ui';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import type { DmAutomation, DmTriggerType } from '@/lib/instagram-automation-api';
 import { appShell, spacing, radius, palette } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 const BENEFITS = [
-  { icon: 'chatbubble-ellipses-outline' as const, title: 'Auto-reply to DMs', body: 'Send instant replies when followers message you.' },
-  { icon: 'megaphone-outline' as const, title: 'Comment keyword triggers', body: 'Reply to comments with keywords like LINK or INFO.' },
-  { icon: 'sparkles-outline' as const, title: 'AI-powered replies', body: 'Generate personalized responses from your brand context.' },
+  {
+    icon: 'chatbubble-ellipses-outline' as const,
+    title: 'Auto-reply to DMs',
+    body: 'Send instant replies when followers message you.',
+  },
+  {
+    icon: 'megaphone-outline' as const,
+    title: 'Comment keyword triggers',
+    body: 'Reply to comments with keywords like LINK or INFO.',
+  },
+  {
+    icon: 'sparkles-outline' as const,
+    title: 'AI-powered replies',
+    body: 'Generate personalized responses from your brand context.',
+  },
 ];
 
 const TRIGGER_LABELS: Record<DmTriggerType, string> = {
@@ -69,7 +87,7 @@ function AutomationRow({
   toggling: boolean;
 }) {
   const media = automation.linkedMedia;
-  const kindLabel = media?.kind ? KIND_LABELS[media.kind] ?? media.kind : null;
+  const kindLabel = media?.kind ? (KIND_LABELS[media.kind] ?? media.kind) : null;
 
   return (
     <PremiumCard style={styles.automationCard}>
@@ -93,7 +111,7 @@ function AutomationRow({
             ) : null}
           </View>
           <Text style={styles.automationMeta}>
-            {TRIGGER_LABELS[automation.triggerType]} � {automation.totalSent} sent
+            {TRIGGER_LABELS[automation.triggerType]} · {automation.totalSent} sent
           </Text>
         </TouchableOpacity>
         <Switch
@@ -105,8 +123,18 @@ function AutomationRow({
         />
       </View>
       <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={styles.automationFooter}>
-        <View style={[styles.statusPill, automation.isActive ? styles.statusActive : styles.statusPaused]}>
-          <Text style={[styles.statusText, automation.isActive ? styles.statusTextActive : styles.statusTextPaused]}>
+        <View
+          style={[
+            styles.statusPill,
+            automation.isActive ? styles.statusActive : styles.statusPaused,
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusText,
+              automation.isActive ? styles.statusTextActive : styles.statusTextPaused,
+            ]}
+          >
             {automation.isActive ? 'Active' : 'Paused'}
           </Text>
         </View>
@@ -115,7 +143,6 @@ function AutomationRow({
     </PremiumCard>
   );
 }
-
 
 export default function DmAutomationScreen() {
   const router = useRouter();
@@ -182,7 +209,8 @@ export default function DmAutomationScreen() {
           <Ionicons name="logo-instagram" size={36} color={appShell.cta} />
           <Text style={styles.heroTitle}>Connect via Instagram hub</Text>
           <Text style={styles.heroBody}>
-            DM automations use the same Instagram connection as content scheduling. Connect once in the Instagram hub.
+            DM automations use the same Instagram connection as content scheduling. Connect once in
+            the Instagram hub.
           </Text>
           <PrimaryButton
             label="Go to Instagram hub"
@@ -209,11 +237,11 @@ export default function DmAutomationScreen() {
           <View style={styles.accountCopy}>
             <Text style={styles.accountName}>@{connection?.instagramUsername ?? 'connected'}</Text>
             <Text style={styles.accountMeta}>
-              {formatCount(connection?.followerCount ?? 0)} followers · {connection?.accountType ?? 'Business'}
+              {formatCount(connection?.followerCount ?? 0)} followers ·{' '}
+              {connection?.accountType ?? 'Business'}
             </Text>
           </View>
         </View>
-        
       </PremiumCard>
 
       {summaryStats ? (
@@ -248,7 +276,9 @@ export default function DmAutomationScreen() {
       ) : automations.length === 0 ? (
         <PremiumCard style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>No automations yet</Text>
-          <Text style={styles.emptyBody}>Choose a reel, post, or story and set up keyword-triggered Auto DMs.</Text>
+          <Text style={styles.emptyBody}>
+            Choose a reel, post, or story and set up keyword-triggered Auto DMs.
+          </Text>
           <PrimaryButton
             label="Set up Auto DM"
             onPress={() => router.push('/account-screens/create-automation' as never)}
@@ -310,7 +340,13 @@ const styles = StyleSheet.create({
   },
   benefitCopy: { flex: 1 },
   benefitName: { fontFamily: fonts.semiBold, fontSize: 15, color: appShell.textPrimary },
-  benefitBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary, marginTop: 2, lineHeight: 18 },
+  benefitBody: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: appShell.textSecondary,
+    marginTop: 2,
+    lineHeight: 18,
+  },
   accountCard: { gap: spacing.md, marginBottom: spacing.md },
   accountRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatar: { width: 52, height: 52, borderRadius: 26 },
@@ -321,11 +357,21 @@ const styles = StyleSheet.create({
   },
   accountCopy: { flex: 1 },
   accountName: { fontFamily: fonts.bold, fontSize: 16, color: appShell.textPrimary },
-  accountMeta: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary, marginTop: 2 },
+  accountMeta: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: appShell.textSecondary,
+    marginTop: 2,
+  },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   statCard: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
   statValue: { fontFamily: fonts.bold, fontSize: 20, color: appShell.textPrimary },
-  statLabel: { fontFamily: fonts.regular, fontSize: 11, color: appShell.textSecondary, marginTop: 2 },
+  statLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: appShell.textSecondary,
+    marginTop: 2,
+  },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,8 +420,18 @@ const styles = StyleSheet.create({
   },
   automationCopy: { flex: 1 },
   automationName: { fontFamily: fonts.semiBold, fontSize: 15, color: appShell.textPrimary },
-  automationMeta: { fontFamily: fonts.regular, fontSize: 12, color: appShell.textSecondary, marginTop: 2 },
-  automationFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
+  automationMeta: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: appShell.textSecondary,
+    marginTop: 2,
+  },
+  automationFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+  },
   statusPill: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
   statusActive: { backgroundColor: 'rgba(34, 197, 94, 0.12)' },
   statusPaused: { backgroundColor: appShell.iceBlue },
@@ -384,6 +440,10 @@ const styles = StyleSheet.create({
   statusTextPaused: { color: appShell.textSecondary },
   emptyCard: { alignItems: 'center', gap: spacing.sm },
   emptyTitle: { fontFamily: fonts.bold, fontSize: 16, color: appShell.textPrimary },
-  emptyBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary, textAlign: 'center' },
+  emptyBody: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: appShell.textSecondary,
+    textAlign: 'center',
+  },
 });
-

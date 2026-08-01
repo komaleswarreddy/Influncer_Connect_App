@@ -1,11 +1,11 @@
 import React from 'react';
-import { ScrollScreen } from '@/components/ui';
+import { Screen } from '@/components/ui';
 import { BookingsList } from '@/components/influencer/BookingsList';
 
 export default function BookingsScreen() {
   return (
-    <ScrollScreen>
+    <Screen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
       <BookingsList />
-    </ScrollScreen>
+    </Screen>
   );
 }

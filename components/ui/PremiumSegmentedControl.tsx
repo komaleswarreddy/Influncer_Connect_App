@@ -45,7 +45,6 @@ export function PremiumSegmentedControl({ segments, value, onChange, compact, st
         style,
       ]}
     >
-      {' '}
       {segments.map((seg) => {
         const isDanger = seg.tone === 'danger';
         const active = !isDanger && value === seg.key;

@@ -4,16 +4,13 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { ScrollScreen, PrimaryButton, SectionHeader, PremiumCard } from '@/components/ui';
 import { CatalogPendingState } from '@/components/catalog/CatalogPendingState';
 import { useCatalogStore } from '@/store/catalog-store';
-import {
-  catalogProductCount,
-  isCatalogSetupComplete,
-} from '@/lib/catalog-api';
+import { catalogProductCount, isCatalogSetupComplete } from '@/lib/catalog-api';
 import { appShell, spacing, radius } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 export default function CatalogHomeScreen() {
   const router = useRouter();
-  const { catalog, isLoading, fetchMyCatalog, reopenCatalog, isSaving } = useCatalogStore();
+  const { catalog, isLoading, error, fetchMyCatalog, reopenCatalog, isSaving } = useCatalogStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -29,18 +26,43 @@ export default function CatalogHomeScreen() {
     );
   }
 
+  if (error && !catalog) {
+    return (
+      <ScrollScreen safeAreaEdges={['bottom']}>
+        <SectionHeader title="Catalog" subtitle="Something went wrong" />
+        <PremiumCard style={styles.heroCard}>
+          <Text style={styles.heroTitle}>Couldn't load your catalog</Text>
+          <Text style={styles.heroBody}>{error}</Text>
+          <PrimaryButton label="Retry" onPress={() => void fetchMyCatalog()} loading={isLoading} />
+        </PremiumCard>
+      </ScrollScreen>
+    );
+  }
+
   if (catalog?.status === 'approved') {
     const slug = catalog.slug;
-    const shareUrl = slug ? `${process.env.EXPO_PUBLIC_API_URL || ''}/catalog/${slug}`.replace(/\/\/$/, '') : null;
+    const shareUrl = slug
+      ? `${process.env.EXPO_PUBLIC_API_URL || ''}/catalog/${slug}`.replace(/\/\/$/, '')
+      : null;
     return (
       <ScrollScreen safeAreaEdges={['bottom']}>
         <SectionHeader title="Catalog" subtitle={catalog.storeName ?? 'Approved'} />
         <PremiumCard>
           <Text style={styles.heroTitle}>Your catalog is live</Text>
-          <Text style={styles.heroBody}>{catalogProductCount(catalog)} products · share your store link with followers.</Text>
+          <Text style={styles.heroBody}>
+            {catalogProductCount(catalog)} products · share your store link with followers.
+          </Text>
           {shareUrl ? <Text style={styles.heroBody}>{shareUrl}</Text> : null}
-          <PrimaryButton label="Edit catalog" onPress={() => router.push('/account-screens/catalog-builder' as never)} />
-          <PrimaryButton label="View affiliate links" compact pill onPress={() => router.push('/account-screens/affiliate-links' as never)} />
+          <PrimaryButton
+            label="Edit catalog"
+            onPress={() => router.push('/account-screens/catalog-builder' as never)}
+          />
+          <PrimaryButton
+            label="View affiliate links"
+            compact
+            pill
+            onPress={() => router.push('/account-screens/affiliate-links' as never)}
+          />
         </PremiumCard>
       </ScrollScreen>
     );
@@ -53,11 +75,17 @@ export default function CatalogHomeScreen() {
         <SectionHeader title="Catalog" subtitle="Needs changes" />
         <PremiumCard>
           <Text style={styles.heroTitle}>Catalog not approved</Text>
-          {feedback ? <Text style={styles.heroBody}>{feedback}</Text> : <Text style={styles.heroBody}>Please update your catalog and resubmit.</Text>}
+          {feedback ? (
+            <Text style={styles.heroBody}>{feedback}</Text>
+          ) : (
+            <Text style={styles.heroBody}>Please update your catalog and resubmit.</Text>
+          )}
           <PrimaryButton
             label="Edit & resubmit"
             onPress={() => {
-              void reopenCatalog().then(() => router.push('/account-screens/catalog-builder' as never));
+              void reopenCatalog().then(() =>
+                router.push('/account-screens/catalog-builder' as never)
+              );
             }}
           />
         </PremiumCard>

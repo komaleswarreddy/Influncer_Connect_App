@@ -1,5 +1,5 @@
 import { Stack, Redirect, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useThemeStore } from '@/store/theme-store';
 import { useAppShell } from '@/theme/useAppShell';
@@ -21,6 +21,18 @@ export default function InfluencerLayout() {
     }
   }, [isAuthenticated, isInitialized, refreshSession]);
 
+  // Hooks must run before the early returns below (Rules of Hooks), even
+  // though screenOptions is only used once we reach the final <Stack>.
+  const screenOptions = useMemo(
+    () => ({
+      headerStyle: { backgroundColor: shell.canvas },
+      headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: shell.textPrimary },
+      headerTintColor: shell.cta,
+      contentStyle: { backgroundColor: shell.canvas },
+    }),
+    [shell.canvas, shell.textPrimary, shell.cta]
+  );
+
   if (!isInitialized) {
     return null;
   }
@@ -35,14 +47,7 @@ export default function InfluencerLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: shell.canvas },
-        headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: shell.textPrimary },
-        headerTintColor: shell.cta,
-        contentStyle: { backgroundColor: shell.canvas },
-      }}
-    >
+    <Stack screenOptions={screenOptions}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="set-username" options={{ headerShown: false }} />
       <Stack.Screen

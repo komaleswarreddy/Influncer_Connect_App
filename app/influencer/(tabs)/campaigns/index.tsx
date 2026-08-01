@@ -433,28 +433,35 @@ export default function InfluencerCampaignsScreen() {
     tenantId: 'all',
   });
   const [tenants, setTenants] = useState<TenantOption[]>([]);
+  const [tenantsError, setTenantsError] = useState<string | null>(null);
   const router = useRouter();
 
-  const openUgcDeliver = (appId: string, title: string) => {
-    router.push(
-      `/influencer/ugc-deliver?applicationId=${encodeURIComponent(appId)}&title=${encodeURIComponent(title)}` as never
-    );
-  };
+  const openUgcDeliver = useCallback(
+    (appId: string, title: string) => {
+      router.push(
+        `/influencer/ugc-deliver?applicationId=${encodeURIComponent(appId)}&title=${encodeURIComponent(title)}` as never
+      );
+    },
+    [router]
+  );
 
-  const onUgcApplicationPress = (row: UgcApplicationRow) => {
-    const app = appFromRow(row);
-    const brief = row.brief ?? {};
-    const briefId = String(brief.id ?? '');
-    const title = String(brief.title ?? 'UGC Brief');
+  const onUgcApplicationPress = useCallback(
+    (row: UgcApplicationRow) => {
+      const app = appFromRow(row);
+      const brief = row.brief ?? {};
+      const briefId = String(brief.id ?? '');
+      const title = String(brief.title ?? 'UGC Brief');
 
-    if (canDeliverContent(row) && app.id) {
-      openUgcDeliver(app.id, title);
-      return;
-    }
-    if (briefId) {
-      router.push(`/influencer/ugc-brief-detail?id=${briefId}` as never);
-    }
-  };
+      if (canDeliverContent(row) && app.id) {
+        openUgcDeliver(app.id, title);
+        return;
+      }
+      if (briefId) {
+        router.push(`/influencer/ugc-brief-detail?id=${briefId}` as never);
+      }
+    },
+    [openUgcDeliver, router]
+  );
 
   const ugcList = ugcJobs;
 
@@ -478,72 +485,14 @@ export default function InfluencerCampaignsScreen() {
       const response = (await api.get('/api/tenants')) as unknown;
       if (response && Array.isArray(response)) {
         setTenants(response as TenantOption[]);
+        setTenantsError(null);
       } else {
-        // Use mock tenants if API fails
-        setTenants([
-          {
-            id: 'tenant-1',
-            tenantName: 'Fashion Forward',
-            domain: 'fashionforward.com',
-            subdomain: 'fashion',
-            status: 'active',
-          },
-          {
-            id: 'tenant-2',
-            tenantName: 'TechZone',
-            domain: 'techzone.com',
-            subdomain: 'tech',
-            status: 'active',
-          },
-          {
-            id: 'tenant-3',
-            tenantName: 'FitLife',
-            domain: 'fitlife.com',
-            subdomain: 'fitness',
-            status: 'active',
-          },
-          {
-            id: 'tenant-4',
-            tenantName: 'HomeStyle',
-            domain: 'homestyle.com',
-            subdomain: 'home',
-            status: 'active',
-          },
-        ]);
+        console.error('Unexpected /api/tenants response shape:', response);
+        setTenantsError('Could not load brand filters right now.');
       }
     } catch (error) {
       console.error('Error fetching tenants:', error);
-      // Use mock tenants as fallback
-      setTenants([
-        {
-          id: 'tenant-1',
-          tenantName: 'Fashion Forward',
-          domain: 'fashionforward.com',
-          subdomain: 'fashion',
-          status: 'active',
-        },
-        {
-          id: 'tenant-2',
-          tenantName: 'TechZone',
-          domain: 'techzone.com',
-          subdomain: 'tech',
-          status: 'active',
-        },
-        {
-          id: 'tenant-3',
-          tenantName: 'FitLife',
-          domain: 'fitlife.com',
-          subdomain: 'fitness',
-          status: 'active',
-        },
-        {
-          id: 'tenant-4',
-          tenantName: 'HomeStyle',
-          domain: 'homestyle.com',
-          subdomain: 'home',
-          status: 'active',
-        },
-      ]);
+      setTenantsError('Could not load brand filters right now.');
     }
   };
 
@@ -567,7 +516,7 @@ export default function InfluencerCampaignsScreen() {
     }
   };
 
-  const handleViewCampaign = (campaignId: string) => {
+  const handleViewCampaign = useCallback((campaignId: string) => {
     try {
       setSelectedCampaignId(campaignId);
       setShowCampaignDetails(true);
@@ -575,7 +524,7 @@ export default function InfluencerCampaignsScreen() {
       console.error('Error viewing campaign:', error);
       Alert.alert('Error', 'Failed to load campaign details');
     }
-  };
+  }, []);
 
   const handleCloseCampaignDetails = () => {
     setShowCampaignDetails(false);
@@ -767,43 +716,42 @@ export default function InfluencerCampaignsScreen() {
     return exclusiveActive + publicActive;
   }, [myCampaigns, participations, applications, ugcApplications]);
 
-  const renderUgcApplicationCard = (
-    row: UgcApplicationRow,
-    idx: number,
-    options?: SwipeFeedRenderOptions
-  ) => {
-    const app = appFromRow(row);
-    const brief = row.brief ?? {};
-    const title = String(brief.title ?? 'UGC Brief');
-    const budget = Number(brief.budgetPerPiece ?? 0);
-    const productName = String(brief.productName ?? 'Brand brief');
-    const contentType = String(brief.contentType ?? 'ugc_video');
-    const typeLabel = labelForContentType(contentType);
-    const showDeliver = canDeliverContent(row) && Boolean(app.id);
-    const deadline = formatUgcDeadline(brief.deadline);
+  const renderUgcApplicationCard = useCallback(
+    (row: UgcApplicationRow, idx: number, options?: SwipeFeedRenderOptions) => {
+      const app = appFromRow(row);
+      const brief = row.brief ?? {};
+      const title = String(brief.title ?? 'UGC Brief');
+      const budget = Number(brief.budgetPerPiece ?? 0);
+      const productName = String(brief.productName ?? 'Brand brief');
+      const contentType = String(brief.contentType ?? 'ugc_video');
+      const typeLabel = labelForContentType(contentType);
+      const showDeliver = canDeliverContent(row) && Boolean(app.id);
+      const deadline = formatUgcDeadline(brief.deadline);
 
-    return (
-      <CampaignReferenceCard
-        key={app.id || String(brief.id ?? idx)}
-        style={styles.campaignCard}
-        fillHeight={false}
-        title={title}
-        brandName={productName}
-        metaLine={typeLabel}
-        statusLabel={null}
-        commissionRate={`₹${budget.toLocaleString('en-IN')}`}
-        duration={deadline ? `Due ${deadline}` : 'TBD'}
-        rateLabel="/ piece"
-        footerBadge={null}
-        footerButtonLabel={showDeliver ? 'Deliver content' : 'View details'}
-        onFooterPress={() => {
-          if (showDeliver) openUgcDeliver(app.id, title);
-          else onUgcApplicationPress(row);
-        }}
-        onPress={() => onUgcApplicationPress(row)}
-      />
-    );
-  };
+      return (
+        <CampaignReferenceCard
+          key={app.id || String(brief.id ?? idx)}
+          style={styles.campaignCard}
+          fillHeight={false}
+          title={title}
+          brandName={productName}
+          metaLine={typeLabel}
+          statusLabel={null}
+          commissionRate={`₹${budget.toLocaleString('en-IN')}`}
+          duration={deadline ? `Due ${deadline}` : 'TBD'}
+          rateLabel="/ piece"
+          footerBadge={null}
+          footerButtonLabel={showDeliver ? 'Deliver content' : 'View details'}
+          onFooterPress={() => {
+            if (showDeliver) openUgcDeliver(app.id, title);
+            else onUgcApplicationPress(row);
+          }}
+          onPress={() => onUgcApplicationPress(row)}
+        />
+      );
+    },
+    [openUgcDeliver, onUgcApplicationPress]
+  );
 
   const mainTabs = useMemo(
     () =>
@@ -821,60 +769,74 @@ export default function InfluencerCampaignsScreen() {
   const showMineChrome = tab === 'my-partnerships';
   const showPartnershipFilters = showExclusiveChrome || showMineChrome;
 
-  const renderCampaignCard = (
-    campaign: Campaign,
-    status: 'available' | 'applied' | 'joined',
-    options?: SwipeFeedRenderOptions
-  ) => {
-    if (!campaign) return null;
+  const renderCampaignCard = useCallback(
+    (
+      campaign: Campaign,
+      status: 'available' | 'applied' | 'joined',
+      options?: SwipeFeedRenderOptions
+    ) => {
+      if (!campaign) return null;
 
-    try {
-      const cid = String(campaign.id);
-      const footer = buildCampaignReferenceFooter(campaign, status, applications, participations, {
-        handleViewCampaign,
-        router,
-      });
-      const isMine = status === 'applied' || status === 'joined';
-      const mineStatus = isMine ? buildMineCampaignStatus(cid, participations, applications) : null;
-      const statusLabel = isMine
-        ? (mineStatus?.label ?? null)
-        : campaignAvailableLabel(String(campaign.status || 'active'));
-      const statusTone: OpportunityStatusTone | undefined = isMine
-        ? mineStatus?.tone
-        : campaignAvailableTone(String(campaign.status || 'active'));
+      try {
+        const cid = String(campaign.id);
+        const footer = buildCampaignReferenceFooter(
+          campaign,
+          status,
+          applications,
+          participations,
+          {
+            handleViewCampaign,
+            router,
+          }
+        );
+        const isMine = status === 'applied' || status === 'joined';
+        const mineStatus = isMine
+          ? buildMineCampaignStatus(cid, participations, applications)
+          : null;
+        const statusLabel = isMine
+          ? (mineStatus?.label ?? null)
+          : campaignAvailableLabel(String(campaign.status || 'active'));
+        const statusTone: OpportunityStatusTone | undefined = isMine
+          ? mineStatus?.tone
+          : campaignAvailableTone(String(campaign.status || 'active'));
 
-      const shortDescription =
-        (campaign.description && String(campaign.description).trim()) ||
-        (campaign.basicGuidelines && String(campaign.basicGuidelines).trim()) ||
-        null;
-      const pay = resolveCampaignPaySummary(campaign);
+        const shortDescription =
+          (campaign.description && String(campaign.description).trim()) ||
+          (campaign.basicGuidelines && String(campaign.basicGuidelines).trim()) ||
+          null;
+        const pay = resolveCampaignPaySummary(campaign);
 
-      return (
-        <CampaignReferenceCard
-          key={cid}
-          style={styles.campaignCard}
-          fillHeight={false}
-          title={String(campaign.name || 'Untitled Campaign')}
-          brandName={String(campaign.tenant?.tenantName || 'Unknown brand')}
-          metaLine={buildCampaignMetaLine(campaign)}
-          statusLabel={statusLabel}
-          statusTone={statusTone}
-          commissionRate={pay.primaryLabel}
-          duration={formatCampaignDurationRange(campaign.startDate, campaign.endDate ?? undefined)}
-          brandLogoUrl={campaign.brandLogoUrl}
-          shortDescription={shortDescription}
-          rateLabel={pay.secondaryLabel.toLowerCase()}
-          footerBadge={footer.badge}
-          footerButtonLabel={footer.buttonLabel}
-          onFooterPress={footer.onPress}
-          onPress={() => handleViewCampaign(cid)}
-        />
-      );
-    } catch (error) {
-      console.error('Error rendering campaign card:', error);
-      return null;
-    }
-  };
+        return (
+          <CampaignReferenceCard
+            key={cid}
+            style={styles.campaignCard}
+            fillHeight={false}
+            title={String(campaign.name || 'Untitled Campaign')}
+            brandName={String(campaign.tenant?.tenantName || 'Unknown brand')}
+            metaLine={buildCampaignMetaLine(campaign)}
+            statusLabel={statusLabel}
+            statusTone={statusTone}
+            commissionRate={pay.primaryLabel}
+            duration={formatCampaignDurationRange(
+              campaign.startDate,
+              campaign.endDate ?? undefined
+            )}
+            brandLogoUrl={campaign.brandLogoUrl}
+            shortDescription={shortDescription}
+            rateLabel={pay.secondaryLabel.toLowerCase()}
+            footerBadge={footer.badge}
+            footerButtonLabel={footer.buttonLabel}
+            onFooterPress={footer.onPress}
+            onPress={() => handleViewCampaign(cid)}
+          />
+        );
+      } catch (error) {
+        console.error('Error rendering campaign card:', error);
+        return null;
+      }
+    },
+    [applications, participations, handleViewCampaign, router]
+  );
 
   const onPagerScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pagerWidth <= 0) return;
@@ -1145,6 +1107,7 @@ export default function InfluencerCampaignsScreen() {
             </View>
 
             <Text style={styles.filterLabel}>Brand</Text>
+            {tenantsError ? <Text style={styles.tenantsErrorText}>{tenantsError}</Text> : null}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1396,6 +1359,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.7,
+  },
+  tenantsErrorText: {
+    marginTop: 4,
+    color: palette.error,
+    fontSize: 12,
+    fontFamily: fonts.regular,
   },
   inlineFilterRow: {
     gap: 8,

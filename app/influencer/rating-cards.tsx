@@ -1,14 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   StyleSheet,
   TouchableOpacity,
   Modal,
   ActivityIndicator,
   Alert,
   RefreshControl,
+  type ListRenderItemInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   useCampaignStore,
   type Campaign,
+  type CampaignParticipation,
   type ParticipationCampaignEmbed,
 } from '@/store/campaign-store';
 import { useInfluencerStore } from '@/store/influencer-store';
@@ -59,8 +61,13 @@ function StarRatingDisplay({ rating }: { rating: number }) {
 }
 
 export default function RatingCardsScreen() {
-  const { participations, campaigns, fetchParticipations, fetchCampaigns, isLoading: campaignsLoading } =
-    useCampaignStore();
+  const {
+    participations,
+    campaigns,
+    fetchParticipations,
+    fetchCampaigns,
+    isLoading: campaignsLoading,
+  } = useCampaignStore();
   const {
     ratings,
     adminRatings,
@@ -117,12 +124,12 @@ export default function RatingCardsScreen() {
     }
   };
 
-  const handleOpenRating = (participation: { id: string }) => {
+  const handleOpenRating = useCallback((participation: { id: string }) => {
     setSelectedParticipation(participation);
     setRatingValue(0);
     setReview('');
     setShowRatingModal(true);
-  };
+  }, []);
 
   const handleSubmitRating = async () => {
     if (!selectedParticipation) return;
@@ -143,79 +150,108 @@ export default function RatingCardsScreen() {
     }
   };
 
-  const handleOpenBrandRatings = async (participation: {
-    influencerId: string;
-    campaignId: string;
-    id: string;
-  }) => {
-    setBrandModalParticipation(participation);
-    await fetchBrandRatings(participation.influencerId, participation.campaignId, participation.id);
-    setShowBrandModal(true);
-  };
+  const handleOpenBrandRatings = useCallback(
+    async (participation: { influencerId: string; campaignId: string; id: string }) => {
+      setBrandModalParticipation(participation);
+      await fetchBrandRatings(
+        participation.influencerId,
+        participation.campaignId,
+        participation.id
+      );
+      setShowBrandModal(true);
+    },
+    [fetchBrandRatings]
+  );
+
+  const keyExtractor = useCallback((p: CampaignParticipation) => p.id, []);
+
+  const renderItem = useCallback(
+    ({ item: p }: ListRenderItemInfo<CampaignParticipation>) => {
+      const display = resolveCampaignDisplay(
+        campaigns.find((c) => c.id === p.campaignId),
+        p.campaign ?? undefined
+      );
+      if (!display) return null;
+      const rating = ratings[p.id];
+
+      return (
+        <PremiumCard style={styles.ratingCard}>
+          <Text style={styles.cardTitle}>{display.title}</Text>
+          <Text style={styles.cardSubtitle}>{display.brandName}</Text>
+          <View style={styles.ratingBlock}>
+            <View style={styles.ratingRow}>
+              <Text style={styles.ratingLabel}>Your rating</Text>
+              {rating ? (
+                <StarRatingDisplay rating={rating.overallRating} />
+              ) : (
+                <Text style={styles.notRated}>Not rated yet</Text>
+              )}
+            </View>
+            {rating?.review ? (
+              <Text style={styles.reviewSnippet} numberOfLines={6}>
+                {rating.review}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.cardActions}>
+            {!rating ? (
+              <PrimaryButton compact label="Rate campaign" onPress={() => handleOpenRating(p)} />
+            ) : null}
+            {rating ? (
+              <PrimaryButton
+                compact
+                label="View brand ratings"
+                onPress={() => handleOpenBrandRatings(p)}
+              />
+            ) : (
+              <SecondaryButton
+                label="View brand ratings"
+                onPress={() => handleOpenBrandRatings(p)}
+              />
+            )}
+          </View>
+        </PremiumCard>
+      );
+    },
+    [campaigns, ratings, handleOpenRating, handleOpenBrandRatings]
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        <SectionHeader
+          title="Campaign ratings"
+          subtitle="Rate partnerships and view brand feedback"
+        />
+        {(ratingsLoading || campaignsLoading) && (
+          <ActivityIndicator
+            size="large"
+            color={appShell.cta}
+            style={{ marginVertical: spacing.md }}
+          />
+        )}
+        {ratingsError ? <Text style={styles.errorText}>{ratingsError}</Text> : null}
+      </>
+    ),
+    [ratingsLoading, campaignsLoading, ratingsError]
+  );
+
+  const listEmpty =
+    ratingsLoading || campaignsLoading ? null : (
+      <Text style={styles.emptyText}>No campaign participations found.</Text>
+    );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
+      <FlatList
+        data={participations}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        <SectionHeader title="Campaign ratings" subtitle="Rate partnerships and view brand feedback" />
-        {(ratingsLoading || campaignsLoading) && (
-          <ActivityIndicator size="large" color={appShell.cta} style={{ marginVertical: spacing.md }} />
-        )}
-        {ratingsError ? <Text style={styles.errorText}>{ratingsError}</Text> : null}
-        {participations.length === 0 && !ratingsLoading && !campaignsLoading ? (
-          <Text style={styles.emptyText}>No campaign participations found.</Text>
-        ) : (
-          participations.map((p) => {
-            const display = resolveCampaignDisplay(
-              campaigns.find((c) => c.id === p.campaignId),
-              p.campaign ?? undefined
-            );
-            if (!display) return null;
-            const rating = ratings[p.id];
-
-            return (
-              <PremiumCard key={p.id} style={styles.ratingCard}>
-                <Text style={styles.cardTitle}>{display.title}</Text>
-                <Text style={styles.cardSubtitle}>{display.brandName}</Text>
-                <View style={styles.ratingBlock}>
-                  <View style={styles.ratingRow}>
-                    <Text style={styles.ratingLabel}>Your rating</Text>
-                    {rating ? (
-                      <StarRatingDisplay rating={rating.overallRating} />
-                    ) : (
-                      <Text style={styles.notRated}>Not rated yet</Text>
-                    )}
-                  </View>
-                  {rating?.review ? (
-                    <Text style={styles.reviewSnippet} numberOfLines={6}>
-                      {rating.review}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={styles.cardActions}>
-                  {!rating ? (
-                    <PrimaryButton compact label="Rate campaign" onPress={() => handleOpenRating(p)} />
-                  ) : null}
-                  {rating ? (
-                    <PrimaryButton
-                      compact
-                      label="View brand ratings"
-                      onPress={() => handleOpenBrandRatings(p)}
-                    />
-                  ) : (
-                    <SecondaryButton
-                      label="View brand ratings"
-                      onPress={() => handleOpenBrandRatings(p)}
-                    />
-                  )}
-                </View>
-              </PremiumCard>
-            );
-          })
-        )}
-      </ScrollView>
+      />
 
       <Modal visible={showRatingModal} transparent animationType="fade">
         <View style={styles.modalContainer}>
@@ -240,8 +276,16 @@ export default function RatingCardsScreen() {
               multiline
               maxLength={500}
             />
-            <PrimaryButton style={styles.modalBtn} label="Submit rating" onPress={handleSubmitRating} />
-            <SecondaryButton style={styles.modalBtn} label="Cancel" onPress={() => setShowRatingModal(false)} />
+            <PrimaryButton
+              style={styles.modalBtn}
+              label="Submit rating"
+              onPress={handleSubmitRating}
+            />
+            <SecondaryButton
+              style={styles.modalBtn}
+              label="Cancel"
+              onPress={() => setShowRatingModal(false)}
+            />
           </View>
         </View>
       </Modal>
@@ -256,7 +300,9 @@ export default function RatingCardsScreen() {
               adminRatings[brandModalParticipation.id].map((r, idx) => (
                 <View key={r.id || idx} style={styles.brandRatingCard}>
                   <StarRatingDisplay rating={r.overallRating} />
-                  {r.status !== 'approved' ? <Text style={styles.pendingBadge}>Pending review</Text> : null}
+                  {r.status !== 'approved' ? (
+                    <Text style={styles.pendingBadge}>Pending review</Text>
+                  ) : null}
                   {r.review ? <Text style={styles.brandRatingText}>{r.review}</Text> : null}
                 </View>
               ))
@@ -280,7 +326,12 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, paddingBottom: spacing.lg },
   ratingCard: { marginBottom: spacing.sm },
   cardTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  cardSubtitle: { marginTop: 2, fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary },
+  cardSubtitle: {
+    marginTop: 2,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: appShell.textSecondary,
+  },
   ratingBlock: {
     marginTop: spacing.sm,
     backgroundColor: appShell.canvasAlt,
