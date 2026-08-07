@@ -1,10 +1,10 @@
 import React, { useCallback } from 'react';
 import { View, Text, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ScrollScreen, PrimaryButton, SectionHeader } from '@/components/ui';
 import { useCatalogStore } from '@/store/catalog-store';
-import { formatCatalogInr } from '@/lib/catalog-api';
+import { formatCatalogInr, type CatalogKind } from '@/lib/catalog-api';
 import { premiumNavy, spacing, radius, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
@@ -13,30 +13,43 @@ const IMAGE_SIZE = 80;
 export default function CatalogPreviewScreen() {
   const shell = useAppShell();
   const router = useRouter();
-  const { catalog, isLoading, fetchMyCatalog, submitForReview, isSaving } = useCatalogStore();
+  const { kind: kindParam } = useLocalSearchParams<{ kind?: string }>();
+  const kind: CatalogKind = kindParam === 'services' ? 'services' : 'products';
+  const {
+    catalogs,
+    isLoading: isLoadingByKind,
+    fetchMyCatalog,
+    submitForReview,
+    isSaving: isSavingByKind,
+  } = useCatalogStore();
+  const catalog = catalogs[kind];
+  const isLoading = isLoadingByKind[kind];
+  const isSaving = isSavingByKind[kind];
+  const isServiceCatalog = catalog?.businessType === 'services';
 
   useFocusEffect(
     useCallback(() => {
-      void fetchMyCatalog();
-    }, [fetchMyCatalog])
+      void fetchMyCatalog(kind);
+    }, [fetchMyCatalog, kind])
   );
 
   const onSubmit = () => {
     Alert.alert(
       'Submit for review?',
-      'Your catalog will be sent to our team for approval. You can edit again after reopening if needed.',
+      `Your ${isServiceCatalog ? 'service catalog' : 'product catalog'} will be sent to our team for approval. You can edit again after reopening if needed.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Submit',
           onPress: () => {
-            void submitForReview().then((ok) => {
+            void submitForReview(kind).then((ok) => {
               if (ok) {
                 router.replace('/account-screens/catalog' as never);
               } else {
                 Alert.alert(
                   'Could not submit',
-                  useCatalogStore.getState().error ?? 'Check all products have photos.'
+                  useCatalogStore.getState().error[kind] ??
+                    `Check all ${isServiceCatalog ? 'services' : 'products'} have photos.`
                 );
               }
             });
@@ -56,7 +69,10 @@ export default function CatalogPreviewScreen() {
 
   return (
     <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader title="Preview" subtitle="How customers will see your catalog" />
+      <SectionHeader
+        title="Preview"
+        subtitle={`How customers will see your ${isServiceCatalog ? 'service catalog' : 'product catalog'}`}
+      />
 
       <View style={styles.hero}>
         <LinearGradient

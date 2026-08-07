@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,29 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { Picker } from '@react-native-picker/picker';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ScrollScreen, PrimaryButton, PremiumCard, SectionHeader } from '@/components/ui';
 import { CatalogProductSheet } from '@/components/catalog/CatalogProductSheet';
 import { useCatalogStore } from '@/store/catalog-store';
-import { catalogProductCount, formatCatalogInr, type CatalogProduct } from '@/lib/catalog-api';
+import {
+  catalogProductCount,
+  formatCatalogInr,
+  type CatalogProduct,
+  type CatalogKind,
+} from '@/lib/catalog-api';
+import { getRecommendedCategories } from '@/lib/catalog-recommendations';
 import { spacing, radius, useAppShell } from '@/theme';
 import { fonts } from '@/components/ui/typography';
 
 export default function CatalogBuilderScreen() {
   const shell = useAppShell();
   const router = useRouter();
+  const { kind: kindParam } = useLocalSearchParams<{ kind?: string }>();
+  const kind: CatalogKind = kindParam === 'services' ? 'services' : 'products';
   const {
-    catalog,
-    isLoading,
+    catalogs,
+    isLoading: isLoadingByKind,
     fetchMyCatalog,
     addCategory,
     deleteCategory,
@@ -29,31 +38,53 @@ export default function CatalogBuilderScreen() {
     updateProduct,
     deleteProduct,
     uploadProductImage,
-    isSaving,
+    isSaving: isSavingByKind,
   } = useCatalogStore();
+  const catalog = catalogs[kind];
+  const isLoading = isLoadingByKind[kind];
+  const isSaving = isSavingByKind[kind];
 
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryChoice, setCategoryChoice] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<CatalogProduct | null>(null);
+  const categoryNameInputRef = useRef<TextInput>(null);
+  const isCustomCategory = categoryChoice === 'Other';
 
   useFocusEffect(
     useCallback(() => {
-      void fetchMyCatalog();
-    }, [fetchMyCatalog])
+      void fetchMyCatalog(kind);
+    }, [fetchMyCatalog, kind])
   );
 
   const productCount = catalogProductCount(catalog);
+  const isServiceCatalog = catalog?.businessType === 'services';
+  const itemLabel = isServiceCatalog ? 'service' : 'product';
+  const itemLabelPlural = isServiceCatalog ? 'services' : 'products';
+  const recommendedCategories = getRecommendedCategories(catalog?.businessType);
+
+  const onPickRecommendedCategory = (value: string) => {
+    setCategoryChoice(value);
+    if (value === 'Other') {
+      setNewCategoryName('');
+      // Give the picker a beat to close before focusing the revealed input.
+      setTimeout(() => categoryNameInputRef.current?.focus(), 50);
+      return;
+    }
+    setNewCategoryName(value);
+  };
 
   const onAddCategory = async () => {
     const name = newCategoryName.trim();
     if (!name) {
-      Alert.alert('Name required', 'Enter a category name.');
+      Alert.alert('Name required', 'Choose a category, or enter your own.');
       return;
     }
     try {
-      await addCategory(name);
+      await addCategory(kind, name);
       setNewCategoryName('');
+      setCategoryChoice('');
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed');
     }
@@ -84,19 +115,58 @@ export default function CatalogBuilderScreen() {
   return (
     <ScrollScreen
       safeAreaEdges={['bottom']}
-      scrollProps={{ contentContainerStyle: { paddingBottom: 100 } }}
+      footer={
+        <View>
+          <Text style={[styles.previewHint, { color: shell.textSecondary }]}>
+            {productCount > 0
+              ? 'Looks good — add more anytime, or preview now.'
+              : `Add at least one ${itemLabel} to preview your storefront.`}
+          </Text>
+          <PrimaryButton
+            label="Preview storefront"
+            disabled={productCount === 0}
+            onPress={() =>
+              router.push({
+                pathname: '/account-screens/catalog-preview',
+                params: { kind },
+              } as never)
+            }
+          />
+        </View>
+      }
     >
       <SectionHeader
-        title={catalog?.storeName ?? 'Build catalog'}
-        subtitle={`${productCount} product${productCount === 1 ? '' : 's'} in catalog`}
+        title={catalog?.storeName ?? 'Build storefront'}
+        subtitle={`${productCount} ${itemLabel}${productCount === 1 ? '' : 's'} in ${isServiceCatalog ? 'service catalog' : 'product catalog'}`}
       />
 
-      <View style={styles.addCategoryRow}>
+      <Text style={[styles.recommendedLabel, { color: shell.textSecondary }]}>Category</Text>
+      <View
+        style={[styles.pickerWrap, { borderColor: shell.cardBorder, backgroundColor: shell.card }]}
+      >
+        <Picker
+          selectedValue={categoryChoice}
+          onValueChange={(value) => onPickRecommendedCategory(String(value))}
+        >
+          <Picker.Item
+            label="Choose a category…"
+            value=""
+            enabled={false}
+            color={shell.textMuted}
+          />
+          {recommendedCategories.map((name) => (
+            <Picker.Item key={name} label={name} value={name} color={shell.textPrimary} />
+          ))}
+        </Picker>
+      </View>
+
+      {isCustomCategory ? (
         <TextInput
+          ref={categoryNameInputRef}
           style={[
             styles.input,
+            styles.customCategoryInput,
             {
-              flex: 1,
               borderColor: shell.cardBorder,
               color: shell.textPrimary,
               backgroundColor: shell.card,
@@ -104,17 +174,18 @@ export default function CatalogBuilderScreen() {
           ]}
           value={newCategoryName}
           onChangeText={setNewCategoryName}
-          placeholder="New category name"
+          placeholder="Enter category name"
           placeholderTextColor={shell.textMuted}
         />
-        <TouchableOpacity
-          style={[styles.addCatBtn, { backgroundColor: shell.cta }]}
-          onPress={() => void onAddCategory()}
-          disabled={isSaving}
-        >
-          <Text style={styles.addCatText}>+ Add</Text>
-        </TouchableOpacity>
-      </View>
+      ) : null}
+
+      <TouchableOpacity
+        style={[styles.addCatBtnFull, { backgroundColor: shell.cta }]}
+        onPress={() => void onAddCategory()}
+        disabled={isSaving}
+      >
+        <Text style={styles.addCatText}>+ Add category</Text>
+      </TouchableOpacity>
 
       {catalog?.categories.map((cat) => (
         <PremiumCard key={cat.id} style={styles.categoryCard}>
@@ -122,14 +193,18 @@ export default function CatalogBuilderScreen() {
             <Text style={[styles.categoryTitle, { color: shell.textPrimary }]}>{cat.name}</Text>
             <TouchableOpacity
               onPress={() => {
-                Alert.alert('Delete category?', `Remove "${cat.name}" and all its products?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => void deleteCategory(cat.id),
-                  },
-                ]);
+                Alert.alert(
+                  'Delete category?',
+                  `Remove "${cat.name}" and all its ${itemLabelPlural}?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => void deleteCategory(kind, cat.id),
+                    },
+                  ]
+                );
               }}
             >
               <Text style={styles.deleteText}>Delete</Text>
@@ -141,6 +216,20 @@ export default function CatalogBuilderScreen() {
                 <Text style={[styles.productName, { color: shell.textPrimary }]}>{p.name}</Text>
                 <Text style={[styles.productPrice, { color: shell.textSecondary }]}>
                   {formatCatalogInr(p.price)}
+                  {isServiceCatalog && p.durationMinutes ? ` · ${p.durationMinutes} min` : ''}
+                  {isServiceCatalog && p.visitType
+                    ? ` · ${
+                        p.visitType === 'salon'
+                          ? 'At salon'
+                          : p.visitType === 'center'
+                            ? 'Center'
+                            : p.visitType === 'online'
+                              ? 'Online'
+                              : p.visitType === 'virtual'
+                                ? 'Virtual'
+                                : 'Home'
+                      }`
+                    : ''}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => openEditProduct(cat.id, p)}>
@@ -148,12 +237,12 @@ export default function CatalogBuilderScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert('Delete product?', p.name, [
+                  Alert.alert(`Delete ${itemLabel}?`, p.name, [
                     { text: 'Cancel', style: 'cancel' },
                     {
                       text: 'Delete',
                       style: 'destructive',
-                      onPress: () => void deleteProduct(p.id),
+                      onPress: () => void deleteProduct(kind, p.id),
                     },
                   ]);
                 }}
@@ -166,31 +255,25 @@ export default function CatalogBuilderScreen() {
             style={[styles.addProductBtn, { backgroundColor: shell.iceBlue }]}
             onPress={() => openAddProduct(cat.id)}
           >
-            <Text style={[styles.addProductText, { color: shell.cta }]}>+ Add product</Text>
+            <Text
+              style={[styles.addProductText, { color: shell.cta }]}
+            >{`+ Add ${itemLabel}`}</Text>
           </TouchableOpacity>
         </PremiumCard>
       ))}
-
-      {productCount > 0 ? (
-        <View style={styles.stickyActions}>
-          <PrimaryButton
-            label="Preview catalog"
-            onPress={() => router.push('/account-screens/catalog-preview' as never)}
-          />
-        </View>
-      ) : null}
 
       <CatalogProductSheet
         visible={sheetVisible}
         categoryName={activeCategory?.name ?? 'Category'}
         product={editingProduct}
+        itemLabel={itemLabel}
         onClose={() => setSheetVisible(false)}
         onUploadImage={uploadProductImage}
         onSave={async (data) => {
           if (editingProduct) {
-            await updateProduct(editingProduct.id, data);
+            await updateProduct(kind, editingProduct.id, data);
           } else if (activeCategoryId) {
-            await addProduct(activeCategoryId, data);
+            await addProduct(kind, activeCategoryId, data);
           }
         }}
       />
@@ -199,18 +282,31 @@ export default function CatalogBuilderScreen() {
 }
 
 const styles = StyleSheet.create({
-  addCategoryRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  recommendedLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginBottom: spacing.xs,
+  },
+  pickerWrap: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
   input: {
     borderWidth: 1,
-
     borderRadius: radius.md,
     padding: spacing.sm,
     fontFamily: fonts.regular,
   },
-  addCatBtn: {
+  customCategoryInput: {
+    marginBottom: spacing.sm,
+  },
+  addCatBtnFull: {
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   addCatText: { color: '#fff', fontFamily: fonts.semiBold },
   categoryCard: { marginBottom: spacing.sm },
@@ -239,5 +335,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   addProductText: { fontFamily: fonts.semiBold },
-  stickyActions: { marginTop: spacing.lg },
+  previewHint: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
 });

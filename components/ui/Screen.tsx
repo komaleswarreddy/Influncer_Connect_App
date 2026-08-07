@@ -49,6 +49,8 @@ type ScrollScreenProps = Omit<ScreenProps, 'children'> & {
   canvasColor?: string;
   /** Extra bottom padding for tab bar overlap (true = auto from hook, number = explicit px) */
   contentInsetBottom?: boolean | number;
+  /** Optional content pinned below the scroll area (e.g. a primary CTA that should always stay visible) */
+  footer?: React.ReactNode;
 };
 
 export function ScrollScreen({
@@ -60,6 +62,7 @@ export function ScrollScreen({
   style,
   canvasColor,
   contentInsetBottom = false,
+  footer,
 }: ScrollScreenProps) {
   const shell = useAppShell();
   const tabBarInset = useTabBarInset();
@@ -93,6 +96,16 @@ export function ScrollScreen({
         >
           {children}
         </ScrollView>
+        {footer ? (
+          <View
+            style={[
+              styles.footer,
+              { backgroundColor: bg, paddingHorizontal: padH, paddingBottom: spacing.sm },
+            ]}
+          >
+            {footer}
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -116,5 +129,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  footer: {
+    paddingTop: spacing.sm,
   },
 });

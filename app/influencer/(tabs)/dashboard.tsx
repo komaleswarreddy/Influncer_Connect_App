@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import { useThemeStore } from '@/store/theme-store';
 import { useCatalogStore } from '@/store/catalog-store';
+import { isCatalogSetupComplete } from '@/lib/catalog-api';
 import { instagramAutomationApi } from '@/lib/instagram-automation-api';
 import { api } from '@/lib/api';
 import {
@@ -30,6 +31,7 @@ import {
   HomeCatalogPreviewCard,
   HomeGettingStartedCard,
   showPremiumToast,
+  UnderlineTabBar,
 } from '@/components/ui';
 import type { GettingStartedItem, HomeQuickSetupStep } from '@/components/ui';
 import { buildHomeDashboardStats } from '@/lib/home-dashboard-stats';
@@ -104,7 +106,9 @@ export default function InfluencerDashboard() {
     unreadNotifications,
   } = useCampaignStore();
   const igConnected = useInstagramAutomationStore((s) => s.isConnected);
-  const { catalog, isLoading: catalogLoading, fetchMyCatalog } = useCatalogStore();
+  const { catalogs, isLoading: catalogLoadingByKind, fetchMyCatalog } = useCatalogStore();
+  // Quick-setup "done" checklist counts either catalog kind as having started.
+  const catalog = isCatalogSetupComplete(catalogs.products) ? catalogs.products : catalogs.services;
 
   const [analyticsReady, setAnalyticsReady] = useState(false);
   const [paidTotal, setPaidTotal] = useState(0);
@@ -151,7 +155,10 @@ export default function InfluencerDashboard() {
       void fetchNotifications();
       void fetchParticipations();
       void fetchCampaigns();
-      void fetchMyCatalog().catch(() => {
+      void fetchMyCatalog('products').catch(() => {
+        /* catalog optional for new users */
+      });
+      void fetchMyCatalog('services').catch(() => {
         /* catalog optional for new users */
       });
 
@@ -306,7 +313,7 @@ export default function InfluencerDashboard() {
     if (!isExistingUser && !createProductsDone) {
       steps.push({
         key: 'createProducts',
-        title: 'Create Products',
+        title: 'My Storefront',
         variant: 'createProducts',
         onPress: () => router.push('/account-screens/catalog' as never),
       });
@@ -360,7 +367,7 @@ export default function InfluencerDashboard() {
       { key: 'priceCard', title: 'Price Card', done: priceCardDone },
       { key: 'rateCalculator', title: 'Rate Calculator', done: rateCalculatorVisited },
       { key: 'trending', title: 'Trends', done: trendingVisited },
-      { key: 'createProducts', title: 'Create Products', done: createProductsDone },
+      { key: 'createProducts', title: 'My Storefront', done: createProductsDone },
     ];
   }, [isExistingUser, priceCardDone, rateCalculatorVisited, trendingVisited, createProductsDone]);
 
@@ -372,6 +379,11 @@ export default function InfluencerDashboard() {
 
   /** Post-setup / enrolled: show workspace modules so Home isn't empty. */
   const showWorkspace = isExistingUser || setupAllDone;
+  const productsCatalogStarted = isCatalogSetupComplete(catalogs.products);
+  const servicesCatalogStarted = isCatalogSetupComplete(catalogs.services);
+  /** Show storefront preview as soon as a catalog exists — not only after full workspace unlock. */
+  const showCatalogPreview = productsCatalogStarted || servicesCatalogStarted;
+  const [catalogTab, setCatalogTab] = useState<'products' | 'services'>('products');
 
   const progressItems = useMemo(() => {
     return [...activeParticipations]
@@ -536,13 +548,15 @@ export default function InfluencerDashboard() {
         ) : null}
 
         <HomeQuickSetupSection
-          style={showWorkspace ? styles.section : styles.sectionLast}
+          style={showWorkspace || showCatalogPreview ? styles.section : styles.sectionLast}
           steps={quickSetupSteps}
           variant={hasSetupTiles ? 'adaptive' : 'actions'}
           title={quickSectionTitle}
           subtitle={quickSectionSubtitle}
           trailing={
-            !instagramLinked ? (
+            !instagramLinked &&
+            quickSetupSteps.length === 1 &&
+            quickSetupSteps[0]?.key === 'trending' ? (
               <HomeLinkAccountsCta
                 onPress={() => router.push('/account-screens/instagram-hub' as never)}
               />
@@ -550,28 +564,50 @@ export default function InfluencerDashboard() {
           }
         />
 
+        {showCatalogPreview ? (
+          <View style={showWorkspace ? styles.section : styles.sectionLast}>
+            {(productsCatalogStarted || servicesCatalogStarted) && (
+              <UnderlineTabBar
+                tabs={[
+                  ...(productsCatalogStarted ? [{ key: 'products', label: 'Products' }] : []),
+                  ...(servicesCatalogStarted ? [{ key: 'services', label: 'Services' }] : []),
+                ]}
+                value={catalogTab}
+                onChange={(key) => setCatalogTab(key as 'products' | 'services')}
+                style={styles.catalogTabBar}
+              />
+            )}
+            <HomeCatalogPreviewCard
+              catalog={
+                catalogTab === 'products' && productsCatalogStarted
+                  ? catalogs.products
+                  : catalogTab === 'services' && servicesCatalogStarted
+                    ? catalogs.services
+                    : null
+              }
+              loading={
+                catalogTab === 'products'
+                  ? catalogLoadingByKind.products
+                  : catalogLoadingByKind.services
+              }
+              onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
+            />
+          </View>
+        ) : null}
+
         {showWorkspace ? (
           <>
             <HomeMyCampaignsAccordion
-              style={styles.section}
+              style={progressItems.length > 0 ? styles.section : styles.sectionLast}
               activeCount={activeParticipations.length}
               onPress={openMineTab}
             />
 
             {progressItems.length > 0 ? (
               <HomeCampaignProgressCard
-                style={styles.section}
+                style={styles.sectionLast}
                 items={progressItems}
                 onPress={openCampaignProgress}
-              />
-            ) : null}
-
-            {catalog && createProductsDone ? (
-              <HomeCatalogPreviewCard
-                style={styles.sectionLast}
-                catalog={catalog}
-                loading={catalogLoading}
-                onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
               />
             ) : null}
           </>
@@ -671,6 +707,9 @@ const styles = StyleSheet.create({
   },
   sectionLast: {
     marginBottom: 0,
+  },
+  catalogTabBar: {
+    marginBottom: spacing.md,
   },
   loadingWrap: {
     alignItems: 'center',

@@ -31,11 +31,11 @@ type Props = {
 
 const MAX_TILES = 4;
 
-function buildShareUrl(slug?: string | null): string | null {
-  if (!slug?.trim()) return null;
-  const base = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
-  if (!base) return null;
-  return `${base}/catalog/${slug.trim()}`;
+function buildShareUrl(catalog?: InfluencerCatalog | null): string | null {
+  const live = catalog?.liveStoreUrl?.trim();
+  if (live) return live;
+  // Bridge off / not yet approved: no public Affiliate storefront in Phase 1
+  return null;
 }
 
 function statusCopy(status?: string | null): string {
@@ -113,14 +113,14 @@ function ProductTile({
   );
 }
 
-function PlaceholderTile({ onPress }: { onPress: () => void }) {
+function PlaceholderTile({ onPress, itemLabel }: { onPress: () => void; itemLabel: string }) {
   const shell = useAppShell();
   return (
     <Pressable
       onPress={onPress}
       style={styles.tile}
       accessibilityRole="button"
-      accessibilityLabel="Add product"
+      accessibilityLabel={`Add ${itemLabel}`}
     >
       <View
         style={[
@@ -129,13 +129,13 @@ function PlaceholderTile({ onPress }: { onPress: () => void }) {
           { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
         ]}
       >
-        <Text style={[styles.placeholderHint, { color: shell.cta }]}>Add product</Text>
+        <Text style={[styles.placeholderHint, { color: shell.cta }]}>{`Add ${itemLabel}`}</Text>
       </View>
       <Text
         style={[styles.productNamePlaceholder, { color: shell.textSecondary }]}
         numberOfLines={1}
       >
-        Your product
+        {`Your ${itemLabel}`}
       </Text>
       <Text style={[styles.productMeta, { color: shell.textSecondary }]} numberOfLines={1}>
         Tap to set up
@@ -144,12 +144,15 @@ function PlaceholderTile({ onPress }: { onPress: () => void }) {
   );
 }
 
-/** Instamart-style 2-column catalog preview with Share when approved. */
+/** Instamart-style 2-column storefront preview with Share when approved. */
 export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style }: Props) {
   const shell = useAppShell();
   const productCount = catalogProductCount(catalog);
   const approved = catalog?.status === 'approved';
-  const shareUrl = approved ? buildShareUrl(catalog?.slug) : null;
+  const shareUrl = approved ? buildShareUrl(catalog) : null;
+  const isServiceCatalog = catalog?.businessType === 'services';
+  const itemLabel = isServiceCatalog ? 'service' : 'product';
+  const itemLabelPlural = isServiceCatalog ? 'services' : 'products';
 
   const products = useMemo(() => flattenProducts(catalog), [catalog]);
 
@@ -166,7 +169,7 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
   const handleShare = useCallback(async () => {
     if (!shareUrl) {
       showPremiumToast({
-        title: 'Catalog not ready',
+        title: 'Storefront not ready',
         message: 'Finish setup and get approval before sharing.',
         durationMs: 2400,
       });
@@ -174,9 +177,9 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
     }
     try {
       await Share.share({
-        message: `Check out my catalog: ${shareUrl}`,
+        message: `Check out my storefront: ${shareUrl}`,
         url: shareUrl,
-        title: catalog?.storeName || 'My Catalog',
+        title: catalog?.storeName || 'My Storefront',
       });
     } catch {
       showPremiumToast({
@@ -188,13 +191,13 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
   }, [shareUrl, catalog?.storeName]);
 
   const ctaLabel = !catalog
-    ? 'Create catalog'
+    ? 'Set up storefront'
     : catalog.status === 'pending_approval'
       ? 'View status'
       : catalog.status === 'approved'
         ? shareUrl
-          ? 'Share Catalog'
-          : 'Open catalog'
+          ? 'Share storefront'
+          : 'Open storefront'
         : 'Continue setup';
 
   const onCtaPress = approved && shareUrl ? () => void handleShare() : onOpenCatalog;
@@ -207,14 +210,16 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
         onPress={onOpenCatalog}
         style={styles.headerRow}
         accessibilityRole="button"
-        accessibilityLabel="Open catalog"
+        accessibilityLabel="Open storefront"
       >
         <View style={styles.headerCopy}>
-          <Text style={[styles.title, { color: shell.textPrimary }]}>My Catalog</Text>
+          <Text style={[styles.title, { color: shell.textPrimary }]}>My Storefront</Text>
           {catalog?.storeName ? (
             <Text style={[styles.storeSub, { color: shell.textSecondary }]} numberOfLines={1}>
               {catalog.storeName}
-              {productCount > 0 ? ` · ${productCount} product${productCount === 1 ? '' : 's'}` : ''}
+              {productCount > 0
+                ? ` · ${productCount} ${productCount === 1 ? itemLabel : itemLabelPlural}`
+                : ''}
             </Text>
           ) : null}
         </View>
@@ -237,8 +242,8 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
           ))
         ) : (
           <>
-            <PlaceholderTile onPress={onOpenCatalog} />
-            <PlaceholderTile onPress={onOpenCatalog} />
+            <PlaceholderTile onPress={onOpenCatalog} itemLabel={itemLabel} />
+            <PlaceholderTile onPress={onOpenCatalog} itemLabel={itemLabel} />
           </>
         )}
       </View>

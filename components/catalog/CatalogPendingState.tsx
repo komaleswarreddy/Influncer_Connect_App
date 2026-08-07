@@ -8,6 +8,7 @@ import { fonts } from '@/components/ui/typography';
 type Props = {
   categoryCount?: number;
   productCount?: number;
+  itemLabelPlural?: string;
   onRefresh?: () => void;
   onEditCatalog?: () => void;
   refreshing?: boolean;
@@ -16,6 +17,7 @@ type Props = {
 export function CatalogPendingState({
   categoryCount = 0,
   productCount = 0,
+  itemLabelPlural = 'products',
   onRefresh,
   onEditCatalog,
   refreshing = false,
@@ -27,11 +29,11 @@ export function CatalogPendingState({
       </View>
       <Text style={styles.title}>Request submitted</Text>
       <Text style={styles.body}>
-        An administrator will review your catalog. When it is approved, sign out and sign back in to
-        load your store workspace, or open the dashboard again.
+        An administrator will review your storefront. When it is approved, sign out and sign back in
+        to load your store workspace, or open the dashboard again.
       </Text>
       <Text style={styles.meta}>
-        Usually takes 24–48 hours · {categoryCount} categories · {productCount} products
+        Usually takes 24–48 hours · {categoryCount} categories · {productCount} {itemLabelPlural}
       </Text>
       <View style={styles.actions}>
         {onRefresh ? (
@@ -42,9 +44,7 @@ export function CatalogPendingState({
             disabled={refreshing}
           />
         ) : null}
-        {onEditCatalog ? (
-          <SecondaryButton label="Edit catalog" onPress={onEditCatalog} />
-        ) : null}
+        {onEditCatalog ? <SecondaryButton label="Edit storefront" onPress={onEditCatalog} /> : null}
       </View>
     </View>
   );

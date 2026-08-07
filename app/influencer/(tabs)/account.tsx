@@ -32,9 +32,9 @@ const CREATOR_TOOL_LINKS: AccountLink[] = [
     path: '/account-screens/rate-calculator',
   },
   {
-    key: 'create-products',
-    label: 'Create Products',
-    icon: 'cube-outline' as const,
+    key: 'my-storefront',
+    label: 'My Storefront',
+    icon: 'storefront-outline' as const,
     path: '/account-screens/catalog',
   },
 ];
@@ -138,7 +138,7 @@ export default function AccountScreen() {
         </TouchableOpacity>
       ) : null}
 
-      <SectionHeader title="Creator tools" subtitle="Pricing, rates, and catalog" />
+      <SectionHeader title="Creator tools" subtitle="Pricing, rates, and storefront" />
       <PremiumCard style={{ marginBottom: spacing.sm }}>
         {CREATOR_TOOL_LINKS.map((link, i) => (
           <View key={link.key} style={i > 0 ? styles.rowBorder : undefined}>

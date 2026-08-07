@@ -34,9 +34,9 @@ export default function AccountScreensLayout() {
       <Stack.Screen name="dm-automation" options={{ title: 'DM Automation' }} />
       <Stack.Screen name="create-automation" options={{ title: 'Create automation' }} />
       <Stack.Screen name="automation-detail" options={{ title: 'Automation' }} />
-      <Stack.Screen name="catalog" options={{ title: 'Catalog' }} />
-      <Stack.Screen name="catalog-setup" options={{ title: 'Set up catalog' }} />
-      <Stack.Screen name="catalog-builder" options={{ title: 'Build catalog' }} />
+      <Stack.Screen name="catalog" options={{ title: 'My Storefront' }} />
+      <Stack.Screen name="catalog-setup" options={{ title: 'My Storefront' }} />
+      <Stack.Screen name="catalog-builder" options={{ title: 'Build storefront' }} />
       <Stack.Screen name="catalog-preview" options={{ title: 'Preview' }} />
       <Stack.Screen name="bookings" options={{ title: 'PriceCard Bookings' }} />
       <Stack.Screen name="payments" options={{ title: 'Payments' }} />

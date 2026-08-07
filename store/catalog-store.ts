@@ -2,40 +2,65 @@ import { create } from 'zustand';
 import {
   catalogApi,
   type CatalogBusinessType,
+  type CatalogKind,
   type InfluencerCatalog,
 } from '@/lib/catalog-api';
 
+type PerKind<T> = { products: T; services: T };
+
 interface CatalogBuilderState {
-  catalog: InfluencerCatalog | null;
-  isLoading: boolean;
-  isSaving: boolean;
-  error: string | null;
-  fetchMyCatalog: () => Promise<void>;
-  setupCatalog: (data: {
-    storeName: string;
-    businessType: CatalogBusinessType;
-    description?: string;
-  }) => Promise<void>;
-  addCategory: (name: string) => Promise<void>;
-  deleteCategory: (categoryId: string) => Promise<void>;
+  catalogs: PerKind<InfluencerCatalog | null>;
+  isLoading: PerKind<boolean>;
+  isSaving: PerKind<boolean>;
+  error: PerKind<string | null>;
+  fetchMyCatalog: (kind: CatalogKind) => Promise<void>;
+  setupCatalog: (
+    kind: CatalogKind,
+    data: {
+      storeName: string;
+      businessType: CatalogBusinessType;
+      description?: string;
+    }
+  ) => Promise<void>;
+  addCategory: (kind: CatalogKind, name: string) => Promise<void>;
+  deleteCategory: (kind: CatalogKind, categoryId: string) => Promise<void>;
   addProduct: (
+    kind: CatalogKind,
     categoryId: string,
-    data: { name: string; price: number; description?: string; imageUrl?: string }
+    data: {
+      name: string;
+      price: number;
+      description?: string;
+      imageUrl?: string;
+      durationMinutes?: number;
+      visitType?: 'home' | 'salon' | 'center' | 'online' | 'virtual';
+      priceUnit?: 'per_session' | 'per_hour';
+    }
   ) => Promise<void>;
   updateProduct: (
+    kind: CatalogKind,
     productId: string,
     data: Partial<{
       name: string;
       description: string;
       price: number;
       imageUrl: string | null;
+      durationMinutes: number | null;
+      visitType: 'home' | 'salon' | 'center' | 'online' | 'virtual' | null;
+      priceUnit: 'per_session' | 'per_hour' | null;
     }>
   ) => Promise<void>;
-  deleteProduct: (productId: string) => Promise<void>;
+  deleteProduct: (kind: CatalogKind, productId: string) => Promise<void>;
   uploadProductImage: (uri: string, fileName: string, mimeType: string) => Promise<string>;
-  submitForReview: () => Promise<boolean>;
-  reopenCatalog: () => Promise<void>;
-  clearError: () => void;
+  setCoverImage: (
+    kind: CatalogKind,
+    uri: string,
+    fileName: string,
+    mimeType: string
+  ) => Promise<void>;
+  submitForReview: (kind: CatalogKind) => Promise<boolean>;
+  reopenCatalog: (kind: CatalogKind) => Promise<void>;
+  clearError: (kind: CatalogKind) => void;
 }
 
 function extractCatalog(payload: unknown): InfluencerCatalog | null {
@@ -45,120 +70,165 @@ function extractCatalog(payload: unknown): InfluencerCatalog | null {
 }
 
 export const useCatalogStore = create<CatalogBuilderState>((set, get) => ({
-  catalog: null,
-  isLoading: false,
-  isSaving: false,
-  error: null,
+  catalogs: { products: null, services: null },
+  isLoading: { products: false, services: false },
+  isSaving: { products: false, services: false },
+  error: { products: null, services: null },
 
-  fetchMyCatalog: async () => {
-    set({ isLoading: true, error: null });
+  fetchMyCatalog: async (kind) => {
+    set((s) => ({
+      isLoading: { ...s.isLoading, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const catalog = await catalogApi.getMyCatalog();
-      set({ catalog, isLoading: false });
+      const catalog = await catalogApi.getMyCatalog(kind);
+      set((s) => ({
+        catalogs: { ...s.catalogs, [kind]: catalog },
+        isLoading: { ...s.isLoading, [kind]: false },
+      }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to load catalog',
-        isLoading: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to load catalog',
+        },
+        isLoading: { ...s.isLoading, [kind]: false },
+      }));
     }
   },
 
-  setupCatalog: async (data) => {
-    set({ isSaving: true, error: null });
+  setupCatalog: async (kind, data) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.setupCatalog(data);
-      const catalog = extractCatalog(res) ?? (await catalogApi.getMyCatalog());
-      set({ catalog, isSaving: false });
+      const res = await catalogApi.setupCatalog(kind, data);
+      const catalog = extractCatalog(res) ?? (await catalogApi.getMyCatalog(kind));
+      set((s) => ({
+        catalogs: { ...s.catalogs, [kind]: catalog },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to save catalog',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to save catalog',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  addCategory: async (name) => {
-    set({ isSaving: true, error: null });
+  addCategory: async (kind, name) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.addCategory({ name });
-      const catalog = extractCatalog(res) ?? get().catalog;
-      if (catalog) set({ catalog, isSaving: false });
-      else await get().fetchMyCatalog();
-      set({ isSaving: false });
+      const res = await catalogApi.addCategory(kind, { name });
+      const catalog = extractCatalog(res) ?? get().catalogs[kind];
+      if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
+      else await get().fetchMyCatalog(kind);
+      set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to add category',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to add category',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  deleteCategory: async (categoryId) => {
-    set({ isSaving: true, error: null });
+  deleteCategory: async (kind, categoryId) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.deleteCategory(categoryId);
+      const res = await catalogApi.deleteCategory(kind, categoryId);
       const catalog = extractCatalog(res);
-      if (catalog) set({ catalog, isSaving: false });
-      else await get().fetchMyCatalog();
-      set({ isSaving: false });
+      if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
+      else await get().fetchMyCatalog(kind);
+      set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to delete category',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to delete category',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  addProduct: async (categoryId, data) => {
-    set({ isSaving: true, error: null });
+  addProduct: async (kind, categoryId, data) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.addProduct({ categoryId, ...data });
+      const res = await catalogApi.addProduct(kind, { categoryId, ...data });
       const catalog = extractCatalog(res);
-      if (catalog) set({ catalog, isSaving: false });
-      else await get().fetchMyCatalog();
-      set({ isSaving: false });
+      if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
+      else await get().fetchMyCatalog(kind);
+      set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to add product',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: { ...s.error, [kind]: err instanceof Error ? err.message : 'Failed to add product' },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  updateProduct: async (productId, data) => {
-    set({ isSaving: true, error: null });
+  updateProduct: async (kind, productId, data) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.updateProduct(productId, data);
+      const res = await catalogApi.updateProduct(kind, productId, data);
       const catalog = extractCatalog(res);
-      if (catalog) set({ catalog, isSaving: false });
-      else await get().fetchMyCatalog();
-      set({ isSaving: false });
+      if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
+      else await get().fetchMyCatalog(kind);
+      set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to update product',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to update product',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  deleteProduct: async (productId) => {
-    set({ isSaving: true, error: null });
+  deleteProduct: async (kind, productId) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.deleteProduct(productId);
+      const res = await catalogApi.deleteProduct(kind, productId);
       const catalog = extractCatalog(res);
-      if (catalog) set({ catalog, isSaving: false });
-      else await get().fetchMyCatalog();
-      set({ isSaving: false });
+      if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
+      else await get().fetchMyCatalog(kind);
+      set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to delete product',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to delete product',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
@@ -167,35 +237,75 @@ export const useCatalogStore = create<CatalogBuilderState>((set, get) => ({
     return catalogApi.uploadImage(uri, fileName, mimeType);
   },
 
-  submitForReview: async () => {
-    set({ isSaving: true, error: null });
+  setCoverImage: async (kind, uri, fileName, mimeType) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
     try {
-      const res = await catalogApi.submitForReview();
-      set({ catalog: res.catalog, isSaving: false });
-      return true;
+      const imageUrl = await catalogApi.uploadImage(uri, fileName, mimeType, 'cover');
+      const res = await catalogApi.setCoverImage(kind, imageUrl);
+      const catalog = extractCatalog(res) ?? (await catalogApi.getMyCatalog(kind));
+      set((s) => ({
+        catalogs: { ...s.catalogs, [kind]: catalog },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Submission failed',
-        isSaving: false,
-      });
-      return false;
-    }
-  },
-
-  reopenCatalog: async () => {
-    set({ isSaving: true, error: null });
-    try {
-      const res = await catalogApi.reopenCatalog();
-      const catalog = extractCatalog(res) ?? (await catalogApi.getMyCatalog());
-      set({ catalog, isSaving: false });
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to reopen catalog',
-        isSaving: false,
-      });
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to set cover image',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
       throw err;
     }
   },
 
-  clearError: () => set({ error: null }),
+  submitForReview: async (kind) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
+    try {
+      const res = await catalogApi.submitForReview(kind);
+      set((s) => ({
+        catalogs: { ...s.catalogs, [kind]: res.catalog },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
+      return true;
+    } catch (err) {
+      set((s) => ({
+        error: { ...s.error, [kind]: err instanceof Error ? err.message : 'Submission failed' },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
+      return false;
+    }
+  },
+
+  reopenCatalog: async (kind) => {
+    set((s) => ({
+      isSaving: { ...s.isSaving, [kind]: true },
+      error: { ...s.error, [kind]: null },
+    }));
+    try {
+      const res = await catalogApi.reopenCatalog(kind);
+      const catalog = extractCatalog(res) ?? (await catalogApi.getMyCatalog(kind));
+      set((s) => ({
+        catalogs: { ...s.catalogs, [kind]: catalog },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
+    } catch (err) {
+      set((s) => ({
+        error: {
+          ...s.error,
+          [kind]: err instanceof Error ? err.message : 'Failed to reopen catalog',
+        },
+        isSaving: { ...s.isSaving, [kind]: false },
+      }));
+      throw err;
+    }
+  },
+
+  clearError: (kind) => set((s) => ({ error: { ...s.error, [kind]: null } })),
 }));
