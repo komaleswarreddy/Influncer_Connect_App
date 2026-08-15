@@ -1,15 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  Alert,
-  ActivityIndicator,
-  StyleSheet,
-  Platform,
-  Pressable,
-} from 'react-native';
+import { View, Text, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useInfluencerStore } from '@/store/influencer-store';
 import { useCampaignStore } from '@/store/campaign-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -22,18 +13,24 @@ import { api } from '@/lib/api';
 import {
   ScrollScreen,
   HomeReferenceHeroCard,
-  HomeQuickSetupSection,
   HomeLinkAccountsCta,
-  HomeNotificationBell,
-  HomeMyCampaignsAccordion,
-  HomeEarningsSummary,
-  HomeCampaignProgressCard,
-  HomeCatalogPreviewCard,
+  HomeHeaderBar,
+  HomeEarningsPair,
+  HomeActionOrbs,
+  HomeSectionLabel,
+  HomeStorefrontCard,
+  HomeCampaignsSection,
   HomeGettingStartedCard,
   showPremiumToast,
-  UnderlineTabBar,
 } from '@/components/ui';
-import type { GettingStartedItem, HomeQuickSetupStep } from '@/components/ui';
+import type {
+  GettingStartedItem,
+  HomeQuickSetupStep,
+  HomeActionOrb,
+  HomeActionOrbGlyph,
+  StorefrontTabKey,
+} from '@/components/ui';
+import { useHomeDesign } from '@/theme/homeDesign';
 import { buildHomeDashboardStats } from '@/lib/home-dashboard-stats';
 import {
   getActiveParticipations,
@@ -49,6 +46,7 @@ import {
   isTrendingIdeasVisited,
   markRateCalculatorVisited,
   markTrendingIdeasVisited,
+  purgeLegacyQuickSetupFlags,
 } from '@/lib/home-quick-setup-done';
 import { rateCardsApi } from '@/lib/rate-cards-api';
 import { appShell, spacing } from '@/theme';
@@ -74,13 +72,25 @@ function refreshInstagramConnectionStatus() {
     });
 }
 
+/** Maps an existing quick-setup step onto the mock's orb glyph set. */
+const ORB_GLYPH: Record<string, HomeActionOrbGlyph> = {
+  trending: 'trends',
+  schedule: 'schedule',
+  autoDm: 'autoDm',
+  priceCard: 'priceCard',
+  rateCalculator: 'rateCalculator',
+  createProducts: 'storefront',
+};
+
 export default function InfluencerDashboard() {
   const router = useRouter();
   const shell = useAppShell();
+  const home = useHomeDesign();
   const appearance = useThemeStore((s) => s.appearance);
   const setAppearance = useThemeStore((s) => s.setAppearance);
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const username = useAuthStore((s) => s.user?.username);
+  const userId = useAuthStore((s) => s.user?.id);
   const refreshSession = useAuthStore((s) => s.refreshSession);
   const handle = useMemo(() => formatHandle(username), [username]);
   const avatarLetter = useMemo(() => (handle ? handle.slice(0, 1).toUpperCase() : '•'), [handle]);
@@ -120,6 +130,11 @@ export default function InfluencerDashboard() {
   useEffect(() => {
     void hydrateTheme();
   }, [hydrateTheme]);
+
+  // Drop the pre-scoping device-global quick-setup flags so they can't leak between accounts.
+  useEffect(() => {
+    void purgeLegacyQuickSetupFlags();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,7 +186,7 @@ export default function InfluencerDashboard() {
           .catch(() => {
             if (!cancelled) setPriceCardDone(false);
           });
-        void Promise.all([isRateCalculatorVisited(), isTrendingIdeasVisited()]).then(
+        void Promise.all([isRateCalculatorVisited(userId), isTrendingIdeasVisited(userId)]).then(
           ([rateVisited, ideasVisited]) => {
             if (!cancelled) {
               setRateCalculatorVisited(rateVisited);
@@ -191,6 +206,7 @@ export default function InfluencerDashboard() {
       fetchCampaigns,
       fetchMyCatalog,
       isExistingUser,
+      userId,
     ])
   );
 
@@ -292,7 +308,7 @@ export default function InfluencerDashboard() {
           title: 'Rate Calculator',
           variant: 'rateCalculator',
           onPress: () => {
-            void markRateCalculatorVisited().then(() => setRateCalculatorVisited(true));
+            void markRateCalculatorVisited(userId).then(() => setRateCalculatorVisited(true));
             router.push('/account-screens/rate-calculator' as never);
           },
         });
@@ -305,7 +321,7 @@ export default function InfluencerDashboard() {
       title: 'Trends',
       variant: 'trending',
       onPress: () => {
-        void markTrendingIdeasVisited().then(() => setTrendingVisited(true));
+        void markTrendingIdeasVisited(userId).then(() => setTrendingVisited(true));
         router.push('/account-screens/trending-ideas');
       },
     });
@@ -345,6 +361,7 @@ export default function InfluencerDashboard() {
     priceCardDone,
     rateCalculatorVisited,
     createProductsDone,
+    userId,
   ]);
 
   const hasSetupTiles = useMemo(
@@ -357,9 +374,6 @@ export default function InfluencerDashboard() {
   );
 
   const quickSectionTitle = hasSetupTiles ? 'Quick Setup' : null;
-  const quickSectionSubtitle = hasSetupTiles
-    ? 'Complete these steps to become campaign-ready.'
-    : null;
 
   const gettingStartedItems = useMemo((): GettingStartedItem[] => {
     if (isExistingUser) return [];
@@ -430,36 +444,38 @@ export default function InfluencerDashboard() {
   }, [appearance, setAppearance]);
 
   const pageHeader = (
-    <View style={styles.pageHeader}>
-      <Text style={[styles.pageTitle, { color: shell.textPrimary }]}>Home</Text>
-      <View style={styles.headerActions}>
-        <Pressable
-          style={[
-            styles.themeToggle,
-            {
-              backgroundColor: shell.card,
-              borderColor: shell.cardBorder,
-            },
-          ]}
-          onPress={() => void handleThemeToggle()}
-          accessibilityRole="button"
-          accessibilityLabel={
-            appearance === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'
-          }
-        >
-          <Ionicons
-            name={appearance === 'dark' ? 'sunny-outline' : 'moon-outline'}
-            size={20}
-            color={shell.cta}
-          />
-        </Pressable>
-        <HomeNotificationBell
-          unreadCount={unreadNotifications}
-          onPress={() => router.push('/influencer/invites')}
-        />
-      </View>
-    </View>
+    <HomeHeaderBar
+      avatarLetter={handle ? avatarLetter : null}
+      name={handle}
+      isDark={appearance === 'dark'}
+      hasUnread={unreadNotifications > 0}
+      onToggleTheme={() => void handleThemeToggle()}
+      onPressNotifications={() => router.push('/influencer/invites')}
+    />
   );
+
+  const actionOrbs = useMemo<HomeActionOrb[]>(
+    () =>
+      quickSetupSteps.map((step) => ({
+        key: step.key,
+        label: step.title,
+        glyph: ORB_GLYPH[step.variant] ?? 'trends',
+        onPress: step.onPress,
+      })),
+    [quickSetupSteps]
+  );
+
+  const storefrontTabs = useMemo<StorefrontTabKey[]>(() => {
+    const tabs: StorefrontTabKey[] = [];
+    if (productsCatalogStarted) tabs.push('products');
+    if (servicesCatalogStarted) tabs.push('services');
+    return tabs;
+  }, [productsCatalogStarted, servicesCatalogStarted]);
+
+  /** Fall back to whichever catalog actually exists so the card never renders empty. */
+  const effectiveStorefrontTab: StorefrontTabKey = storefrontTabs.includes(catalogTab)
+    ? catalogTab
+    : (storefrontTabs[0] ?? 'products');
 
   // Gate on the initial fetch batch (analytics + participations + campaigns)
   // finishing, not on whether a social account happens to already be
@@ -470,7 +486,7 @@ export default function InfluencerDashboard() {
     return (
       <ScrollScreen
         dotBackground={false}
-        canvasColor={shell.canvas}
+        canvasColor={home.bg}
         contentInsetBottom
         scrollProps={{
           bounces: true,
@@ -492,36 +508,21 @@ export default function InfluencerDashboard() {
   return (
     <ScrollScreen
       dotBackground={false}
-      canvasColor={shell.canvas}
+      canvasColor={home.bg}
       contentInsetBottom
       scrollProps={{
         bounces: true,
         overScrollMode: 'always',
         nestedScrollEnabled: true,
+        showsVerticalScrollIndicator: false,
         contentContainerStyle: { flexGrow: 0 },
       }}
     >
       <View style={styles.stack}>
         {pageHeader}
 
-        {handle ? (
-          <View style={styles.identityRow}>
-            <View style={[styles.identityMark, { backgroundColor: shell.cta }]}>
-              <Text style={styles.identityMarkText}>{avatarLetter}</Text>
-            </View>
-            <View style={styles.identityCopy}>
-              <Text style={[styles.identityEyebrow, { color: shell.textSecondary }]}>
-                Welcome !
-              </Text>
-              <Text style={[styles.identityHandle, { color: shell.textPrimary }]} numberOfLines={1}>
-                {handle}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
         {showWorkspace ? (
-          <HomeEarningsSummary
+          <HomeEarningsPair
             style={styles.section}
             myEarnings={paidTotal}
             potentialEarnings={potentialEarnings}
@@ -547,70 +548,42 @@ export default function InfluencerDashboard() {
           <HomeGettingStartedCard style={styles.section} items={gettingStartedItems} />
         ) : null}
 
-        <HomeQuickSetupSection
-          style={showWorkspace || showCatalogPreview ? styles.section : styles.sectionLast}
-          steps={quickSetupSteps}
-          variant={hasSetupTiles ? 'adaptive' : 'actions'}
-          title={quickSectionTitle}
-          subtitle={quickSectionSubtitle}
-          trailing={
-            !instagramLinked &&
-            quickSetupSteps.length === 1 &&
-            quickSetupSteps[0]?.key === 'trending' ? (
+        {actionOrbs.length > 0 ? (
+          <View style={styles.orbsSection}>
+            {quickSectionTitle ? <HomeSectionLabel label={quickSectionTitle} /> : null}
+            <HomeActionOrbs actions={actionOrbs} />
+            {!instagramLinked && actionOrbs.length === 1 && actionOrbs[0]?.key === 'trending' ? (
               <HomeLinkAccountsCta
                 onPress={() => router.push('/account-screens/instagram-hub' as never)}
               />
-            ) : null
-          }
-        />
-
-        {showCatalogPreview ? (
-          <View style={showWorkspace ? styles.section : styles.sectionLast}>
-            {(productsCatalogStarted || servicesCatalogStarted) && (
-              <UnderlineTabBar
-                tabs={[
-                  ...(productsCatalogStarted ? [{ key: 'products', label: 'Products' }] : []),
-                  ...(servicesCatalogStarted ? [{ key: 'services', label: 'Services' }] : []),
-                ]}
-                value={catalogTab}
-                onChange={(key) => setCatalogTab(key as 'products' | 'services')}
-                style={styles.catalogTabBar}
-              />
-            )}
-            <HomeCatalogPreviewCard
-              catalog={
-                catalogTab === 'products' && productsCatalogStarted
-                  ? catalogs.products
-                  : catalogTab === 'services' && servicesCatalogStarted
-                    ? catalogs.services
-                    : null
-              }
-              loading={
-                catalogTab === 'products'
-                  ? catalogLoadingByKind.products
-                  : catalogLoadingByKind.services
-              }
-              onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
-            />
+            ) : null}
           </View>
         ) : null}
 
-        {showWorkspace ? (
-          <>
-            <HomeMyCampaignsAccordion
-              style={progressItems.length > 0 ? styles.section : styles.sectionLast}
-              activeCount={activeParticipations.length}
-              onPress={openMineTab}
-            />
+        {showCatalogPreview ? (
+          <HomeStorefrontCard
+            style={showWorkspace ? styles.section : styles.sectionLast}
+            catalog={effectiveStorefrontTab === 'services' ? catalogs.services : catalogs.products}
+            loading={
+              effectiveStorefrontTab === 'services'
+                ? catalogLoadingByKind.services
+                : catalogLoadingByKind.products
+            }
+            availableTabs={storefrontTabs}
+            activeTab={effectiveStorefrontTab}
+            onChangeTab={setCatalogTab}
+            onOpenCatalog={() => router.push('/account-screens/catalog' as never)}
+          />
+        ) : null}
 
-            {progressItems.length > 0 ? (
-              <HomeCampaignProgressCard
-                style={styles.sectionLast}
-                items={progressItems}
-                onPress={openCampaignProgress}
-              />
-            ) : null}
-          </>
+        {showWorkspace && progressItems.length > 0 ? (
+          <HomeCampaignsSection
+            style={styles.sectionLast}
+            items={progressItems}
+            activeCount={activeParticipations.length}
+            onOpenCampaign={openCampaignProgress}
+            onOpenAll={openMineTab}
+          />
         ) : null}
       </View>
     </ScrollScreen>
@@ -651,56 +624,9 @@ const styles = StyleSheet.create({
     color: appShell.textPrimary,
     letterSpacing: -0.2,
   },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 4,
-    paddingRight: 4,
-  },
-  identityMark: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: appShell.cta,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.14,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-      default: {},
-    }),
-  },
-  identityMarkText: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    lineHeight: 26,
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  identityCopy: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-    gap: 3,
-  },
-  identityEyebrow: {
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    letterSpacing: 0.2,
-    color: appShell.textSecondary,
-  },
-  identityHandle: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-    lineHeight: 28,
-    color: appShell.textPrimary,
-    letterSpacing: -0.55,
+  orbsSection: {
+    marginTop: spacing.xs,
+    marginBottom: 0,
   },
   section: {
     marginBottom: 0,
