@@ -34,6 +34,7 @@ export function mapAnalyticsRow(
   if (!row) return null;
   const sub = row.subscriberCount != null ? Number(row.subscriberCount) : undefined;
   const fol = Number(row.followerCount ?? sub ?? 0);
+  const connectedRaw = row.isConnected ?? (row as { is_connected?: unknown }).is_connected;
   const meta = row.phylloSyncMeta;
   const demoSrc = demographicsSourceFromMeta(meta);
   return {
@@ -48,10 +49,12 @@ export function mapAnalyticsRow(
     femalePercentage: Number(row.femalePercentage ?? 0),
     audienceDemographicsAgeRange: String(row.audienceDemographicsAgeRange ?? ''),
     topAudienceLocation: String(row.topAudienceLocation ?? ''),
-    isConnected: Boolean(row.isConnected ?? true),
+    isConnected: connectedRaw === true || connectedRaw === 'true',
     createdAt: row.createdAt ? String(row.createdAt) : new Date().toISOString(),
     updatedAt: row.updatedAt ? String(row.updatedAt) : new Date().toISOString(),
-    ...(meta && typeof meta === 'object' ? { phylloSyncMeta: meta as Record<string, unknown> } : {}),
+    ...(meta && typeof meta === 'object'
+      ? { phylloSyncMeta: meta as Record<string, unknown> }
+      : {}),
     ...(demoSrc ? { demographicsSource: demoSrc } : {}),
   };
 }

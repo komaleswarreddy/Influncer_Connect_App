@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { PrimaryButton, ScrollScreen } from '@/components/ui';
-import { fonts } from '@/components/ui/typography';
+import { Screen, KollabButton } from '@/components/ui';
 import { useAuthStore } from '@/store/auth-store';
 import { api } from '@/lib/api';
-import { appShell, palette, radius, spacing } from '@/theme';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_ ]{3,30}$/;
 
@@ -14,8 +13,9 @@ function sanitize(raw: string): string {
 }
 
 export default function SetUsernameScreen() {
+  const kollab = useKollab();
   const router = useRouter();
-  const { logout, refreshSession } = useAuthStore();
+  const { refreshSession } = useAuthStore();
   const [username, setUsername] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,6 @@ export default function SetUsernameScreen() {
   const onSubmit = async () => {
     if (!isValid || submitting) return;
     const cleaned = sanitize(username).trim();
-    if (!USERNAME_PATTERN.test(cleaned)) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -40,153 +39,113 @@ export default function SetUsernameScreen() {
     }
   };
 
-  const onSignOut = async () => {
-    await logout();
-    router.replace('/login');
-  };
-
   return (
-    <ScrollScreen
-      dotBackground
+    <Screen
       safeAreaEdges={['top', 'left', 'right', 'bottom']}
-      scrollProps={{ contentContainerStyle: styles.pad }}
+      padH={24}
+      style={{ backgroundColor: kollab.color.screen }}
     >
-      <Text style={styles.eyebrow}>One last step</Text>
-      <Text style={styles.title}>Pick your username</Text>
-      <Text style={styles.body}>
-        This is how you&apos;ll appear across Influencer Connect — on campaigns, catalogs, and
-        anywhere brands see your profile.
-      </Text>
-
-      <View style={styles.card}>
-        <Text style={styles.label}>Username</Text>
-        <View style={[styles.inputRow, error && styles.inputRowError]}>
-          <Text style={styles.atSign}>@</Text>
+      <View style={styles.center}>
+        <Text style={[styles.eyebrow, { color: kollab.color.ink }]}>one last step</Text>
+        <Text style={[styles.title, { color: kollab.color.ink }]}>
+          Pick your{' '}
+          <Text style={{ fontFamily: font.displayItalic, color: kollab.color.violet }}>
+            username
+          </Text>
+        </Text>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>Username</Text>
+        <View
+          style={[
+            styles.inputRow,
+            {
+              backgroundColor: kollab.color.card,
+              borderColor: error ? kollab.color.heat : kollab.color.rule,
+            },
+          ]}
+        >
+          <Text style={[styles.at, { color: kollab.color.ink }]}>@</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: kollab.color.ink }]}
             value={username}
             onChangeText={(text) => {
               setUsername(sanitize(text));
               if (error) setError(null);
             }}
             placeholder="your name"
-            placeholderTextColor={appShell.textMuted}
+            placeholderTextColor={kollab.color.inkFaint}
             autoCapitalize="words"
             autoCorrect={false}
             autoFocus
             maxLength={30}
-            selectionColor={appShell.cta}
             onSubmitEditing={onSubmit}
             returnKeyType="done"
           />
         </View>
-        <Text style={[styles.hint, error && styles.hintError]}>
-          {error ?? 'Letters, numbers, spaces, and underscores · 3–30 characters'}
+        <Text style={[styles.hint, { color: error ? kollab.color.heat : kollab.color.ink }]}>
+          {error ?? 'This is how brands find you across collabs and your media kit.'}
         </Text>
+        <KollabButton
+          label={submitting ? 'Saving…' : 'Continue'}
+          variant="ink"
+          onPress={onSubmit}
+          disabled={!isValid || submitting}
+        />
       </View>
-
-      <PrimaryButton
-        label={submitting ? 'Saving…' : 'Continue'}
-        onPress={onSubmit}
-        disabled={!isValid || submitting}
-        loading={submitting}
-      />
-
-      <View style={styles.signOutWrap}>
-        {submitting ? null : (
-          <Text style={styles.signOut} onPress={onSignOut}>
-            Not you? Sign out
-          </Text>
-        )}
-      </View>
-    </ScrollScreen>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: {
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-    flexGrow: 1,
+  center: {
+    flex: 1,
+    justifyContent: 'center',
   },
   eyebrow: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.bold,
     fontSize: 12,
-    letterSpacing: 1.6,
+    letterSpacing: 0.72,
     textTransform: 'uppercase',
-    color: appShell.textSecondary,
-    marginBottom: spacing.xs,
+    opacity: 0.55,
   },
   title: {
-    fontFamily: fonts.bold,
-    fontSize: 26,
-    color: appShell.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  body: {
-    fontFamily: fonts.regular,
-    fontSize: 15,
-    lineHeight: 22,
-    color: appShell.textSecondary,
-    marginBottom: spacing.xl,
-  },
-  card: {
-    backgroundColor: appShell.card,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    fontFamily: font.display,
+    fontSize: 38,
+    letterSpacing: -1,
+    lineHeight: 40,
+    marginTop: 8,
+    marginBottom: 20,
   },
   label: {
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    color: appShell.textPrimary,
-    marginBottom: spacing.xs,
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: appShell.canvasAlt,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.borderSubtle,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    marginBottom: 10,
   },
-  inputRowError: {
-    borderColor: palette.error,
-  },
-  atSign: {
-    fontFamily: fonts.semiBold,
-    fontSize: 16,
-    color: appShell.textMuted,
-    marginRight: 2,
+  at: {
+    fontFamily: font.body,
+    fontSize: 15,
+    opacity: 0.4,
   },
   input: {
     flex: 1,
-    fontFamily: fonts.regular,
-    fontSize: 16,
-    color: appShell.textPrimary,
-    paddingVertical: 12,
+    fontFamily: font.body,
+    fontSize: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 6,
   },
   hint: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: appShell.textMuted,
-    marginTop: spacing.xs,
-  },
-  hintError: {
-    color: palette.error,
-  },
-  signOutWrap: {
-    alignItems: 'center',
-    marginTop: spacing.lg,
-    minHeight: 20,
-  },
-  signOut: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    color: appShell.textMuted,
-    textDecorationLine: 'underline',
+    fontFamily: font.body,
+    fontSize: 12.5,
+    lineHeight: 19,
+    opacity: 0.55,
+    marginBottom: 24,
   },
 });

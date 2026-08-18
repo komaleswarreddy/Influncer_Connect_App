@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, getApiBaseUrl } from './api';
 
 export interface PostMetrics {
   platform: string;
@@ -53,6 +53,7 @@ export interface PostAnalysis extends PostMetrics {
   id: string;
   campaignId?: string;
   createdAt: string;
+  rawMetrics?: Record<string, unknown> | null;
 }
 
 export class PostAnalyzerDailyLimitError extends Error {
@@ -246,6 +247,164 @@ export async function analyzeBulkPosts(
   };
 }
 
+function asHttpUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.replace(/&amp;/g, '&').trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return undefined;
+  const withProto = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
+  if (!/^https?:\/\//i.test(withProto)) return undefined;
+  return withProto;
+}
+
+function rawObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+const THUMB_KEYS = [
+  'thumbnail',
+  'thumbnailUrl',
+  'thumbnail_url',
+  'thumbnail_src',
+  'thumbnailSrc',
+  'display_url',
+  'displayUrl',
+  'image',
+  'imageUrl',
+  'image_url',
+  'coverUrl',
+  'cover',
+  'src',
+  'url',
+] as const;
+
+function pushUrl(out: string[], seen: Set<string>, value: unknown) {
+  const url = asHttpUrl(value);
+  if (!url || seen.has(url)) return;
+  const lower = url.toLowerCase();
+  const looksLikeImage =
+    /cdninstagram|fbcdn\.net|scontent|ytimg|ggpht|i\.ytimg|\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(
+      lower
+    );
+  if (!looksLikeImage) return;
+  seen.add(url);
+  out.push(url);
+}
+
+function collectFromNode(out: string[], seen: Set<string>, node: unknown, depth: number) {
+  if (depth > 5 || node == null) return;
+  if (typeof node === 'string') {
+    pushUrl(out, seen, node);
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectFromNode(out, seen, item, depth + 1);
+    return;
+  }
+  if (typeof node !== 'object') return;
+  const obj = node as Record<string, unknown>;
+  for (const key of THUMB_KEYS) {
+    if (key in obj) pushUrl(out, seen, obj[key]);
+  }
+  const versions = rawObject(obj.image_versions2);
+  const candidates = Array.isArray(versions.candidates) ? versions.candidates : [];
+  for (const cand of candidates) {
+    pushUrl(out, seen, rawObject(cand).url);
+  }
+  const resources = obj.display_resources;
+  if (Array.isArray(resources)) {
+    for (const res of resources) pushUrl(out, seen, rawObject(res).src);
+  }
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'owner' || key === 'user' || key === 'authenticitySignals') continue;
+    collectFromNode(out, seen, value, depth + 1);
+  }
+}
+
+/** Ordered thumbnail candidates — Instagram stores the preview under nested Graph keys. */
+export function postAnalysisThumbnailCandidates(item: {
+  thumbnail?: string | null;
+  platform?: string | null;
+  creatorProfilePic?: string | null;
+  rawMetrics?: Record<string, unknown> | null;
+  raw_metrics?: unknown;
+}): string[] {
+  const raw = rawObject(item.rawMetrics ?? item.raw_metrics);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  pushUrl(out, seen, item.thumbnail);
+  collectFromNode(out, seen, raw, 0);
+  pushUrl(out, seen, item.creatorProfilePic);
+  pushUrl(out, seen, raw.creatorProfilePic);
+  return out;
+}
+
+/** History rows store the preview image on `raw_metrics`, not a top-level column. */
+export function postAnalysisThumbnail(item: {
+  thumbnail?: string | null;
+  rawMetrics?: Record<string, unknown> | null;
+  creatorProfilePic?: string | null;
+  platform?: string | null;
+}): string | undefined {
+  return postAnalysisThumbnailCandidates(item)[0];
+}
+
+export function postAnalyzerThumbProxyUri(analysisId: string): string {
+  return `${getApiBaseUrl()}/api/post-analyzer/thumbnail/${encodeURIComponent(analysisId)}`;
+}
+
+export function postNeedsThumbProxy(item: {
+  id?: string;
+  platform?: string | null;
+  thumbnail?: string | null;
+}): boolean {
+  if (!item.id) return false;
+  const thumb = String(item.thumbnail || '');
+  if (/res\.cloudinary\.com|ytimg|ggpht/i.test(thumb)) return false;
+  const platform = String(item.platform || '');
+  return (
+    /instagram|tiktok|facebook/i.test(platform) ||
+    /cdninstagram|fbcdn|scontent|tiktokcdn/i.test(thumb)
+  );
+}
+
+/** URLs the app can load directly. Instagram/TikTok CDNs are excluded on purpose. */
+export function postAnalysisDisplayThumb(item: {
+  id?: string;
+  thumbnail?: string | null;
+  platform?: string | null;
+  creatorProfilePic?: string | null;
+  rawMetrics?: Record<string, unknown> | null;
+  raw_metrics?: unknown;
+}): { kind: 'owned' | 'proxy'; uri: string } | null {
+  const owned = postAnalysisThumbnailCandidates(item).find((url) =>
+    /res\.cloudinary\.com|ytimg|ggpht/i.test(url)
+  );
+  if (owned) return { kind: 'owned', uri: owned };
+  if (item.id && postNeedsThumbProxy(item)) {
+    return { kind: 'proxy', uri: postAnalyzerThumbProxyUri(item.id) };
+  }
+  return null;
+}
+
+function normalizeHistoryItem(row: PostAnalysis & { raw_metrics?: unknown }): PostAnalysis {
+  const raw = rawObject(row.rawMetrics ?? row.raw_metrics);
+  const likes = Number(row.likes ?? raw.likes ?? 0);
+  const viewsRaw = row.views ?? raw.views;
+  const engagement = Number(row.engagementRate ?? raw.engagementRate ?? 0);
+  return {
+    ...row,
+    rawMetrics: raw,
+    thumbnail: postAnalysisThumbnail({ ...row, rawMetrics: raw }),
+    likes: Number.isFinite(likes) ? likes : 0,
+    views: viewsRaw == null ? undefined : Number(viewsRaw),
+    engagementRate: Number.isFinite(engagement) ? engagement : 0,
+    contentType: String(row.contentType || raw.contentType || row.platform || 'Post'),
+    url: String(row.url || raw.url || ''),
+  };
+}
+
 export async function getPostAnalysisHistory(params: {
   campaignId?: string;
   limit?: number;
@@ -261,13 +420,15 @@ export async function getPostAnalysisHistory(params: {
     | PostAnalysis[];
 
   if (Array.isArray(raw)) {
-    return { data: raw, total: raw.length, page: params.page ?? 1 };
+    const data = raw.map((row) => normalizeHistoryItem(row));
+    return { data, total: data.length, page: params.page ?? 1 };
   }
 
   const list = Array.isArray(raw.data) ? raw.data : Array.isArray(raw.items) ? raw.items : [];
+  const data = list.map((row) => normalizeHistoryItem(row));
   return {
-    data: list,
-    total: Number(raw.total ?? list.length),
+    data,
+    total: Number(raw.total ?? data.length),
     page: Number(raw.page ?? params.page ?? 1),
   };
 }

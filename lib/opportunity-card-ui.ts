@@ -244,7 +244,7 @@ export function buildMineCampaignStatus(
     return { label: 'Approved', tone: 'active' };
   }
   if (['applied', 'pending_review'].includes(appSt) && !participation) {
-    return { label: 'Application submitted', tone: 'pending' };
+    return { label: 'Submitted', tone: 'pending' };
   }
   if (appSt === 'rejected') return { label: 'Not approved', tone: 'declined' };
   if (participation) {

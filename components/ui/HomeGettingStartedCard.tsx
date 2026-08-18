@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppShell } from '@/theme';
-import { fonts } from './typography';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 export type GettingStartedItem = {
   key: string;
@@ -20,52 +19,32 @@ type Props = {
  * Chips are status-only; Quick Setup tiles below are the actions.
  */
 export function HomeGettingStartedCard({ items, style }: Props) {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const c = kollab.color;
   const doneCount = items.filter((i) => i.done).length;
   const total = items.length;
   const progress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   return (
-    <View
-      style={[
-        styles.shell,
-        {
-          backgroundColor: shell.card,
-          borderColor: shell.cardBorder,
-        },
-        style,
-      ]}
-    >
+    <View style={[styles.shell, { backgroundColor: c.card, borderColor: c.hairline }, style]}>
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
-          <Text style={[styles.eyebrow, { color: shell.textSecondary }]}>SETUP PROGRESS</Text>
-          <Text style={[styles.title, { color: shell.textPrimary }]}>Finish Quick Setup</Text>
-          <Text style={[styles.subtitle, { color: shell.textSecondary }]}>
+          <Text style={[styles.eyebrow, { color: c.inkMuted }]}>SETUP PROGRESS</Text>
+          <Text style={[styles.title, { color: c.ink }]}>Finish Quick Setup</Text>
+          <Text style={[styles.subtitle, { color: c.inkMuted }]}>
             {doneCount} of {total} complete · tap the actions below
           </Text>
         </View>
-        <View
-          style={[styles.percentPill, { backgroundColor: shell.isDark ? '#1E2A44' : '#141E33' }]}
-        >
-          <Text style={styles.percentText}>{progress}%</Text>
+        <View style={[styles.percentPill, { backgroundColor: c.ink }]}>
+          <Text style={[styles.percentText, { color: c.chartreuse }]}>{progress}%</Text>
         </View>
       </View>
 
-      <View
-        style={[
-          styles.track,
-          {
-            backgroundColor: shell.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(20, 30, 51, 0.1)',
-          },
-        ]}
-      >
+      <View style={[styles.track, { backgroundColor: c.hairline }]}>
         <View
           style={[
             styles.fill,
-            {
-              width: `${Math.max(progress, 0)}%`,
-              backgroundColor: shell.isDark ? '#8E9EED' : '#141E33',
-            },
+            { width: `${Math.max(progress, 0)}%`, backgroundColor: c.chartreuse },
           ]}
         />
       </View>
@@ -77,16 +56,8 @@ export function HomeGettingStartedCard({ items, style }: Props) {
             style={[
               styles.chip,
               {
-                backgroundColor: item.done
-                  ? shell.isDark
-                    ? 'rgba(34,197,94,0.16)'
-                    : 'rgba(22,163,74,0.1)'
-                  : shell.canvasAlt,
-                borderColor: item.done
-                  ? shell.isDark
-                    ? 'rgba(34,197,94,0.35)'
-                    : 'rgba(22,163,74,0.28)'
-                  : shell.cardBorder,
+                backgroundColor: item.done ? kollab.statusChip.live.bg : c.neutralChipBg,
+                borderColor: item.done ? c.teal : c.hairline,
               },
             ]}
             accessibilityRole="text"
@@ -95,15 +66,10 @@ export function HomeGettingStartedCard({ items, style }: Props) {
             <Ionicons
               name={item.done ? 'checkmark-circle' : 'ellipse-outline'}
               size={14}
-              color={item.done ? shell.success : shell.textSecondary}
+              color={item.done ? c.teal : c.inkMuted}
             />
             <Text
-              style={[
-                styles.chipLabel,
-                {
-                  color: item.done ? shell.textPrimary : shell.textSecondary,
-                },
-              ]}
+              style={[styles.chipLabel, { color: item.done ? c.ink : c.inkMuted }]}
               numberOfLines={1}
             >
               {item.title}
@@ -147,17 +113,17 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   eyebrow: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.semiBold,
     fontSize: 10,
     letterSpacing: 0.8,
   },
   title: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 16,
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontFamily: fonts.regular,
+    fontFamily: font.body,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -170,9 +136,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   percentText: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 12,
-    color: '#FFFFFF',
   },
   /** Same language as HomeCampaignProgressCard. */
   track: {
@@ -200,7 +165,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipLabel: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.semiBold,
     fontSize: 12,
   },
 });

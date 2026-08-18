@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { appShell, premiumButton, radius, spacing } from '@/theme';
-import { fonts } from './typography';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 export type PremiumToastPayload = {
   title: string;
@@ -15,49 +13,57 @@ type Listener = (payload: PremiumToastPayload) => void;
 
 const listeners = new Set<Listener>();
 
+function lineFor(payload: PremiumToastPayload): string {
+  const title = payload.title.trim();
+  const message = payload.message?.trim();
+  if (message && title && message !== title) return `${title} — ${message}`;
+  return message || title;
+}
+
 /** Imperative toast — works from any screen without prop drilling. */
 export function showPremiumToast(payload: PremiumToastPayload) {
   listeners.forEach((fn) => fn(payload));
 }
 
+/** HTML `flash(msg)` — top cream/ink pill, ~2s. */
+export function showKollabToast(message: string, durationMs = 2000) {
+  const text = message.trim();
+  if (!text) return;
+  showPremiumToast({ title: text, durationMs });
+}
+
 /**
- * Mount once near the app root. Renders a navy slide-up banner.
+ * Mount once near the app root. Renders the Kollab top pill from Creator App.dc.html.
  */
 export function PremiumToastHost() {
   const insets = useSafeAreaInsets();
+  const kollab = useKollab();
   const [visible, setVisible] = useState(false);
-  const [payload, setPayload] = useState<PremiumToastPayload | null>(null);
+  const [text, setText] = useState('');
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(24)).current;
+  const translateY = useRef(new Animated.Value(-16)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hide = useCallback(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 24, duration: 180, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: -16, duration: 220, useNativeDriver: true }),
     ]).start(() => {
       setVisible(false);
-      setPayload(null);
+      setText('');
     });
   }, [opacity, translateY]);
 
   const show = useCallback(
     (next: PremiumToastPayload) => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      setPayload(next);
+      setText(lineFor(next));
       setVisible(true);
       opacity.setValue(0);
-      translateY.setValue(24);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-          tension: 80,
-        }),
-      ]).start();
-      const duration = next.durationMs ?? 2800;
+      translateY.setValue(-16);
+      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      Animated.timing(translateY, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      const duration = next.durationMs ?? 2000;
       hideTimer.current = setTimeout(hide, duration);
     },
     [hide, opacity, translateY]
@@ -71,27 +77,24 @@ export function PremiumToastHost() {
     };
   }, [show]);
 
-  if (!visible || !payload) return null;
+  if (!visible || !text) return null;
 
   return (
-    <View pointerEvents="none" style={[styles.host, { bottom: Math.max(insets.bottom, 12) + 64 }]}>
-      <Animated.View style={{ opacity, transform: [{ translateY }] }}>
-        <LinearGradient
-          colors={[...premiumButton.baseGradient]}
-          locations={[...premiumButton.baseLocations]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.toast}
-        >
-          <Text style={styles.title} numberOfLines={2}>
-            {payload.title}
-          </Text>
-          {payload.message ? (
-            <Text style={styles.message} numberOfLines={3}>
-              {payload.message}
-            </Text>
-          ) : null}
-        </LinearGradient>
+    <View pointerEvents="none" style={[styles.host, { top: insets.top + 10 }]}>
+      <Animated.View
+        style={[
+          styles.toast,
+          {
+            backgroundColor: kollab.color.panel,
+            shadowColor: kollab.color.shadowColor,
+            opacity,
+            transform: [{ translateY }],
+          },
+        ]}
+      >
+        <Text style={[styles.label, { color: kollab.color.panelInk }]} numberOfLines={2}>
+          {text}
+        </Text>
       </Animated.View>
     </View>
   );
@@ -100,33 +103,25 @@ export function PremiumToastHost() {
 const styles = StyleSheet.create({
   host: {
     position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
+    left: 22,
+    right: 22,
     zIndex: 9999,
-    elevation: 20,
+    elevation: 24,
+    alignItems: 'center',
   },
   toast: {
-    borderRadius: radius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: premiumButton.rimOuter,
-    shadowColor: appShell.cta,
+    borderRadius: 999,
+    paddingVertical: 11,
+    paddingHorizontal: 19,
+    maxWidth: '100%',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: premiumButton.labelColor,
-    letterSpacing: 0.2,
-  },
-  message: {
-    marginTop: 4,
-    fontFamily: fonts.regular,
+  label: {
+    fontFamily: font.semiBold,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.82)',
-    lineHeight: 18,
+    textAlign: 'center',
   },
 });

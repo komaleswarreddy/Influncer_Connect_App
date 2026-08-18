@@ -4,7 +4,7 @@ import { BookingsList } from '@/components/influencer/BookingsList';
 
 export default function BookingsScreen() {
   return (
-    <Screen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+    <Screen padH={0} safeAreaEdges={['top', 'left', 'right']}>
       <BookingsList />
     </Screen>
   );

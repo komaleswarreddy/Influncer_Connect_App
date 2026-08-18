@@ -1,4 +1,5 @@
 import { api } from './api';
+import { formatInr } from './currency';
 
 export type CatalogKind = 'products' | 'services';
 
@@ -64,7 +65,8 @@ type MyCatalogResponse = { catalog: InfluencerCatalog };
 export const catalogApi = {
   getMyCatalog: async (kind: CatalogKind): Promise<InfluencerCatalog> => {
     const res = (await api.get(`/api/influencer-catalog/my?kind=${kind}`)) as MyCatalogResponse;
-    return res.catalog;
+    if (!res?.catalog) throw new Error('Catalog not found');
+    return normalizeCatalog(res.catalog);
   },
 
   getStatus: async (kind: CatalogKind): Promise<CatalogStatusResponse> => {
@@ -162,20 +164,78 @@ export const catalogApi = {
     api.post(`/api/influencer-catalog/reopen?kind=${kind}`, {}) as Promise<MyCatalogResponse>,
 };
 
-export function formatCatalogInr(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+/** @deprecated use `formatInr` from `@/lib/currency` directly — kept as an alias for existing callers. */
+export const formatCatalogInr = formatInr;
 
 export function catalogProductCount(catalog: InfluencerCatalog | null): number {
   if (!catalog) return 0;
   return catalog.categories.reduce((sum, c) => sum + c.products.length, 0);
 }
 
+/** All products across every category, in category order. No cap, no availability filter —
+ *  callers that need a bounded preview (e.g. a 4-tile grid) should slice/filter the result. */
+export function flattenCatalogProducts(catalog: InfluencerCatalog | null): CatalogProduct[] {
+  if (!catalog?.categories?.length) return [];
+  return catalog.categories.flatMap((c) => c.products ?? []);
+}
+
+/** Product id → owning category name, for rendering a product's category as a meta subtitle. */
+export function buildCategoryByProductId(catalog: InfluencerCatalog | null): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const cat of catalog?.categories ?? []) {
+    for (const p of cat.products ?? []) {
+      map.set(p.id, cat.name);
+    }
+  }
+  return map;
+}
+
 export function isCatalogSetupComplete(catalog: InfluencerCatalog | null): boolean {
   if (!catalog) return false;
   return catalog.storeName !== 'My Catalog' || catalog.categories.length > 0;
+}
+
+function asHttpUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
+  return trimmed;
+}
+
+/** Uploaded product photo — never a bundled niche/onboarding fallback. */
+export function productImageUrl(product: CatalogProduct | null | undefined): string | null {
+  if (!product) return null;
+  const raw = product as CatalogProduct & { image_url?: string | null; photoUrl?: string | null };
+  return asHttpUrl(product.imageUrl) ?? asHttpUrl(raw.image_url) ?? asHttpUrl(raw.photoUrl);
+}
+
+export function catalogCoverUrl(catalog: InfluencerCatalog | null | undefined): string | null {
+  if (!catalog) return null;
+  const raw = catalog as InfluencerCatalog & { cover_image_url?: string | null };
+  return asHttpUrl(catalog.coverImageUrl) ?? asHttpUrl(raw.cover_image_url);
+}
+
+/** Home/storefront hero: uploaded catalog cover only — never a product photo. */
+export function catalogHeroImageUrl(catalog: InfluencerCatalog | null): string | null {
+  return catalogCoverUrl(catalog);
+}
+
+export function catalogImageSource(url: string | null | undefined): { uri: string } | null {
+  const resolved = asHttpUrl(url);
+  return resolved ? { uri: resolved } : null;
+}
+
+/** Map snake_case upload fields so list UIs always read `imageUrl` / `coverImageUrl`. */
+export function normalizeCatalog(catalog: InfluencerCatalog): InfluencerCatalog {
+  return {
+    ...catalog,
+    coverImageUrl: catalogCoverUrl(catalog),
+    categories: (catalog.categories ?? []).map((category) => ({
+      ...category,
+      products: (category.products ?? []).map((product) => ({
+        ...product,
+        imageUrl: productImageUrl(product),
+      })),
+    })),
+  };
 }

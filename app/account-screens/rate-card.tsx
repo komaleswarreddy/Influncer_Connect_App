@@ -1,16 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Switch,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Switch, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ScrollScreen, SectionHeader, PremiumCard } from '@/components/ui';
+import {
+  ScrollScreen,
+  KollabScreenHeader,
+  KollabTextField,
+  KollabButton,
+  showKollabToast,
+  showKollabConfirm,
+} from '@/components/ui';
 import { rateCardsApi } from '@/lib/rate-cards-api';
 import { api } from '@/lib/api';
 import {
@@ -18,7 +16,8 @@ import {
   PROFILE_INCOMPLETE_HINT,
   type InfluencerProfileApi,
 } from '@/lib/influencer-profile-ready';
-import { appShell, spacing } from '@/theme';
+import { useKollab, font } from '@/theme/kollab-tokens';
+import { formatInr } from '@/lib/currency';
 
 const FIELDS = [
   ['instagramReel', 'Instagram Reel'],
@@ -35,12 +34,9 @@ const FIELDS = [
 
 type SuggestedEntry = { amount: number; explanation: string };
 
-function formatInr(amount: number): string {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
-}
-
 export default function RateCardScreen() {
   const router = useRouter();
+  const kollab = useKollab();
   const [rates, setRates] = useState<Record<string, string>>({});
   const [isPublic, setIsPublic] = useState(true);
   const [isOpen, setIsOpen] = useState(true);
@@ -48,11 +44,6 @@ export default function RateCardScreen() {
   const [suggesting, setSuggesting] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [suggested, setSuggested] = useState<Record<string, SuggestedEntry>>({});
-  const [suggestionMeta, setSuggestionMeta] = useState<{
-    niche?: string;
-    country?: string;
-    source?: string;
-  } | null>(null);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -67,9 +58,7 @@ export default function RateCardScreen() {
     setLoading(true);
     try {
       await loadProfile();
-      const res = (await rateCardsApi.getMy()) as {
-        rateCard?: Record<string, unknown>;
-      };
+      const res = (await rateCardsApi.getMy()) as { rateCard?: Record<string, unknown> };
       const card = res.rateCard;
       if (!card) return;
       const next: Record<string, string> = {};
@@ -78,7 +67,7 @@ export default function RateCardScreen() {
       setIsPublic(Boolean(card.isPublic));
       setIsOpen(Boolean(card.isOpenForBookings));
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load price card');
+      showKollabToast(e instanceof Error ? e.message : 'Failed to load price card');
     } finally {
       setLoading(false);
     }
@@ -89,13 +78,13 @@ export default function RateCardScreen() {
   }, [load]);
 
   const promptCompleteProfile = () => {
-    Alert.alert('Profile required', PROFILE_INCOMPLETE_HINT, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Open profile settings',
-        onPress: () => router.push('/account-screens/settings'),
-      },
-    ]);
+    void showKollabConfirm({
+      title: 'Profile required',
+      message: PROFILE_INCOMPLETE_HINT,
+      confirmLabel: 'Open profile settings',
+    }).then((ok) => {
+      if (ok) router.push('/account-screens/settings' as never);
+    });
   };
 
   const save = async () => {
@@ -103,9 +92,9 @@ export default function RateCardScreen() {
       const body: Record<string, unknown> = { isPublic, isOpenForBookings: isOpen };
       for (const [key] of FIELDS) body[key] = Number(rates[key] ?? 0);
       await rateCardsApi.updateMy(body);
-      Alert.alert('Saved', 'Price card updated.');
+      showKollabToast('Saved');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Save failed');
+      showKollabToast(e instanceof Error ? e.message : 'Save failed');
     }
   };
 
@@ -118,31 +107,12 @@ export default function RateCardScreen() {
     try {
       const res = (await rateCardsApi.getSuggested()) as {
         suggested?: Record<string, SuggestedEntry>;
-        niche?: string;
-        country?: string;
-        profile?: { niche?: string; country?: string };
-        source?: string;
       };
       setSuggested(res.suggested ?? {});
-      setSuggestionMeta({
-        niche: res.profile?.niche ?? res.niche,
-        country: res.profile?.country ?? res.country,
-        source: res.source,
-      });
-      const viaAi = res.source === 'llm';
-      Alert.alert(
-        'Suggestions ready',
-        viaAi
-          ? 'AI suggestions based on your saved profile (niche, country, bio).'
-          : 'Suggestions loaded from your profile (rules fallback).'
-      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not load suggestions';
-      if (msg.includes('profile') || msg.includes('Profile')) {
-        promptCompleteProfile();
-      } else {
-        Alert.alert('Error', msg);
-      }
+      if (msg.includes('profile') || msg.includes('Profile')) promptCompleteProfile();
+      else showKollabToast(msg);
     } finally {
       setSuggesting(false);
     }
@@ -155,183 +125,165 @@ export default function RateCardScreen() {
       if (s?.amount != null) next[key] = String(s.amount);
     }
     setRates(next);
-    Alert.alert('Applied', 'Suggested amounts filled in. Tap Save to persist.');
+    showKollabToast('Suggested amounts filled in');
   };
 
   if (loading) {
     return (
       <ScrollScreen>
-        <SectionHeader title="Price card" subtitle="Set your public booking prices (INR)" />
-        <View style={styles.centered}>
-          <ActivityIndicator color={appShell.cta} />
-        </View>
+        <KollabScreenHeader
+          title="Price card"
+          subtitle="Set public prices so brands can request direct bookings"
+        />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 24 }} />
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen>
-      <SectionHeader
+    <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <KollabScreenHeader
         title="Price card"
         subtitle="Set public prices so brands can request direct bookings"
       />
 
       {!profileReady ? (
-        <PremiumCard style={styles.banner}>
-          <Text style={styles.bannerTitle}>Profile settings required</Text>
-          <Text style={styles.bannerText}>{PROFILE_INCOMPLETE_HINT}</Text>
-          <TouchableOpacity
-            style={styles.bannerBtn}
+        <View style={[styles.banner, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+          <Text style={[styles.bannerTitle, { color: kollab.color.ink }]}>
+            Profile settings required
+          </Text>
+          <Text style={[styles.bannerText, { color: kollab.color.ink }]}>
+            {PROFILE_INCOMPLETE_HINT}
+          </Text>
+          <KollabButton
+            label="Go to profile settings"
+            variant="soft"
             onPress={() => router.push('/account-screens/settings')}
-          >
-            <Text style={styles.bannerBtnText}>Go to profile settings</Text>
-          </TouchableOpacity>
-        </PremiumCard>
+          />
+        </View>
       ) : null}
 
-      <PremiumCard style={styles.actionsCard}>
-        <TouchableOpacity
-          style={[styles.suggestBtn, (suggesting || !profileReady) && styles.suggestBtnDisabled]}
-          onPress={() => void loadSuggested()}
+      <View style={styles.actions}>
+        <KollabButton
+          label={suggesting ? '…' : 'Get AI suggestions'}
+          variant="soft"
+          compact
           disabled={suggesting || !profileReady}
-        >
-          {suggesting ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.suggestBtnText}>Get AI suggestions</Text>
-          )}
-        </TouchableOpacity>
-        {Object.keys(suggested).length > 0 ? (
-          <>
-            {suggestionMeta ? (
-              <Text style={styles.meta}>
-                {suggestionMeta.niche && suggestionMeta.country
-                  ? `${suggestionMeta.niche} · ${suggestionMeta.country}`
-                  : ''}
-                {suggestionMeta.source === 'llm'
-                  ? ' · AI'
-                  : suggestionMeta.source
-                    ? ' · rules'
-                    : ''}
-              </Text>
-            ) : null}
-            <TouchableOpacity style={styles.applyBtn} onPress={applySuggested}>
-              <Text style={styles.applyBtnText}>Apply suggested prices</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-      </PremiumCard>
+          onPress={() => void loadSuggested()}
+          style={styles.actionBtn}
+        />
+        <KollabButton
+          label="Apply suggested"
+          variant="hairline"
+          compact
+          disabled={Object.keys(suggested).length === 0}
+          onPress={applySuggested}
+          style={styles.actionBtn}
+        />
+      </View>
 
-      <PremiumCard>
+      <View style={styles.rows}>
         {FIELDS.map(([key, label]) => (
-          <View key={key} style={styles.row}>
-            <Text style={styles.label}>{label}</Text>
-            <TextInput
-              style={styles.input}
+          <View
+            key={key}
+            style={[styles.rowWell, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+          >
+            <Text style={[styles.rowLabel, { color: kollab.color.ink }]}>{label}</Text>
+            <KollabTextField
+              surface="well"
               keyboardType="numeric"
               value={rates[key] ?? ''}
               onChangeText={(v) => setRates({ ...rates, [key]: v })}
               placeholder="0"
+              style={styles.amount}
             />
             {suggested[key] ? (
-              <Text style={styles.hint}>
-                Suggested: {formatInr(suggested[key].amount)}
-                {suggested[key].explanation ? ` — ${suggested[key].explanation}` : ''}
+              <Text style={[styles.hint, { color: kollab.color.ink }]}>
+                {formatInr(suggested[key].amount)}
               </Text>
             ) : null}
           </View>
         ))}
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Public price card</Text>
-          <Switch value={isPublic} onValueChange={setIsPublic} />
-        </View>
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Open for direct bookings</Text>
-          <Switch value={isOpen} onValueChange={setIsOpen} />
-        </View>
-        <TouchableOpacity style={styles.btn} onPress={() => void save()}>
-          <Text style={styles.btnText}>Save</Text>
-        </TouchableOpacity>
-      </PremiumCard>
+      </View>
+
+      <View style={styles.toggles}>
+        <PressToggle
+          label="Public price card"
+          value={isPublic}
+          onChange={setIsPublic}
+          kollab={kollab}
+        />
+        <PressToggle
+          label="Open for direct bookings"
+          value={isOpen}
+          onChange={setIsOpen}
+          kollab={kollab}
+        />
+      </View>
+
+      <KollabButton label="Save" variant="ink" onPress={() => void save()} />
     </ScrollScreen>
   );
 }
 
+function PressToggle({
+  label,
+  value,
+  onChange,
+  kollab,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  kollab: ReturnType<typeof useKollab>;
+}) {
+  return (
+    <View style={[styles.toggleWell, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+      <Text style={[styles.toggleLabel, { color: kollab.color.ink }]}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: kollab.color.outline, true: kollab.color.violet }}
+        thumbColor={kollab.color.card}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  centered: { paddingVertical: spacing.xl, alignItems: 'center' },
-  banner: { marginBottom: spacing.md },
-  bannerTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 15,
-    color: appShell.textPrimary,
-    marginBottom: 6,
-  },
-  bannerText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: appShell.textSecondary,
-    lineHeight: 18,
-  },
-  bannerBtn: {
-    marginTop: spacing.md,
-    backgroundColor: appShell.cta,
-    padding: spacing.sm,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  bannerBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  actionsCard: { marginBottom: spacing.md },
-  suggestBtn: {
-    backgroundColor: appShell.cta,
-    padding: spacing.md,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  suggestBtnDisabled: { opacity: 0.5 },
-  suggestBtnText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 },
-  applyBtn: {
-    marginTop: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: appShell.cta,
-    alignItems: 'center',
-  },
-  applyBtnText: { color: appShell.cta, fontFamily: 'Inter_600SemiBold' },
-  meta: {
-    marginTop: spacing.sm,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    color: appShell.textSecondary,
-  },
-  row: { marginBottom: spacing.md },
-  label: { fontFamily: 'Inter_600SemiBold', color: appShell.textPrimary, marginBottom: 4 },
-  hint: {
-    marginTop: 4,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    color: appShell.textSecondary,
-    lineHeight: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: appShell.cardBorder,
-    borderRadius: 10,
-    padding: spacing.sm,
-    fontFamily: 'Inter_400Regular',
-    color: appShell.textPrimary,
-  },
-  switchRow: {
+  banner: { borderRadius: 22, padding: 16, marginBottom: 16, gap: 8 },
+  bannerTitle: { fontFamily: font.semiBold, fontSize: 14.5 },
+  bannerText: { fontFamily: font.body, fontSize: 13, opacity: 0.55, lineHeight: 18 },
+  actions: { flexDirection: 'row', gap: 9, marginBottom: 16 },
+  actionBtn: { flex: 1 },
+  rows: { gap: 9, marginBottom: 16 },
+  rowWell: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: 10,
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingLeft: 16,
+    paddingRight: 6,
   },
-  btn: {
-    backgroundColor: appShell.cta,
-    padding: spacing.md,
-    borderRadius: 12,
+  rowLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 13.5 },
+  amount: { width: 112, textAlign: 'right', fontFamily: font.bold, paddingVertical: 12 },
+  hint: {
+    fontFamily: font.body,
+    fontSize: 11,
+    opacity: 0.55,
+    position: 'absolute',
+    bottom: -14,
+    right: 16,
+  },
+  toggles: { gap: 9, marginBottom: 18 },
+  toggleWell: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    borderRadius: 17,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  btnText: { color: '#fff', fontFamily: 'Inter_700Bold' },
+  toggleLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 13.5 },
 });

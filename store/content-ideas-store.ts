@@ -8,7 +8,11 @@ type State = {
   isLoading: boolean;
   error: string | null;
   cached: boolean;
-  fetchTrending: (opts?: { platform?: TrendingPlatform; keyword?: string }) => Promise<void>;
+  fetchTrending: (opts?: {
+    platform?: TrendingPlatform;
+    keyword?: string;
+    refresh?: boolean;
+  }) => Promise<void>;
   setPlatform: (p: TrendingPlatform) => void;
   setKeyword: (k: string) => void;
 };
@@ -27,7 +31,11 @@ export const useContentIdeasStore = create<State>((set, get) => ({
     const keyword = opts?.keyword ?? get().keyword;
     set({ isLoading: true, error: null });
     try {
-      const res = await contentIdeasApi.trending({ platform, keyword: keyword.trim() || undefined });
+      const res = await contentIdeasApi.trending({
+        platform,
+        keyword: keyword.trim() || undefined,
+        refresh: opts?.refresh,
+      });
       set({ ideas: res.ideas ?? [], cached: Boolean(res.cached), isLoading: false });
     } catch (e) {
       set({

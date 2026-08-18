@@ -46,7 +46,7 @@ export function routeFromPushData(data: PushDeepLinkData): string | null {
   const approved =
     data.status === 'approved' || title.includes('approv') || type.toLowerCase().includes('approv');
 
-  if (type === 'campaign_invite') return '/influencer/invites';
+  if (type === 'campaign_invite') return '/influencer/inbox';
   if (approved && data.participationId) {
     return `/influencer/contract?participationId=${encodeURIComponent(data.participationId)}`;
   }
@@ -69,7 +69,7 @@ export function routeFromPushData(data: PushDeepLinkData): string | null {
       : '/influencer/(tabs)/campaigns';
   }
   if (type === 'payment_received') return '/account-screens/payments';
-  return '/influencer/invites';
+  return '/influencer/inbox';
 }
 
 /** Always no-op — no notification listeners in Expo Go / current app entry. */

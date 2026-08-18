@@ -1,18 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollScreen, PremiumCard, SectionHeader } from '@/components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollScreen, KollabScreenHeader, KollabButton, showKollabToast } from '@/components/ui';
 import { ugcApi } from '@/lib/ugc-api';
 import { applicationStatusLabel, type UgcApplicationRow } from '@/store/ugc-store';
-import { appShell, spacing } from '@/theme';
+import { formatInr } from '@/lib/currency';
+import { nicheCoverSource } from '@/lib/niche-cover';
+import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
 
 type BriefResponse = {
   brief?: Record<string, unknown>;
@@ -22,9 +18,37 @@ type BriefResponse = {
   paymentStatus?: string | null;
 };
 
+const DEFAULT_COVER_NOTE = "I'd like to create this content";
+
+function contentChip(contentType: string): string {
+  switch (contentType) {
+    case 'video':
+      return '1 vertical video';
+    case 'photo':
+      return 'Product stills';
+    case 'reel':
+      return '1 reel';
+    case 'story':
+      return 'Stories';
+    case 'ugc_bundle':
+      return 'UGC bundle';
+    default:
+      return contentType.replace(/_/g, ' ') || 'Content';
+  }
+}
+
+function formatDeadline(raw: unknown): string {
+  if (!raw) return '—';
+  const d = new Date(String(raw));
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 export default function UgcBriefDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const kollab = useKollab();
   const [brief, setBrief] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,7 +56,6 @@ export default function UgcBriefDetailScreen() {
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [deliverableStatus, setDeliverableStatus] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
-  const [pitch, setPitch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -76,30 +99,20 @@ export default function UgcBriefDetailScreen() {
   }, [hasApplied, applicationStatus, deliverableStatus, paymentStatus]);
 
   const statusLabel = statusRow ? applicationStatusLabel(statusRow) : null;
-  const isTerminalApproved =
-    deliverableStatus === 'approved' ||
-    paymentStatus === 'released' ||
-    applicationStatus === 'completed';
 
   const apply = async () => {
-    if (!id || !pitch.trim()) {
-      Alert.alert('Pitch required', 'Tell the brand why you are a fit.');
-      return;
-    }
+    if (!id) return;
     if (hasApplied) {
-      Alert.alert('Already applied', 'You have already submitted an application for this brief.');
+      showKollabToast('You have already submitted an application for this brief.');
       return;
     }
     setSubmitting(true);
     try {
-      await ugcApi.apply(id, { coverNote: pitch });
-      Alert.alert(
-        'Applied',
-        'Your application was submitted. The brand will review it on the web dashboard.'
-      );
+      await ugcApi.apply(id, { coverNote: DEFAULT_COVER_NOTE });
+      showKollabToast('Your application was submitted.');
       router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Apply failed');
+      showKollabToast(e instanceof Error ? e.message : 'Apply failed');
     } finally {
       setSubmitting(false);
     }
@@ -107,116 +120,149 @@ export default function UgcBriefDetailScreen() {
 
   if (loading) {
     return (
-      <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />
+      <ScrollScreen canvasColor={kollab.color.screen}>
+        <KollabScreenHeader title="UGC brief" backTone="well" />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: space.lg }} />
       </ScrollScreen>
     );
   }
 
   if (loadError || !brief) {
     return (
-      <ScrollScreen>
-        <SectionHeader title="UGC brief" subtitle="Could not load this job" />
-        <Text style={styles.error}>{loadError ?? 'Brief not found'}</Text>
-        <TouchableOpacity style={styles.btn} onPress={() => void load()}>
-          <Text style={styles.btnText}>Retry</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => router.back()}>
-          <Text style={[styles.btnText, styles.btnOutlineText]}>Back</Text>
-        </TouchableOpacity>
+      <ScrollScreen canvasColor={kollab.color.screen}>
+        <KollabScreenHeader title="UGC brief" subtitle="Could not load this job" backTone="well" />
+        <Text style={[styles.error, { color: kollab.color.ink }]}>
+          {loadError ?? 'Brief not found'}
+        </Text>
+        <KollabButton label="Retry" onPress={() => void load()} style={styles.btnSpacing} />
+        <KollabButton variant="hairline" label="Back" onPress={() => router.back()} />
       </ScrollScreen>
     );
   }
 
   const canApply = !hasApplied && String(brief.status) === 'open';
+  const productNameText = String(brief.productName ?? '');
+  const pieces = Number(brief.piecesNeeded ?? 1);
+  const piecesLeft = pieces - Number(brief.piecesFilled ?? 0);
+  const pillText = hasApplied && statusLabel ? `UGC brief · ${statusLabel}` : `UGC brief · Open`;
+  const chips = [
+    contentChip(String(brief.contentType ?? '')),
+    `${pieces} ${pieces === 1 ? 'piece' : 'pieces'}`,
+    'Raw files',
+  ];
+  const hero = kollab.scrimStops.hero;
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader title={String(brief.title)} subtitle={String(brief.productName ?? '')} />
-      <PremiumCard>
-        <Text style={styles.body}>{String(brief.description)}</Text>
-        <Text style={styles.meta}>
-          ₹{Number(brief.budgetPerPiece ?? 0).toLocaleString('en-IN')} per piece ·{' '}
-          {Number(brief.piecesNeeded ?? 1) - Number(brief.piecesFilled ?? 0)} spot(s) left
-        </Text>
-        <Text style={styles.metaSmall}>Content: {String(brief.contentType ?? '')}</Text>
-        {brief.deadline ? (
-          <Text style={styles.metaSmall}>
-            Deadline: {new Date(String(brief.deadline)).toLocaleDateString('en-IN')}
-          </Text>
+    <ScrollScreen
+      canvasColor={kollab.color.screen}
+      padH={0}
+      safeAreaEdges={['left', 'right', 'bottom']}
+    >
+      <View style={styles.hero}>
+        <Image
+          source={nicheCoverSource('food')}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={[hero.colors[0], hero.colors[1], kollab.color.screen]}
+          locations={[...hero.locations]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={[styles.heroChrome, { top: insets.top + 8, left: 18, right: 18 }]}>
+          <KollabScreenHeader title="" backTone="frost" style={styles.heroHeader} />
+        </View>
+      </View>
+
+      <View style={styles.body}>
+        <View style={[styles.pill, { backgroundColor: kollab.color.chartreuse }]}>
+          <Text style={[styles.pillText, { color: kollab.color.onChartreuse }]}>{pillText}</Text>
+        </View>
+        <Text style={[styles.title, { color: kollab.color.ink }]}>{String(brief.title)}</Text>
+        {productNameText ? (
+          <Text style={[styles.subtitle, { color: kollab.color.ink }]}>{productNameText}</Text>
         ) : null}
-      </PremiumCard>
 
-      {hasApplied && statusLabel ? (
-        <PremiumCard style={{ marginTop: spacing.md }}>
-          <Text style={styles.applied}>{statusLabel}</Text>
-          {isTerminalApproved ? (
-            <Text style={styles.metaSmall}>
-              Your submission was accepted. Payment release is shown under Mine.
+        <View style={styles.metrics}>
+          <View style={[styles.metric, { backgroundColor: kollab.color.chartreuse }]}>
+            <Text style={[styles.metricLabel, { color: kollab.color.onChartreuse }]}>rate</Text>
+            <Text style={[styles.metricValue, { color: kollab.color.onChartreuse }]}>
+              {formatInr(Number(brief.budgetPerPiece ?? 0))}
             </Text>
-          ) : applicationStatus === 'accepted' ? (
-            <Text style={styles.metaSmall}>
-              Open the Mine tab and tap this job to deliver content.
+            <Text style={[styles.metricHint, { color: kollab.color.onChartreuse }]}>/ piece</Text>
+          </View>
+          <View style={[styles.metric, { backgroundColor: kollab.color.well }]}>
+            <Text style={[styles.metricLabel, { color: kollab.color.ink }]}>deadline</Text>
+            <Text style={[styles.metricValue, { color: kollab.color.ink }]}>
+              {formatDeadline(brief.deadline)}
             </Text>
-          ) : deliverableStatus === 'pending_review' || applicationStatus === 'in_progress' ? (
-            <Text style={styles.metaSmall}>Check Mine for the latest delivery status.</Text>
-          ) : null}
-        </PremiumCard>
-      ) : null}
+            <Text style={[styles.metricHint, { color: kollab.color.ink }]}>
+              {piecesLeft > 0
+                ? `${piecesLeft} spot${piecesLeft === 1 ? '' : 's'} left`
+                : `${pieces} pieces`}
+            </Text>
+          </View>
+        </View>
 
-      {canApply ? (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Your pitch to the brand"
-            value={pitch}
-            onChangeText={setPitch}
-            multiline
-            editable={!submitting}
-          />
-          <TouchableOpacity
-            style={[styles.btn, submitting && styles.btnDisabled]}
+        <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>What to deliver</Text>
+        <View style={styles.chipRow}>
+          {chips.map((chip) => (
+            <View key={chip} style={[styles.chip, { backgroundColor: kollab.color.well }]}>
+              <Text style={[styles.chipText, { color: kollab.color.ink }]}>{chip}</Text>
+            </View>
+          ))}
+        </View>
+
+        {canApply ? (
+          <KollabButton
+            label={submitting ? 'Submitting…' : 'View & Apply'}
             disabled={submitting}
             onPress={() => void apply()}
-          >
-            <Text style={styles.btnText}>{submitting ? 'Submitting…' : 'Apply to this brief'}</Text>
-          </TouchableOpacity>
-        </>
-      ) : null}
+          />
+        ) : hasApplied && statusLabel ? (
+          <Text style={[styles.applied, { color: kollab.color.ink }]}>{statusLabel}</Text>
+        ) : null}
+      </View>
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { fontFamily: 'Inter_400Regular', color: appShell.textPrimary, marginBottom: spacing.sm },
-  meta: { fontFamily: 'Inter_600SemiBold', color: appShell.cta, marginBottom: 4 },
-  metaSmall: {
-    fontFamily: 'Inter_400Regular',
-    color: appShell.textSecondary,
-    fontSize: 13,
-    marginTop: 2,
+  hero: { height: 250, overflow: 'hidden' },
+  heroChrome: { position: 'absolute', zIndex: 2 },
+  heroHeader: { paddingTop: 0, paddingBottom: 0 },
+  body: { paddingHorizontal: 22, paddingBottom: 8 },
+  pill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
   },
-  applied: { fontFamily: 'Inter_600SemiBold', color: appShell.textPrimary },
-  error: { color: appShell.textSecondary, marginBottom: spacing.md },
-  input: {
-    borderWidth: 1,
-    borderColor: appShell.cardBorder,
-    borderRadius: 12,
-    padding: spacing.md,
-    minHeight: 100,
-    marginTop: spacing.md,
-    fontFamily: 'Inter_400Regular',
-    color: appShell.textPrimary,
+  pillText: { fontFamily: font.bold, fontSize: 11 },
+  title: {
+    fontFamily: font.display,
+    fontSize: 29,
+    letterSpacing: -0.5,
+    lineHeight: 32,
+    marginTop: 10,
+    marginBottom: 4,
   },
-  btn: {
-    marginTop: spacing.md,
-    backgroundColor: appShell.cta,
-    padding: spacing.md,
-    borderRadius: 12,
-    alignItems: 'center',
+  subtitle: { fontFamily: font.body, fontSize: 13, opacity: 0.55, marginBottom: 16 },
+  metrics: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  metric: { flex: 1, borderRadius: 18, padding: 14 },
+  metricLabel: { fontFamily: font.body, fontSize: 11, opacity: 0.6 },
+  metricValue: { ...kType.sectionTitle, marginTop: 2 },
+  metricHint: { fontFamily: font.body, fontSize: 11, opacity: 0.55 },
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
-  btnDisabled: { opacity: 0.7 },
-  btnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: appShell.cta },
-  btnText: { color: '#fff', fontFamily: 'Inter_700Bold' },
-  btnOutlineText: { color: appShell.cta },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  chip: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
+  chipText: { fontFamily: font.semiBold, fontSize: 12.5 },
+  applied: { fontFamily: font.semiBold, fontSize: 13.5, opacity: 0.7 },
+  error: { fontFamily: font.body, marginBottom: space.md },
+  btnSpacing: { marginBottom: space.md },
 });

@@ -1,29 +1,26 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Platform,
-  Image,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { appShell, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
-import { OPPORTUNITY_RAIL, type OpportunityStatusTone } from '@/lib/opportunity-card-ui';
+import { useKollab, font, radius as kollabRadius } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+import { nicheCoverSource, nicheCoverCardShape } from '@/lib/niche-cover';
+import type { OpportunityStatusTone } from '@/lib/opportunity-card-ui';
 
-const CARD_COLORS = {
-  headerNavy: '#050C24',
-  commissionBox: '#F1F4F9',
-  iconWell: '#F1F4F9',
-  footerBadgeBg: '#EBEFFF',
-  divider: 'rgba(20, 30, 51, 0.08)',
-  statusPillBg: 'rgba(255, 255, 255, 0.12)',
-  statusPillBorder: 'rgba(255, 255, 255, 0.28)',
-} as const;
+/** Local status-tone → Kollab status-chip tone map. Also covers the pre-existing 'open'
+ *  fallback (previously an invalid `OPPORTUNITY_RAIL.open` lookup that doesn't type-check
+ *  against `OpportunityStatusTone`) so callers that pass no statusTone still resolve cleanly. */
+type StatusToneKey = OpportunityStatusTone | 'open';
+const STATUS_CHIP_TONE: Record<StatusToneKey, keyof KollabTokens['statusChip']> = {
+  pending: 'neutral',
+  active: 'live',
+  review: 'info',
+  success: 'live',
+  declined: 'neutral',
+  warning: 'warn',
+  neutral: 'neutral',
+  open: 'neutral',
+};
 
 export type CampaignReferenceCardProps = {
   title: string;
@@ -33,8 +30,10 @@ export type CampaignReferenceCardProps = {
   statusTone?: OpportunityStatusTone;
   commissionRate: string;
   duration: string;
-  /** @deprecated Niche lives in metaLine; optional for backwards compatibility. */
-  niche?: string;
+  /** Real niche key (e.g. `campaign.requiredInfluencerNiche`) — selects the full-bleed cover
+   *  photo + card aspect via `nicheCoverSource`/`nicheCoverCardShape`. Falls back to the
+   *  'lifestyle' cover when omitted (e.g. UGC briefs, which carry no niche field). */
+  niche?: string | null;
   brandLogoUrl?: string | null;
   shortDescription?: string | null;
   /** Label under the primary rate (default: commission). */
@@ -48,83 +47,17 @@ export type CampaignReferenceCardProps = {
   fillHeight?: boolean;
 };
 
-type MetricColumnProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  iconColor: string;
-  labelColor: string;
-  valueColor: string;
-  iconWellBg: string;
-};
-
-function MetricColumn({
-  icon,
-  label,
-  value,
-  iconColor,
-  labelColor,
-  valueColor,
-  iconWellBg,
-}: MetricColumnProps) {
-  return (
-    <View style={styles.metricColumn}>
-      <View style={[styles.metricIconWell, { backgroundColor: iconWellBg }]}>
-        <Ionicons name={icon} size={13} color={iconColor} />
-      </View>
-      <Text style={[styles.metricLabel, { color: labelColor }]} numberOfLines={1}>
-        {label}
-      </Text>
-      <Text
-        style={[styles.metricValue, { color: valueColor }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function MetricDivider({ color }: { color: string }) {
-  return <View style={[styles.metricDivider, { backgroundColor: color }]} />;
-}
-
-function CommissionColumn({
-  rate,
-  label = 'commission',
-  boxBg,
-  valueColor,
-  labelColor,
-}: {
-  rate: string;
-  label?: string;
-  boxBg: string;
-  valueColor: string;
-  labelColor: string;
-}) {
-  return (
-    <View style={[styles.commissionColumn, { backgroundColor: boxBg }]}>
-      <Text
-        style={[styles.commissionValue, { color: valueColor }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.7}
-      >
-        {rate}
-      </Text>
-      <Text style={[styles.commissionLabel, { color: labelColor }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 function truncateDescription(text: string, max = 110): string {
   const cleaned = text.replace(/\s+/g, ' ').trim();
   if (cleaned.length <= max) return cleaned;
   return `${cleaned.slice(0, max - 1).trimEnd()}…`;
+}
+
+/** True "TBD"/empty durations add nothing to the meta line — only surface real ranges. */
+function meaningfulDuration(duration: string): string | null {
+  const trimmed = (duration ?? '').trim();
+  if (!trimmed || trimmed.toUpperCase() === 'TBD') return null;
+  return trimmed;
 }
 
 export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
@@ -135,6 +68,7 @@ export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
   statusTone,
   commissionRate,
   duration,
+  niche,
   brandLogoUrl,
   shortDescription,
   rateLabel = 'commission',
@@ -145,145 +79,114 @@ export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
   style,
   fillHeight = false,
 }: CampaignReferenceCardProps) {
-  const shell = useAppShell();
-  const statusColor = statusTone ? OPPORTUNITY_RAIL[statusTone] : OPPORTUNITY_RAIL.open;
+  const kollab = useKollab();
+  const chipTone = STATUS_CHIP_TONE[(statusTone as StatusToneKey | undefined) ?? 'open'];
+  const statusBg = kollab.statusChip[chipTone].bg;
+  const statusFg = kollab.statusChip[chipTone].fg;
   const showStatusPill = Boolean(statusLabel && String(statusLabel).trim());
   const desc =
     shortDescription && shortDescription.trim() ? truncateDescription(shortDescription) : null;
 
-  const metricsSurface = shell.isDark ? 'rgba(255,255,255,0.10)' : CARD_COLORS.commissionBox;
-  const metricsIconWell = shell.isDark ? 'rgba(255,255,255,0.12)' : CARD_COLORS.iconWell;
-  const metricsAccent = shell.isDark ? '#E8ECFF' : shell.cta;
-  const footerBadgeBg = shell.isDark ? 'rgba(142, 158, 237, 0.22)' : CARD_COLORS.footerBadgeBg;
+  const cover = nicheCoverSource(niche);
+  const shape = kollab.cardShape[nicheCoverCardShape(niche)];
+
+  // Duration is real, useful data that the mockup's card doesn't surface as its own tile —
+  // fold it into the meta line (a permitted "secondary position") instead of dropping it.
+  const durationText = meaningfulDuration(duration);
+  const metaWithDuration = durationText ? `${metaLine} • ${durationText}` : metaLine;
+
+  const brandInitial = (brandName || '?').trim().charAt(0).toUpperCase() || '?';
 
   const content = (
     <View
       style={[
         styles.shell,
-        fillHeight && styles.shellFill,
-        shadow.card,
-        { backgroundColor: shell.card, borderColor: shell.cardBorder },
+        { backgroundColor: kollab.color.imgBg, borderRadius: kollabRadius.cardL },
+        fillHeight ? styles.shellFill : { height: shape.listHeight },
+        kollab.shadow.photoCard,
         style,
       ]}
     >
-      <View style={[styles.headerBand, fillHeight && styles.headerBandFill]}>
-        <LinearGradient
-          colors={[...premiumNavy.base.colors]}
-          locations={[...premiumNavy.base.locations]}
-          start={premiumNavy.base.start}
-          end={premiumNavy.base.end}
-          style={StyleSheet.absoluteFill}
-        />
-        <LinearGradient
-          colors={[...premiumNavy.sheen.colors]}
-          locations={[...premiumNavy.sheen.locations]}
-          start={premiumNavy.sheen.start}
-          end={premiumNavy.sheen.end}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+      <Image source={cover} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      <LinearGradient
+        colors={kollab.scrimStops.card.colors as [string, string, string]}
+        locations={kollab.scrimStops.card.locations as [number, number, number]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-        <View style={[styles.headerContent, fillHeight && styles.headerContentFill]}>
-          <View style={styles.headerTopRow}>
-            <Text style={styles.headerTitle} numberOfLines={2}>
-              {title}
-            </Text>
-            {showStatusPill ? (
-              <View style={[styles.statusPill, { borderColor: CARD_COLORS.statusPillBorder }]}>
-                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                <Text style={styles.statusPillText} numberOfLines={1}>
-                  {statusLabel}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.headerMetaBlock}>
-            <View style={styles.brandRow}>
-              {brandLogoUrl ? (
-                <View style={styles.brandLogoWell}>
-                  <Image
-                    source={{ uri: brandLogoUrl }}
-                    style={styles.brandLogo}
-                    resizeMode="cover"
-                  />
-                </View>
-              ) : (
-                <View style={styles.brandLogoFallback}>
-                  <Ionicons name="business-outline" size={20} color="rgba(255,255,255,0.92)" />
-                </View>
-              )}
-              <View style={styles.brandCopy}>
-                <Text style={styles.brandText} numberOfLines={1}>
-                  {brandName}
-                </Text>
-                <Text style={styles.metaLineText} numberOfLines={1}>
-                  {metaLine}
-                </Text>
-              </View>
-            </View>
-            {desc ? (
-              <Text style={styles.shortDescription} numberOfLines={2}>
-                {desc}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.body, { backgroundColor: shell.card }]}>
-        <View style={styles.metricsRow}>
-          <CommissionColumn
-            rate={commissionRate}
-            label={rateLabel}
-            boxBg={metricsSurface}
-            valueColor={shell.textPrimary}
-            labelColor={shell.textSecondary}
-          />
-          <MetricDivider color={shell.cardBorder} />
-          <MetricColumn
-            icon="calendar-outline"
-            label="Duration"
-            value={duration}
-            iconColor={metricsAccent}
-            labelColor={shell.textSecondary}
-            valueColor={shell.textPrimary}
-            iconWellBg={metricsIconWell}
-          />
-        </View>
-      </View>
-
-      <View
-        style={[styles.footer, { backgroundColor: shell.card, borderTopColor: shell.cardBorder }]}
-      >
-        {footerBadge ? (
-          <View style={[styles.footerBadge, { backgroundColor: footerBadgeBg }]}>
-            <Text style={[styles.footerBadgeText, { color: shell.cta }]} numberOfLines={1}>
-              {footerBadge}
-            </Text>
-          </View>
+      <View style={styles.brandBadge}>
+        {brandLogoUrl ? (
+          <Image source={{ uri: brandLogoUrl }} style={styles.brandMarkImage} contentFit="cover" />
         ) : (
-          <View style={styles.footerBadgeSpacer} />
+          <View style={[styles.brandMark, { backgroundColor: kollab.color.ink }]}>
+            <Text style={styles.brandMarkText}>{brandInitial}</Text>
+          </View>
         )}
+        <Text style={styles.brandName} numberOfLines={1}>
+          {brandName}
+        </Text>
+      </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={onFooterPress}
-          style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
-        >
-          <LinearGradient
-            colors={['#1a2642', '#141e33', '#0a1018']}
-            locations={[0, 0.45, 1]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.footerButtonGradient}
+      {showStatusPill ? (
+        <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+          <Text style={[styles.statusText, { color: statusFg }]} numberOfLines={1}>
+            {statusLabel}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.bottom}>
+        <Text style={styles.meta} numberOfLines={1}>
+          {metaWithDuration}
+        </Text>
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+
+        <View style={styles.payRow}>
+          <View style={styles.payLeftGroup}>
+            {footerBadge ? (
+              <View style={styles.footerBadgeChip}>
+                <Text style={styles.footerBadgeChipText} numberOfLines={1}>
+                  {footerBadge}
+                </Text>
+              </View>
+            ) : null}
+            <View style={[styles.payPill, { backgroundColor: kollab.color.chartreuse }]}>
+              <Text
+                style={[styles.payText, { color: kollab.color.onChartreuse }]}
+                numberOfLines={1}
+              >
+                {commissionRate} {rateLabel}
+              </Text>
+            </View>
+          </View>
+
+          {/* Second, distinct tap target: branches by status (Open contract / Track progress /
+              View & Apply) independently of the card body's onPress. Restyled as the mockup's
+              compact circular arrow-well, with the branching label kept as a small caption so
+              it doesn't get lost. */}
+          <Pressable
+            onPress={onFooterPress}
+            accessibilityRole="button"
+            accessibilityLabel={footerButtonLabel}
+            hitSlop={8}
+            style={styles.footerAction}
           >
-            <Text style={styles.footerButtonLabel} numberOfLines={1}>
+            <Text style={styles.footerActionLabel} numberOfLines={1}>
               {footerButtonLabel}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
-          </LinearGradient>
-        </Pressable>
+            <View style={styles.arrowWell}>
+              <Text style={styles.arrow}>→</Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {desc ? (
+          <Text style={styles.description} numberOfLines={2}>
+            {desc}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -294,6 +197,7 @@ export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={title}
       style={fillHeight ? styles.pressableFill : undefined}
     >
       {content}
@@ -303,262 +207,158 @@ export const CampaignReferenceCard = React.memo(function CampaignReferenceCard({
 
 const styles = StyleSheet.create({
   shell: {
-    borderRadius: radius.xl,
     overflow: 'hidden',
-    backgroundColor: appShell.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: CARD_COLORS.divider,
+    position: 'relative',
     width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
   },
   shellFill: {
     flex: 1,
-    maxWidth: '100%',
-    alignSelf: 'stretch',
   },
   pressableFill: {
     flex: 1,
     width: '100%',
   },
-  headerBand: {
-    minHeight: 132,
-    backgroundColor: CARD_COLORS.headerNavy,
-    overflow: 'hidden',
-  },
-  headerBandFill: {
-    flex: 1,
-  },
-  headerContent: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  headerContentFill: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    lineHeight: 26,
-    letterSpacing: -0.4,
-    color: '#FFFFFF',
-  },
-  statusPill: {
-    flexShrink: 0,
-    maxWidth: '42%',
+  // Brand badge — floating top-left pill over the cover image. Offsets/sizes/colors ported
+  // verbatim from components/ui/PhotoCard.tsx (brandBadge/brandMark/brandName).
+  brandBadge: {
+    position: 'absolute',
+    top: 13,
+    left: 13,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
+    gap: 7,
+    backgroundColor: 'rgba(245,243,237,0.94)',
+    borderRadius: 999,
     paddingVertical: 5,
-    backgroundColor: CARD_COLORS.statusPillBg,
+    paddingLeft: 6,
+    paddingRight: 11,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  statusPillText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 11,
-    color: '#FFFFFF',
-    textTransform: 'capitalize',
-  },
-  headerMetaBlock: {
-    gap: 8,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  brandLogoWell: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  brandLogo: {
-    width: '100%',
-    height: '100%',
-  },
-  brandLogoFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  brandMark: {
+    width: 22,
+    height: 22,
+    borderRadius: 99,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
   },
-  brandCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
+  brandMarkImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
-  brandText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 15,
-    lineHeight: 19,
-    color: 'rgba(255,255,255,0.96)',
-  },
-  metaLineText: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: 'rgba(255,255,255,0.78)',
-  },
-  shortDescription: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: 'rgba(255,255,255,0.76)',
-  },
-  body: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    backgroundColor: appShell.card,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 84,
-  },
-  commissionColumn: {
-    flex: 1.05,
-    minWidth: 0,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: spacing.sm,
-    gap: 2,
-    height: 76,
-  },
-  commissionValue: {
-    width: '100%',
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    lineHeight: 18,
-    letterSpacing: -0.2,
-    textAlign: 'center',
-  },
-  commissionLabel: {
-    width: '100%',
-    fontFamily: fonts.regular,
+  brandMarkText: {
+    fontFamily: font.bold,
     fontSize: 9,
-    lineHeight: 11,
-    textAlign: 'center',
+    color: '#FFFFFF',
   },
-  metricDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 56,
-    marginHorizontal: 4,
+  brandName: {
+    fontFamily: font.bold,
+    fontSize: 11.5,
+    color: '#171410',
+    maxWidth: 150,
   },
-  metricColumn: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    height: 76,
-    paddingHorizontal: 2,
-  },
-  metricIconWell: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metricLabel: {
-    width: '100%',
-    fontFamily: fonts.regular,
-    fontSize: 10,
-    lineHeight: 12,
-    textAlign: 'center',
-  },
-  metricValue: {
-    width: '100%',
-    fontFamily: fonts.semiBold,
-    fontSize: 12,
-    lineHeight: 14,
-    textAlign: 'center',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  footerBadge: {
-    flexShrink: 0,
-    maxWidth: '38%',
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
+  // Status badge — floating top-right pill, solid tone bg + fg (not translucent-white + dot).
+  statusBadge: {
+    position: 'absolute',
+    top: 13,
+    right: 13,
+    maxWidth: '46%',
+    borderRadius: 999,
+    paddingHorizontal: 11,
     paddingVertical: 6,
   },
-  footerBadgeSpacer: {
-    width: 0,
+  statusText: {
+    fontFamily: font.bold,
+    fontSize: 11,
   },
-  footerBadgeText: {
-    fontFamily: fonts.bold,
-    fontSize: 10,
-    lineHeight: 12,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+  // Bottom-of-image overlay block — meta, title, pay/action row, optional description.
+  bottom: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 15,
   },
-  footerButton: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.18,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-      default: {},
-    }),
+  meta: {
+    fontFamily: font.body,
+    fontSize: 11.5,
+    color: '#FFFFFF',
+    opacity: 0.85,
   },
-  footerButtonPressed: {
-    opacity: 0.92,
+  title: {
+    fontFamily: font.display,
+    fontSize: 25,
+    lineHeight: 28,
+    color: '#FFFFFF',
+    marginTop: 4,
+    marginBottom: 9,
   },
-  footerButtonGradient: {
+  payRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    gap: 8,
   },
-  footerButtonLabel: {
-    flex: 1,
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    lineHeight: 16,
+  payLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  payPill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    flexShrink: 1,
+  },
+  payText: {
+    fontFamily: font.bold,
+    fontSize: 12.5,
+  },
+  footerBadgeChip: {
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    flexShrink: 0,
+  },
+  footerBadgeChipText: {
+    fontFamily: font.bold,
+    fontSize: 9.5,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     color: '#FFFFFF',
   },
+  footerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flexShrink: 0,
+  },
+  footerActionLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 11,
+    color: '#FFFFFF',
+    maxWidth: 96,
+  },
+  arrowWell: {
+    width: 32,
+    height: 32,
+    borderRadius: 99,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrow: {
+    fontSize: 13,
+    color: '#171410',
+  },
+  description: {
+    fontFamily: font.body,
+    fontSize: 11.5,
+    lineHeight: 15,
+    color: 'rgba(255,255,255,0.78)',
+    marginTop: 8,
+  },
 });
+
+export default CampaignReferenceCard;

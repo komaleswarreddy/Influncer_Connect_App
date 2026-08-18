@@ -3,10 +3,9 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
-  Alert,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,14 +13,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../lib/api';
 import { useCampaignStore } from '../../store/campaign-store';
 import * as ImagePicker from 'expo-image-picker';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import { Ionicons } from '@expo/vector-icons';
-import { appShell, palette, premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
-import { LinearGradient } from 'expo-linear-gradient';
-import { fonts } from '@/components/ui/typography';
-import { PremiumCard, PrimaryButton, SecondaryButton, showPremiumToast } from '@/components/ui';
+import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
+import { showKollabToast } from '@/components/ui/PremiumToast';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+import { KollabButton } from '@/components/ui/KollabButton';
+import { KollabScreenHeader } from '@/components/ui/KollabScreenHeader';
+import { Glyph } from '@/components/ui/Glyph';
 import { isParticipationEnrolled } from '@/lib/campaign-participation-ui';
+import { formatCampaignDisplayName } from '@/lib/format-campaign-display-name';
+import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
+import { nicheCoverSource } from '@/lib/niche-cover';
 
 type ContractRow = {
   label: string;
@@ -33,6 +34,8 @@ type ContractSection = {
   rows: ContractRow[];
   paragraphs: string[];
 };
+
+const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
 function decodeHtml(value: string): string {
   return value
@@ -84,23 +87,50 @@ function parseContractSections(html: string): ContractSection[] {
   return sections;
 }
 
+function isJunkContractLabel(label: string): boolean {
+  const t = label.trim().toLowerCase();
+  return (
+    t.includes('age') ||
+    t === 'target audience' ||
+    t === 'description' ||
+    t === 'start date' ||
+    t === 'end date' ||
+    t === 'campaign type' ||
+    t === 'start' ||
+    t === 'end' ||
+    t === 'type'
+  );
+}
+
+function prettyType(value?: string | null): string {
+  const raw = String(value ?? '')
+    .replace(/_/g, ' ')
+    .trim();
+  if (!raw) return '—';
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 export default function ContractScreen() {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const styles = useKollabStyles(kollab);
   const { participationId } = useLocalSearchParams<{ participationId: string }>();
   const router = useRouter();
-  const { acceptContract, participations, applications, fetchParticipations, fetchMyApplications } =
-    useCampaignStore();
+  const {
+    acceptContract,
+    participations,
+    applications,
+    campaigns,
+    fetchParticipations,
+    fetchMyApplications,
+    fetchCampaigns,
+  } = useCampaignStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [contractHtml, setContractHtml] = useState('');
-  const [adminSignature, setAdminSignature] = useState('');
   const [signature, setSignature] = useState('');
   const [saving, setSaving] = useState(false);
   const [signatureImageUrl, setSignatureImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [structuredSections, setStructuredSections] = useState<ContractSection[]>([]);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
-  const [acceptedSuccess, setAcceptedSuccess] = useState(false);
 
   const participation = useMemo(
     () => (participations || []).find((p) => String(p.id) === String(participationId)),
@@ -120,95 +150,20 @@ export default function ContractScreen() {
     [participation, relatedApplication]
   );
 
-  const goToProgress = useCallback(() => {
-    const campaignId = participation?.campaignId
-      ? String(participation.campaignId)
-      : participation?.campaign?.id
-        ? String(participation.campaign.id)
-        : undefined;
-    if (participationId) {
-      router.replace({
-        pathname: '/influencer/campaign-progress',
-        params: {
-          participationId: String(participationId),
-          ...(campaignId ? { campaignId } : {}),
-        },
-      } as never);
-    } else {
-      router.replace('/influencer/campaigns' as never);
-    }
-  }, [participation, participationId, router]);
-
-  const contractSectionsToShow = useMemo(
-    () =>
-      structuredSections
-        .filter((s) => {
-          const t = s.title.trim().toLowerCase();
-          if (t === 'campaign information') return false;
-          if (t === 'influencer details') return false;
-          return true;
-        })
-        .map((s) => ({
-          ...s,
-          rows: s.rows.filter((r) => {
-            const label = r.label.trim().toLowerCase();
-            if (label.includes('age')) return false;
-            if (label === 'target audience') return false;
-            return true;
-          }),
-        }))
-        .filter((s) => s.rows.length > 0 || s.paragraphs.length > 0),
-    [structuredSections]
-  );
-
   const fetchContract = useCallback(async () => {
     const id = participationId;
     if (!id) return;
     try {
       setLoading(true);
       setError(null);
-
       const contractResponse = await api.get(`/api/campaigns/contract/${id}`);
-      const responseData = contractResponse as any;
-      console.log('Contract response:', responseData);
-
-      if (responseData && typeof responseData === 'object' && responseData.contractHtml) {
-        if (typeof responseData.contractHtml === 'string') {
-          setContractHtml(responseData.contractHtml);
-          setStructuredSections(parseContractSections(responseData.contractHtml));
-        } else {
-          console.warn('Contract HTML is not a string:', typeof responseData.contractHtml);
-          setContractHtml('');
-          setStructuredSections([]);
-        }
+      const responseData = contractResponse as { contractHtml?: unknown };
+      if (typeof responseData?.contractHtml === 'string') {
+        setStructuredSections(parseContractSections(responseData.contractHtml));
       } else {
-        console.warn('No contract HTML in response:', responseData);
-        setContractHtml('');
         setStructuredSections([]);
       }
-
-      try {
-        const adminSignatureResponse = await api.get(
-          `/api/campaigns/contract/${id}/admin-signature`
-        );
-        const sigResponseData = adminSignatureResponse as any;
-        console.log('Admin signature response:', sigResponseData);
-
-        if (sigResponseData?.signature) {
-          setAdminSignature(sigResponseData.signature);
-        } else {
-          console.warn('No admin signature in response:', sigResponseData);
-          setAdminSignature('');
-        }
-      } catch (sigError: any) {
-        console.warn(
-          'Admin signature not available:',
-          sigError.response?.data?.error || 'No admin signature found'
-        );
-        setAdminSignature('');
-      }
     } catch (err: unknown) {
-      console.error('Error in fetchContract:', err);
       const msg = err instanceof Error ? err.message : 'Failed to load contract';
       const awaiting = /application not approved yet|approve your application/i.test(msg);
       setError(
@@ -223,104 +178,65 @@ export default function ContractScreen() {
 
   useEffect(() => {
     if (participationId) {
-      fetchContract();
+      void fetchContract();
       void fetchParticipations();
       void fetchMyApplications();
+      void fetchCampaigns();
     } else {
       setError('No participation ID provided');
       setLoading(false);
     }
-  }, [participationId, fetchContract, fetchParticipations, fetchMyApplications]);
-
-  // Debug logging to help identify text node issues
-  useEffect(() => {
-    console.log('Contract HTML length:', contractHtml?.length || 0);
-    console.log('Admin signature:', adminSignature ? 'Present' : 'Not present');
-    console.log('User signature:', signature ? 'Present' : 'Not present');
-    console.log('Signature image URL:', signatureImageUrl ? 'Present' : 'Not present');
-  }, [contractHtml, adminSignature, signature, signatureImageUrl]);
+  }, [participationId, fetchContract, fetchParticipations, fetchMyApplications, fetchCampaigns]);
 
   const handleSignatureUpload = async () => {
     try {
-      // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to access your photo library');
+        showKollabToast('Please grant permission to access your photo library');
         return;
       }
-
-      // Launch image picker with correct MediaType API
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [3, 1], // Signature aspect ratio
+        aspect: [3, 1],
         quality: 0.8,
-        base64: true, // Enable base64 encoding
+        base64: true,
       });
-
-      if (!result.canceled && result.assets[0]) {
-        setUploading(true);
-        const base64Data = result.assets[0].base64;
-
-        if (!base64Data) {
-          throw new Error('Failed to encode image to base64');
-        }
-
-        // Upload base64 data to backend
-        const response = await api.post('/api/campaigns/upload-signature', {
-          file: `data:image/jpeg;base64,${base64Data}`,
-          filename: 'signature.jpg',
-          mimetype: 'image/jpeg',
-        });
-
-        // The API client already returns the parsed JSON data
-        const signatureUrl = (response as any).url;
-
-        if (!signatureUrl) {
-          console.error('Invalid response structure:', response);
-          throw new Error('No URL returned from signature upload');
-        }
-
-        console.log('Signature upload successful, URL:', signatureUrl);
-
-        setSignatureImageUrl(signatureUrl);
-        setSignature(signatureUrl);
-        setUploading(false);
-      }
-    } catch (error) {
-      console.error('Error uploading signature:', error);
+      if (result.canceled || !result.assets[0]) return;
+      setUploading(true);
+      const base64Data = result.assets[0].base64;
+      if (!base64Data) throw new Error('Failed to encode image to base64');
+      const response = await api.post('/api/campaigns/upload-signature', {
+        file: `data:image/jpeg;base64,${base64Data}`,
+        filename: 'signature.jpg',
+        mimetype: 'image/jpeg',
+      });
+      const signatureUrl = (response as { url?: string }).url;
+      if (!signatureUrl) throw new Error('No URL returned from signature upload');
+      setSignatureImageUrl(signatureUrl);
+      setSignature(signatureUrl);
+    } catch {
+      showKollabToast('Failed to upload signature. Please try again.');
+    } finally {
       setUploading(false);
-      Alert.alert('Error', 'Failed to upload signature. Please try again.');
     }
-  };
-
-  const clearSignature = () => {
-    setSignatureImageUrl('');
-    setSignature('');
   };
 
   const handleAccept = async () => {
     if (!signature && !signatureImageUrl) {
-      Alert.alert('Signature Required', 'Please upload your signature before accepting.');
+      showKollabToast('Please upload your signature before accepting.');
       return;
     }
-
     try {
       setSaving(true);
-
-      // Use the signature (either drawn or uploaded)
-      const finalSignature = signature || signatureImageUrl;
-
-      // Send signature to backend
-      await acceptContract(participationId!, finalSignature);
-      setAcceptedSuccess(true);
+      await acceptContract(participationId!, signature || signatureImageUrl);
+      showKollabToast('Contract signed');
+      router.replace('/influencer/campaigns' as never);
     } catch (err: unknown) {
-      console.error('Error accepting contract:', err);
       const msg =
         err instanceof Error ? err.message : 'Failed to accept contract. Please try again.';
       const awaiting = /application not approved yet|approve your application/i.test(msg);
-      Alert.alert(
-        awaiting ? 'Awaiting brand approval' : 'Acceptance Failed',
+      showKollabToast(
         awaiting
           ? 'The brand still needs to approve your application before you can sign the contract.'
           : msg
@@ -330,434 +246,53 @@ export default function ContractScreen() {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    try {
-      setGeneratingPDF(true);
+  const liveCampaign = useMemo(() => {
+    const cid = participation?.campaignId ?? participation?.campaign?.id;
+    if (!cid) return null;
+    return campaigns.find((c) => String(c.id) === String(cid)) ?? null;
+  }, [campaigns, participation]);
 
-      if (!contractHtml || typeof contractHtml !== 'string') {
-        Alert.alert('Error', 'No contract content available for PDF generation');
-        return;
-      }
+  const campaignTitle = formatCampaignDisplayName(
+    liveCampaign?.name ?? participation?.campaign?.name
+  );
+  const brandName =
+    liveCampaign?.tenant?.tenantName ?? participation?.campaign?.tenant?.tenantName ?? 'Brand';
+  const pay = resolveCampaignPaySummary(liveCampaign ?? participation?.campaign ?? {});
+  const start = liveCampaign?.startDate ?? participation?.campaign?.startDate;
+  const end = liveCampaign?.endDate ?? participation?.campaign?.endDate;
+  const startD = start ? new Date(start) : null;
+  const endD = end ? new Date(end) : null;
+  const dateRange =
+    startD && !Number.isNaN(startD.getTime()) && endD && !Number.isNaN(endD.getTime())
+      ? `${SHORT_MONTH_DAY.format(startD)} – ${SHORT_MONTH_DAY.format(endD)}`
+      : startD && !Number.isNaN(startD.getTime())
+        ? `Starts ${SHORT_MONTH_DAY.format(startD)}`
+        : 'TBD';
+  const description = String(
+    liveCampaign?.description ?? participation?.campaign?.description ?? ''
+  ).trim();
+  const campaignType = prettyType(liveCampaign?.type ?? participation?.campaign?.type);
 
-      // Debug: Log signature information
-      console.log('PDF Generation Debug:', {
-        hasSignature: !!signature,
-        hasSignatureImageUrl: !!signatureImageUrl,
-        hasAdminSignature: !!adminSignature,
-        signature: signature,
-        signatureImageUrl: signatureImageUrl,
-        adminSignature: adminSignature,
-      });
+  const termParagraphs = useMemo(() => {
+    const skippedTitles = new Set(['campaign information', 'influencer details']);
+    return structuredSections
+      .filter((s) => !skippedTitles.has(s.title.trim().toLowerCase()))
+      .flatMap((s) => [
+        ...s.paragraphs,
+        ...s.rows.filter((r) => !isJunkContractLabel(r.label)).map((r) => `${r.label}: ${r.value}`),
+      ])
+      .filter(Boolean)
+      .slice(0, 6);
+  }, [structuredSections]);
 
-      // Create A4-sized PDF HTML with proper styling
-      const pdfHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Contract Agreement</title>
-          <style>
-            @page {
-              size: A4;
-              margin: 12mm;
-            }
-            
-            * {
-              box-sizing: border-box;
-            }
-            
-            body {
-              font-family: 'Arial', sans-serif;
-              font-size: 10px;
-              line-height: 1.2;
-              color: #000;
-              margin: 0;
-              padding: 0;
-              background: white;
-            }
-            
-            .email-container {
-              max-width: 100%;
-              margin: 0;
-              padding: 0;
-              border: none;
-              background: white;
-            }
-            
-            .header {
-              text-align: center;
-              padding: 8px 0;
-              border-bottom: 1px solid #000;
-              margin-bottom: 12px;
-              background: white;
-            }
-            
-            .header h1 {
-              font-size: 14px;
-              font-weight: bold;
-              margin-bottom: 4px;
-              color: #000;
-            }
-            
-            .header .subtitle {
-              font-size: 9px;
-              color: #666;
-            }
-            
-            .content {
-              padding: 0;
-              background: white;
-            }
-            
-            .section {
-              margin-bottom: 12px;
-              padding: 0;
-              border: none;
-              page-break-inside: avoid;
-              background: white;
-            }
-            
-            .section h2 {
-              font-size: 12px;
-              font-weight: bold;
-              color: #000;
-              margin-bottom: 6px;
-              padding-bottom: 3px;
-              border-bottom: 1px solid #ccc;
-            }
-            
-            .section h3 {
-              font-size: 11px;
-              font-weight: bold;
-              color: #000;
-              margin: 8px 0 5px 0;
-            }
-            
-            .section-content h3 {
-              font-size: 10px;
-              font-weight: bold;
-              color: #000;
-              margin: 6px 0 3px 0;
-            }
-            
-            .section-content p {
-              margin: 0 0 5px 0;
-              line-height: 1.2;
-              color: #000;
-            }
-            
-            .info-table, .payment-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 6px 0;
-              font-size: 8px;
-              background: white;
-              page-break-inside: avoid;
-              table-layout: fixed;
-              display: table !important;
-            }
-            
-            .campaign-table, .campaign-table-compact {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 6px 0;
-              font-size: 8px;
-              page-break-inside: avoid;
-              table-layout: fixed;
-              display: table !important;
-            }
-            
-            .info-table th, .info-table td, 
-            .payment-table th, .payment-table td,
-            .campaign-table th, .campaign-table td,
-            .campaign-table-compact th, .campaign-table-compact td {
-              border: 1px solid #000;
-              padding: 3px 2px;
-              text-align: left;
-              vertical-align: top;
-              word-wrap: break-word;
-              word-break: break-word;
-              overflow-wrap: break-word;
-              hyphens: auto;
-              font-size: 8px;
-              max-width: 0;
-              display: table-cell !important;
-            }
-            
-            .info-table th, .payment-table th,
-            .campaign-table th, .campaign-table-compact th {
-              background: #f0f0f0;
-              color: #000;
-              font-weight: bold;
-              font-size: 8px;
-            }
-            
-            .info-table td, .payment-table td,
-            .campaign-table td, .campaign-table-compact td {
-              color: #000;
-              font-size: 8px;
-            }
-            
-            .table-heading {
-              font-size: 11px;
-              font-weight: bold;
-              margin: 12px 0 6px 0;
-              color: #000;
-            }
-            
-            .campaign-grid {
-              margin-top: 8px;
-            }
-            
-            .payment-section, .legal-section {
-              margin: 12px 0;
-              padding: 0;
-              border: none;
-              page-break-inside: avoid;
-            }
-            
-            .payment-section h3, .legal-section h3 {
-              font-size: 11px;
-              font-weight: bold;
-              color: #000;
-              margin-bottom: 6px;
-            }
-            
-            .footer {
-              margin-top: 15px;
-              padding-top: 8px;
-              border-top: 1px solid #ccc;
-              font-size: 8px;
-              color: #666;
-              text-align: center;
-            }
-            
-            /* Signature section for PDF */
-            .signature-section {
-              margin-top: 15px;
-              page-break-inside: avoid;
-            }
-            
-            .signature-row {
-              display: flex;
-              justify-content: space-between;
-              margin: 12px 0;
-            }
-            
-            .signature-box {
-              width: 45%;
-              border: 1px solid #000;
-              padding: 6px;
-              text-align: center;
-            }
-            
-            .signature-label {
-              font-weight: bold;
-              margin-bottom: 6px;
-              font-size: 9px;
-            }
-            
-            .signature-image {
-              max-width: 100%;
-              max-height: 40px;
-              margin: 6px 0;
-              display: block;
-            }
-            
-            .signature-date {
-              font-size: 8px;
-              margin-top: 6px;
-            }
-            
-            /* Ensure images are visible */
-            img {
-              max-width: 100%;
-              height: auto;
-              display: block;
-            }
-            
-            /* Force table display */
-            table {
-              display: table !important;
-              width: 100% !important;
-            }
-            
-            tr {
-              display: table-row !important;
-            }
-            
-            th, td {
-              display: table-cell !important;
-            }
-            
-            /* Override any problematic styles from backend */
-            .email-container {
-              margin: 0 !important;
-              padding: 0 !important;
-              border: none !important;
-            }
-            
-            .header {
-              padding: 8px 0 !important;
-              margin-bottom: 12px !important;
-            }
-            
-            .content {
-              padding: 0 !important;
-            }
-            
-            .section {
-              margin-bottom: 12px !important;
-              padding: 0 !important;
-            }
-            
-            .campaign-table-compact {
-              margin-bottom: 12px !important;
-            }
-            
-            .table-heading {
-              margin-bottom: 6px !important;
-            }
-          </style>
-        </head>
-        <body>
-          ${contractHtml}
-          
-          <!-- Add signature section if signatures are available -->
-          ${
-            signature || signatureImageUrl || adminSignature
-              ? `
-            <div class="signature-section">
-              <h3>Digital Signatures</h3>
-              <div class="signature-row">
-                ${
-                  adminSignature
-                    ? `
-                  <div class="signature-box">
-                    <div class="signature-label">Tenant Admin Signature</div>
-                    <img src="${adminSignature}" class="signature-image" alt="Admin Signature" crossorigin="anonymous" />
-                    <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
-                  </div>
-                `
-                    : `
-                  <div class="signature-box">
-                    <div class="signature-label">Tenant Admin Signature</div>
-                    <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 8px;">
-                      (Admin signature not yet provided)
-                    </div>
-                    <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
-                  </div>
-                `
-                }
-                
-                ${
-                  signature || signatureImageUrl
-                    ? `
-                  <div class="signature-box">
-                    <div class="signature-label">Influencer Signature</div>
-                    <img src="${signature || signatureImageUrl}" class="signature-image" alt="Influencer Signature" crossorigin="anonymous" />
-                    <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
-                  </div>
-                `
-                    : `
-                  <div class="signature-box">
-                    <div class="signature-label">Influencer Signature</div>
-                    <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 8px;">
-                      (Please sign the contract)
-                    </div>
-                    <div class="signature-date">Date: ${new Date().toLocaleDateString()}</div>
-                  </div>
-                `
-                }
-              </div>
-            </div>
-          `
-              : ''
-          }
-          
-          <div class="footer">
-            <p>Generated by Zopkit AI-Powered Ecosystem | support@zopkit.com</p>
-            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Debug: Log the final HTML length
-      console.log('PDF HTML length:', pdfHtml.length);
-      console.log('Signature section included:', pdfHtml.includes('signature-section'));
-
-      // Generate PDF using expo-print
-      const { uri } = await Print.printToFileAsync({
-        html: pdfHtml,
-        base64: false,
-        width: 595.28, // A4 width in points
-        height: 841.89, // A4 height in points
-      });
-
-      console.log('PDF generated successfully:', uri);
-
-      // Check if sharing is available
-      const isSharingAvailable = await Sharing.isAvailableAsync();
-
-      if (isSharingAvailable) {
-        // Share the PDF file with download option
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Download Contract PDF',
-          UTI: 'com.adobe.pdf',
-        });
-      }
-
-      showPremiumToast({
-        title: 'PDF ready',
-        message: 'Opening your campaign progress…',
-        durationMs: 2200,
-      });
-
-      const participation = (participations || []).find(
-        (p) => String(p.id) === String(participationId)
-      );
-      const campaignId = participation?.campaignId
-        ? String(participation.campaignId)
-        : participation?.campaign?.id
-          ? String(participation.campaign.id)
-          : null;
-
-      if (participationId && campaignId) {
-        router.replace({
-          pathname: '/influencer/campaign-progress',
-          params: {
-            participationId: String(participationId),
-            campaignId,
-          },
-        } as never);
-      } else if (participationId) {
-        router.replace({
-          pathname: '/influencer/campaign-progress',
-          params: { participationId: String(participationId) },
-        } as never);
-      } else {
-        router.replace('/influencer/campaigns' as never);
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      Alert.alert('PDF Generation Failed', 'Failed to generate PDF. Please try again.', [
-        { text: 'OK' },
-      ]);
-    } finally {
-      setGeneratingPDF(false);
-    }
-  };
+  const hasSignature = Boolean(signature || signatureImageUrl);
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={shell.cta} />
-          <Text style={[styles.loadingText, { color: shell.textSecondary }]}>
-            Loading contract details...
-          </Text>
+          <ActivityIndicator size="large" color={kollab.color.ink} />
+          <Text style={styles.loadingText}>Loading contract details...</Text>
         </View>
       </SafeAreaView>
     );
@@ -765,685 +300,301 @@ export default function ContractScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={{ paddingHorizontal: 22 }}>
+          <KollabScreenHeader title="Contract agreement" backTone="well" />
+        </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
+          <Glyph name="help" size={40} color={kollab.color.heat} />
           <Text style={styles.errorTitle}>Error Loading Contract</Text>
-          <Text style={[styles.errorMessage, { color: shell.textSecondary }]}>{error}</Text>
-          <TouchableOpacity
-            style={styles.backButton}
+          <Text style={styles.errorMessage}>{error}</Text>
+          <KollabButton
+            label="Back to My collabs"
             onPress={() => router.push('/influencer/campaigns')}
-          >
-            <Text style={styles.backButtonText}>Back to Campaigns</Text>
-          </TouchableOpacity>
+          />
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (acceptedSuccess) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: shell.card, borderBottomColor: shell.borderSubtle },
-          ]}
-        >
-          <View style={{ width: 50 }} />
-          <Text style={[styles.headerTitle, { color: shell.cta }]}>Contract Signed</Text>
-          <View style={{ width: 50 }} />
-        </View>
-        <ScrollView
-          contentContainerStyle={styles.successContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.successHero}>
-            <LinearGradient
-              colors={[...premiumNavy.base.colors]}
-              locations={[...premiumNavy.base.locations]}
-              start={premiumNavy.base.start}
-              end={premiumNavy.base.end}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={[styles.successIconWrap, { zIndex: 1 }]}>
-              <Ionicons name="checkmark-circle" size={56} color="#7CFFB2" />
-            </View>
-            <Text style={[styles.successTitle, { zIndex: 1 }]}>Contract signed successfully</Text>
-            <Text style={[styles.successSubtitle, { zIndex: 1 }]}>
-              Your agreement is complete. Download a PDF copy for your records — we will take you to
-              campaign progress next.
-            </Text>
-          </View>
-          <View style={styles.actionButtons}>
-            <PrimaryButton
-              label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
-              onPress={handleDownloadPDF}
-              disabled={generatingPDF}
-            />
-            <SecondaryButton label="Go to progress" onPress={goToProgress} />
-          </View>
-        </ScrollView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: shell.canvas }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: shell.card, borderBottomColor: shell.borderSubtle },
-        ]}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: shell.cta }]}>Contract Agreement</Text>
-        <View style={{ width: 50 }} />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <View style={{ paddingHorizontal: 22 }}>
+        <KollabScreenHeader title="Contract agreement" backTone="well" />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroStrip}>
-          <LinearGradient
-            colors={[...premiumNavy.base.colors]}
-            locations={[...premiumNavy.base.locations]}
-            start={premiumNavy.base.start}
-            end={premiumNavy.base.end}
-            style={StyleSheet.absoluteFill}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        <View style={styles.photoHero}>
+          <Image
+            source={nicheCoverSource(liveCampaign?.requiredInfluencerNiche)}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
           />
-          <LinearGradient
-            colors={[...premiumNavy.sheen.colors]}
-            locations={[...premiumNavy.sheen.locations]}
-            start={premiumNavy.sheen.start}
-            end={premiumNavy.sheen.end}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          <View style={styles.heroStripInner}>
-            <Text style={styles.heroKicker}>Contract Review</Text>
-            <Text style={styles.heroTitle}>Premium agreement flow</Text>
-            <Text style={styles.heroSubtitle}>
-              {contractAlreadyComplete
-                ? 'Your agreement is complete. Review the contract below or go straight to campaign progress.'
-                : 'Verify details, upload signature, and complete contract in one clean pass.'}
-            </Text>
+          <View style={styles.photoScrim} />
+          <View style={styles.photoCopy}>
+            <Text style={styles.photoKicker}>contract review</Text>
+            <Text style={styles.photoTitle}>{campaignTitle}</Text>
           </View>
         </View>
 
-        <PremiumCard
-          comfortable
-          style={[
-            styles.contractSection,
-            { backgroundColor: shell.card, borderColor: shell.cardBorder },
-          ]}
-          padded={false}
-        >
-          {contractSectionsToShow.length > 0 ? (
-            <View style={{ gap: spacing.sm }}>
-              {contractSectionsToShow.map((section, idx) => (
-                <View
-                  key={`${section.title}-${idx}`}
-                  style={[
-                    styles.sectionCard,
-                    { backgroundColor: shell.card, borderColor: shell.cardBorder },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={['#0a1128', '#141e33', '#1e2d4a', '#2a3f66']}
-                    locations={[0, 0.35, 0.72, 1]}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={styles.sectionHeadingGradient}
-                  >
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.06)', 'transparent']}
-                      locations={[0, 0.35, 1]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={StyleSheet.absoluteFill}
-                      pointerEvents="none"
-                    />
-                    <Text style={styles.sectionHeadingText} numberOfLines={3}>
-                      {section.title}
-                    </Text>
-                  </LinearGradient>
-                  <View style={[styles.sectionCardBody, { backgroundColor: shell.card }]}>
-                    {section.rows.map((row, rowIndex) => (
-                      <View key={`${row.label}-${rowIndex}`} style={styles.kvRow}>
-                        <Text style={[styles.kvLabel, { color: shell.textSecondary }]}>
-                          {row.label}
-                        </Text>
-                        <Text style={[styles.kvValue, { color: shell.textPrimary }]}>
-                          {row.value || '—'}
-                        </Text>
-                      </View>
-                    ))}
-                    {section.paragraphs.map((p, pIndex) => (
-                      <Text
-                        key={`${section.title}-p-${pIndex}`}
-                        style={[styles.sectionParagraph, { color: shell.textSecondary }]}
-                      >
-                        {p}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
+        <View style={styles.bodyPad}>
+          <View style={styles.surfaceCard}>
+            <Text style={styles.cardTitle}>Overview</Text>
+            <View style={styles.infoGrid}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Brand</Text>
+                <Text style={styles.infoValue}>{brandName}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Pay</Text>
+                <Text style={styles.infoValue}>{pay.primaryLabel}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Runs</Text>
+                <Text style={styles.infoValue}>{dateRange}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Type</Text>
+                <Text style={styles.infoValue}>{campaignType}</Text>
+              </View>
+            </View>
+          </View>
+
+          {description ? (
+            <View style={styles.surfaceCard}>
+              <Text style={styles.cardTitle}>Description</Text>
+              <Text style={styles.bodyCopy}>{description}</Text>
+            </View>
+          ) : null}
+
+          {termParagraphs.length > 0 ? (
+            <View style={styles.surfaceCard}>
+              <Text style={styles.cardTitle}>Terms</Text>
+              {termParagraphs.map((p) => (
+                <Text key={p} style={styles.bodyCopy}>
+                  {p}
+                </Text>
               ))}
             </View>
+          ) : null}
+
+          <Text style={styles.signEyebrow}>Digital signature</Text>
+          {contractAlreadyComplete ? (
+            <View style={styles.signedWell}>
+              <Text style={styles.signedTitle}>Contract signed</Text>
+              <Text style={styles.signedSub}>This agreement is complete.</Text>
+            </View>
           ) : (
-            <View style={[styles.webViewPlaceholder, { backgroundColor: shell.card }]}>
-              <Text style={[styles.placeholderText, { color: shell.textSecondary }]}>
-                Contract preview is unavailable right now.
-              </Text>
-            </View>
-          )}
-        </PremiumCard>
-
-        {contractAlreadyComplete ? (
-          <View style={styles.actionButtons}>
-            <PrimaryButton label="Track progress" onPress={goToProgress} />
-            <SecondaryButton
-              label={generatingPDF ? 'Generating PDF...' : 'Download PDF'}
-              onPress={handleDownloadPDF}
-              disabled={generatingPDF}
-            />
-          </View>
-        ) : (
-          <>
-            <PremiumCard
-              comfortable
-              style={[
-                styles.signatureSection,
-                { backgroundColor: shell.card, borderColor: shell.cardBorder },
-              ]}
-              title="Digital Signature"
-            >
-              <Text style={styles.sectionTitle}>Digital Signature</Text>
-              <Text style={styles.signatureDescription}>
-                Please upload your signature to accept the contract terms and conditions.
-              </Text>
-
-              {/* Admin Signature Status */}
-              <View
-                style={[
-                  styles.signatureStatus,
-                  { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
-                ]}
+            <>
+              <Pressable
+                style={styles.dashedSign}
+                onPress={() => void handleSignatureUpload()}
+                disabled={uploading}
+                accessibilityRole="button"
+                accessibilityLabel="Upload signature"
               >
-                <View
-                  style={[
-                    styles.statusDot,
-                    adminSignature ? styles.statusDotGreen : styles.statusDotYellow,
-                  ]}
-                />
-                <Text style={styles.statusText}>
-                  {adminSignature
-                    ? 'Tenant Admin signature is available for PDF'
-                    : 'Tenant Admin signature will be added to PDF when available'}
+                <Text style={styles.dashedSignText}>
+                  {uploading
+                    ? 'Uploading...'
+                    : hasSignature
+                      ? 'Signature uploaded · Replace'
+                      : 'Upload signature'}
                 </Text>
-              </View>
-
-              {/* Signature Upload */}
-              <View
-                style={[
-                  styles.uploadSurface,
-                  { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.uploadButton,
-                    { backgroundColor: shell.card, borderColor: shell.cta },
-                  ]}
-                  onPress={handleSignatureUpload}
-                  disabled={uploading}
-                >
-                  <Text style={styles.uploadButtonText}>
-                    {uploading
-                      ? 'Uploading...'
-                      : signatureImageUrl
-                        ? 'Replace Signature'
-                        : 'Upload Signature Image'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
+              </Pressable>
               {signatureImageUrl ? (
-                <View
-                  style={[
-                    styles.signaturePreviewBlock,
-                    { backgroundColor: shell.canvasAlt, borderColor: shell.cardBorder },
-                  ]}
-                >
-                  <Image
-                    source={{ uri: signatureImageUrl }}
-                    style={[styles.signaturePreviewImage, { backgroundColor: shell.canvas }]}
-                    resizeMode="contain"
-                  />
-                  <View style={styles.signaturePreviewActions}>
-                    <TouchableOpacity
-                      style={[
-                        styles.previewActionBtn,
-                        { backgroundColor: shell.iceBlue, borderColor: shell.cardBorder },
-                      ]}
-                      onPress={handleSignatureUpload}
-                      disabled={uploading}
-                    >
-                      <Text style={styles.previewActionText}>Replace</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.previewActionBtn,
-                        { backgroundColor: shell.iceBlue, borderColor: shell.cardBorder },
-                      ]}
-                      onPress={clearSignature}
-                    >
-                      <Text style={styles.previewActionText}>Clear</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.statusTextGreen}>Signature ready — review then accept</Text>
-                </View>
+                <Image
+                  source={{ uri: signatureImageUrl }}
+                  style={styles.signaturePreviewImage}
+                  resizeMode="contain"
+                />
               ) : null}
-            </PremiumCard>
-
-            <View style={styles.actionButtons}>
-              <PrimaryButton
-                label={saving ? 'Accepting...' : 'Accept & Complete'}
-                onPress={handleAccept}
-                disabled={(!signature && !signatureImageUrl) || saving}
+              <KollabButton
+                label={
+                  saving ? 'Accepting...' : hasSignature ? 'Accept contract' : 'Signature required'
+                }
+                variant={hasSignature ? 'primary' : 'ink'}
+                onPress={() => void handleAccept()}
+                disabled={!hasSignature || saving}
               />
-            </View>
-          </>
-        )}
+            </>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: appShell.canvas,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    backgroundColor: appShell.card,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: appShell.borderSubtle,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: appShell.cta,
-  },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    color: appShell.cta,
-    fontSize: 14,
-    fontFamily: fonts.semiBold,
-  },
-  content: {
-    flex: 1,
-    padding: spacing.md,
-  },
-  heroStrip: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-    minHeight: 112,
-    ...shadow.card,
-  },
-  heroStripInner: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    position: 'relative',
-    zIndex: 1,
-  },
-  heroKicker: {
-    color: 'rgba(255,255,255,0.72)',
-    fontFamily: fonts.semiBold,
-    fontSize: 11,
-    letterSpacing: 0.9,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  heroTitle: {
-    color: palette.white,
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    lineHeight: 26,
-    marginBottom: 4,
-  },
-  heroSubtitle: {
-    color: 'rgba(255,255,255,0.86)',
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: appShell.textSecondary,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  errorIcon: {
-    fontSize: 40,
-    marginBottom: 16,
-  },
-  errorTitle: {
-    fontSize: 17,
-    fontFamily: fonts.bold,
-    color: palette.error,
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: appShell.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  contractSection: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadow.card,
-    minHeight: 620,
-  },
-  sectionCard: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.12)',
-    backgroundColor: palette.white,
-    overflow: 'hidden',
-    ...shadow.cardLight,
-  },
-  sectionHeadingGradient: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
-  },
-  sectionHeadingText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontFamily: fonts.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  sectionCardBody: {
-    padding: spacing.md,
-    paddingTop: spacing.sm,
-    gap: 0,
-    backgroundColor: palette.white,
-  },
-  kvRow: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(20, 30, 51, 0.08)',
-  },
-  kvLabel: {
-    color: '#64748b',
-    fontSize: 11,
-    fontFamily: fonts.semiBold,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  kvValue: {
-    color: '#0a1128',
-    fontSize: 15,
-    fontFamily: fonts.semiBold,
-    lineHeight: 22,
-  },
-  sectionParagraph: {
-    color: appShell.textSecondary,
-    fontSize: 13,
-    lineHeight: 21,
-    fontFamily: fonts.regular,
-    marginTop: spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: appShell.cta,
-    flex: 1,
-  },
-  switchModeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: appShell.canvasAlt,
-    borderWidth: 1,
-    borderColor: appShell.cta,
-    borderRadius: radius.sm,
-  },
-  switchModeButtonText: {
-    fontSize: 12,
-    color: appShell.cta,
-    fontFamily: fonts.semiBold,
-  },
-  contractContent: {
-    borderWidth: 1,
-    borderColor: appShell.borderSubtle,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    flex: 1,
-    minHeight: 500,
-  },
-  webViewPlaceholder: {
-    minHeight: 500,
-    backgroundColor: appShell.card,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: radius.md,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: appShell.textSecondary,
-  },
-  plainTextContent: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: appShell.textPrimary,
-    padding: spacing.md,
-    textAlign: 'left',
-  },
-  signatureSection: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-    padding: spacing.md,
-    marginBottom: 16,
-    ...shadow.card,
-  },
-  signatureDescription: {
-    fontSize: 13,
-    color: appShell.textSecondary,
-    marginBottom: 16,
-  },
-  signatureStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusDotGreen: {
-    backgroundColor: appShell.success,
-  },
-  statusDotYellow: {
-    backgroundColor: appShell.warning,
-  },
-  statusText: {
-    fontSize: 13,
-    color: appShell.textPrimary,
-    fontFamily: fonts.regular,
-    flex: 1,
-  },
-  statusTextGreen: {
-    fontSize: 13,
-    color: appShell.success,
-    fontFamily: fonts.semiBold,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  signaturePreviewBlock: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-    backgroundColor: palette.white,
-    alignItems: 'center',
-  },
-  signaturePreviewImage: {
-    width: '100%',
-    height: 140,
-    borderRadius: radius.sm,
-    backgroundColor: '#F7F8FB',
-  },
-  signaturePreviewActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 10,
-  },
-  previewActionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.14)',
-    backgroundColor: '#F1F4F9',
-  },
-  previewActionText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    color: appShell.cta,
-  },
-  successContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  successHero: {
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    minHeight: 220,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    ...shadow.card,
-  },
-  successIconWrap: {
-    marginBottom: spacing.md,
-  },
-  successTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  successSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255,255,255,0.82)',
-    textAlign: 'center',
-  },
-  uploadSurface: {
-    marginTop: 2,
-    backgroundColor: '#f8fafc',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.08)',
-    padding: spacing.xs,
-  },
-  uploadButton: {
-    padding: 16,
-    borderWidth: 2,
-    borderColor: appShell.cta,
-    borderStyle: 'dashed',
-    borderRadius: radius.md,
-    alignItems: 'center',
-    backgroundColor: palette.white,
-  },
-  uploadButtonText: {
-    color: appShell.cta,
-    fontSize: 14,
-    fontFamily: fonts.semiBold,
-  },
-  actionButtons: {
-    gap: 12,
-    marginBottom: 32,
-    marginTop: 4,
-  },
-  primaryButton: {
-    backgroundColor: appShell.cta,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: radius.md,
-    alignItems: 'center',
-  },
-  primaryButtonDisabled: {
-    backgroundColor: appShell.textMuted,
-  },
-  primaryButtonText: {
-    color: palette.white,
-    fontSize: 15,
-    fontFamily: fonts.bold,
-  },
-  secondaryButton: {
-    backgroundColor: appShell.card,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: appShell.cta,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    color: appShell.cta,
-    fontSize: 15,
-    fontFamily: fonts.semiBold,
-  },
-});
+function useKollabStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: kollab.color.screen,
+        },
+        content: { flex: 1 },
+        loadingContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        loadingText: {
+          marginTop: 16,
+          fontSize: 14,
+          fontFamily: font.body,
+          color: kollab.color.inkMuted,
+        },
+        errorContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 32,
+          gap: 12,
+        },
+        errorTitle: {
+          fontSize: 17,
+          fontFamily: font.bold,
+          color: kollab.color.heat,
+          marginBottom: 8,
+        },
+        errorMessage: {
+          fontSize: 14,
+          fontFamily: font.body,
+          color: kollab.color.inkMuted,
+          textAlign: 'center',
+          marginBottom: 24,
+        },
+        photoHero: {
+          marginHorizontal: 18,
+          marginTop: 8,
+          marginBottom: 16,
+          borderRadius: 26,
+          overflow: 'hidden',
+          height: 150,
+          backgroundColor: kollab.color.imgBg,
+        },
+        photoScrim: {
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: 'rgba(11,9,6,0.45)',
+        },
+        photoCopy: {
+          position: 'absolute',
+          left: 18,
+          right: 18,
+          bottom: 15,
+        },
+        photoKicker: {
+          fontFamily: font.bold,
+          fontSize: 11,
+          letterSpacing: 0.88,
+          textTransform: 'uppercase',
+          color: '#fff',
+          opacity: 0.8,
+        },
+        photoTitle: {
+          fontFamily: font.display,
+          fontSize: 23,
+          lineHeight: 25,
+          color: '#fff',
+          marginTop: 3,
+        },
+        bodyPad: {
+          paddingHorizontal: 22,
+        },
+        surfaceCard: {
+          backgroundColor: kollab.color.card,
+          borderRadius: 22,
+          padding: 18,
+          marginBottom: 12,
+          ...kollab.shadow.card,
+        },
+        cardTitle: {
+          ...kType.sectionTitle,
+          color: kollab.color.ink,
+          marginBottom: 12,
+        },
+        infoGrid: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 16,
+        },
+        infoItem: {
+          flexGrow: 1,
+          flexBasis: '42%',
+          minWidth: '40%',
+        },
+        infoLabel: {
+          color: kollab.color.inkMuted,
+          fontSize: 11.5,
+          fontFamily: font.body,
+        },
+        infoValue: {
+          color: kollab.color.ink,
+          fontSize: 15,
+          fontFamily: font.bold,
+          marginTop: 3,
+        },
+        bodyCopy: {
+          fontFamily: font.body,
+          fontSize: 14,
+          lineHeight: 22,
+          color: kollab.color.ink,
+          marginBottom: 8,
+        },
+        signEyebrow: {
+          fontFamily: font.semiBold,
+          fontSize: 12.5,
+          color: kollab.color.ink,
+          opacity: 0.62,
+          marginBottom: 7,
+          marginTop: 8,
+        },
+        signedWell: {
+          backgroundColor: kollab.color.well,
+          borderRadius: 18,
+          paddingVertical: 16,
+          paddingHorizontal: 16,
+        },
+        signedTitle: {
+          fontFamily: font.semiBold,
+          fontSize: 14,
+          color: kollab.color.ink,
+        },
+        signedSub: {
+          fontFamily: font.body,
+          fontSize: 12.5,
+          color: kollab.color.ink,
+          opacity: 0.55,
+          marginTop: 3,
+        },
+        dashedSign: {
+          width: '100%',
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          borderColor: kollab.color.outline,
+          backgroundColor: kollab.color.well,
+          borderRadius: 18,
+          padding: 22,
+          alignItems: 'center',
+          marginBottom: 16,
+        },
+        dashedSignText: {
+          fontFamily: font.semiBold,
+          fontSize: 13.5,
+          color: kollab.color.ink,
+        },
+        signaturePreviewImage: {
+          width: '100%',
+          height: 90,
+          borderRadius: 14,
+          backgroundColor: kollab.color.well,
+          marginBottom: 12,
+        },
+      }),
+    [kollab]
+  );
+}

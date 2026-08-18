@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   catalogApi,
+  normalizeCatalog,
   type CatalogBusinessType,
   type CatalogKind,
   type InfluencerCatalog,
@@ -66,7 +67,7 @@ interface CatalogBuilderState {
 function extractCatalog(payload: unknown): InfluencerCatalog | null {
   if (!payload || typeof payload !== 'object') return null;
   const p = payload as { catalog?: InfluencerCatalog };
-  return p.catalog ?? null;
+  return p.catalog ? normalizeCatalog(p.catalog) : null;
 }
 
 export const useCatalogStore = create<CatalogBuilderState>((set, get) => ({
@@ -216,8 +217,16 @@ export const useCatalogStore = create<CatalogBuilderState>((set, get) => ({
       error: { ...s.error, [kind]: null },
     }));
     try {
+      const parent = get().catalogs[kind]?.categories.find((c) =>
+        c.products.some((p) => p.id === productId)
+      );
       const res = await catalogApi.deleteProduct(kind, productId);
-      const catalog = extractCatalog(res);
+      let catalog = extractCatalog(res);
+      const emptied = catalog?.categories.find((c) => c.id === parent?.id);
+      if (parent && emptied && emptied.products.length === 0) {
+        const after = await catalogApi.deleteCategory(kind, parent.id);
+        catalog = extractCatalog(after) ?? catalog;
+      }
       if (catalog) set((s) => ({ catalogs: { ...s.catalogs, [kind]: catalog } }));
       else await get().fetchMyCatalog(kind);
       set((s) => ({ isSaving: { ...s.isSaving, [kind]: false } }));

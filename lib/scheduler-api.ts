@@ -87,8 +87,16 @@ export const schedulerApi = {
     return (await api.post('/api/scheduled-posts/upload-media', form)) as MediaUploadResult;
   },
 
-  generateCaption: async (topic: string, contentType: SchedulerContentType): Promise<CaptionSuggestion[]> => {
-    const res = (await api.post('/api/scheduled-posts/generate-caption', { topic, contentType })) as {
+  generateCaption: async (
+    topic: string,
+    contentType: SchedulerContentType,
+    opts?: { refresh?: boolean }
+  ): Promise<CaptionSuggestion[]> => {
+    const res = (await api.post('/api/scheduled-posts/generate-caption', {
+      topic,
+      contentType,
+      refresh: Boolean(opts?.refresh),
+    })) as {
       suggestions: CaptionSuggestion[];
     };
     return res.suggestions;
@@ -109,7 +117,9 @@ export const schedulerApi = {
     if (params?.month) query.set('month', params.month);
     if (params?.limit) query.set('limit', String(params.limit));
     const qs = query.toString();
-    const res = (await api.get(`/api/scheduled-posts${qs ? `?${qs}` : ''}`)) as { posts: ScheduledPost[] };
+    const res = (await api.get(`/api/scheduled-posts${qs ? `?${qs}` : ''}`)) as {
+      posts: ScheduledPost[];
+    };
     return res.posts;
   },
 
@@ -122,7 +132,9 @@ export const schedulerApi = {
     postId: string,
     payload: Partial<CreateScheduledPostPayload>
   ): Promise<ScheduledPost> => {
-    const res = (await api.put(`/api/scheduled-posts/${postId}`, payload)) as { post: ScheduledPost };
+    const res = (await api.put(`/api/scheduled-posts/${postId}`, payload)) as {
+      post: ScheduledPost;
+    };
     return res.post;
   },
 
@@ -132,7 +144,9 @@ export const schedulerApi = {
   },
 
   retryDmLink: async (postId: string): Promise<ScheduledPost> => {
-    const res = (await api.post(`/api/scheduled-posts/${postId}/retry-dm-link`, {})) as { post: ScheduledPost };
+    const res = (await api.post(`/api/scheduled-posts/${postId}/retry-dm-link`, {})) as {
+      post: ScheduledPost;
+    };
     return res.post;
   },
 

@@ -1,24 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Image,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ScrollScreen,
-  PrimaryButton,
-  SecondaryButton,
-  SectionHeader,
-  PremiumCard,
-  PremiumSegmentedControl,
+  KollabScreenHeader,
+  KollabTextField,
+  KollabButton,
+  showKollabToast,
+  showKollabConfirm,
 } from '@/components/ui';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import {
@@ -29,11 +18,7 @@ import {
   type DmTriggerType,
   type InstagramMediaItem,
 } from '@/lib/instagram-automation-api';
-import { spacing, radius, palette, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
-
-const STEPS = ['Content', 'Trigger', 'Reply', 'Review'] as const;
-type Step = (typeof STEPS)[number];
+import { useKollab, font, space, choiceChipColors } from '@/theme/kollab-tokens';
 
 type MediaTab = 'reels' | 'posts' | 'stories';
 
@@ -45,7 +30,7 @@ const ALL_TRIGGER_OPTIONS: { key: DmTriggerType; label: string }[] = [
 const MATCH_OPTIONS: { key: DmMatchType; label: string }[] = [
   { key: 'contains', label: 'Contains' },
   { key: 'exact', label: 'Exact' },
-  { key: 'any', label: 'Any message' },
+  { key: 'any', label: 'Any' },
 ];
 
 const REPLY_OPTIONS: { key: DmReplyType; label: string }[] = [
@@ -59,6 +44,12 @@ const MEDIA_TABS: { key: MediaTab; label: string }[] = [
   { key: 'posts', label: 'Posts' },
   { key: 'stories', label: 'Stories' },
 ];
+
+const SETUP_STEPS = [
+  { title: 'Content', subtitle: 'Pick a reel, post, or story' },
+  { title: 'Trigger', subtitle: 'When should we reply?' },
+  { title: 'Reply', subtitle: 'What should we send?' },
+] as const;
 
 function parseKeywords(raw: string): string[] {
   return raw
@@ -77,7 +68,7 @@ function defaultForm(): CreateAutomationPayload {
     triggerType: 'comment_keyword',
     triggerKeywords: [],
     matchType: 'contains',
-    replyType: 'ai_generated',
+    replyType: 'text',
     replyMessages: [''],
     replyLink: '',
     replyLinkLabel: '',
@@ -96,27 +87,58 @@ function triggerOptionsForMedia(media: InstagramMediaItem | null) {
   return ALL_TRIGGER_OPTIONS.filter((o) => o.key === 'comment_keyword');
 }
 
+function ChipRow<T extends string>({
+  options,
+  value,
+  onChange,
+  kollab,
+}: {
+  options: { key: T; label: string }[];
+  value: T;
+  onChange: (key: T) => void;
+  kollab: ReturnType<typeof useKollab>;
+}) {
+  return (
+    <View style={styles.chipRow}>
+      {options.map((opt) => {
+        const on = value === opt.key;
+        const chip = choiceChipColors(kollab, on);
+        return (
+          <Pressable
+            key={opt.key}
+            onPress={() => onChange(opt.key)}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: chip.backgroundColor,
+                borderColor: chip.borderColor,
+              },
+            ]}
+          >
+            <Text style={[styles.chipText, { color: chip.color }]}>{opt.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function CreateAutomationScreen() {
-  const shell = useAppShell();
+  const kollab = useKollab();
   const router = useRouter();
   const { automationId } = useLocalSearchParams<{ automationId?: string }>();
   const isEdit = Boolean(automationId);
-  const { createAutomation, updateAutomation, previewAi, isSaving } = useInstagramAutomationStore();
+  const { createAutomation, updateAutomation, isSaving } = useInstagramAutomationStore();
 
-  const [step, setStep] = useState<Step>(isEdit ? 'Trigger' : 'Content');
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
   const [form, setForm] = useState<CreateAutomationPayload>(defaultForm());
   const [keywordsText, setKeywordsText] = useState('');
-  const [aiPreview, setAiPreview] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [suggestLoading, setSuggestLoading] = useState(false);
-
   const [mediaTab, setMediaTab] = useState<MediaTab>('reels');
   const [mediaItems, setMediaItems] = useState<InstagramMediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<InstagramMediaItem | null>(null);
+  const [step, setStep] = useState(0);
 
-  const stepIndex = STEPS.indexOf(step);
   const triggerOptions = useMemo(() => triggerOptionsForMedia(selectedMedia), [selectedMedia]);
 
   const loadMedia = useCallback(
@@ -126,7 +148,7 @@ export default function CreateAutomationScreen() {
         const res = await instagramAutomationApi.listMedia(mediaTab, { refresh });
         setMediaItems(res.items);
       } catch (e) {
-        Alert.alert('Could not load content', e instanceof Error ? e.message : 'Try again');
+        showKollabToast(e instanceof Error ? e.message : 'Could not load content');
       } finally {
         setMediaLoading(false);
       }
@@ -135,10 +157,8 @@ export default function CreateAutomationScreen() {
   );
 
   useEffect(() => {
-    if (step === 'Content') {
-      void loadMedia(false);
-    }
-  }, [step, mediaTab, loadMedia]);
+    void loadMedia(false);
+  }, [loadMedia]);
 
   const loadExisting = useCallback(async () => {
     if (!automationId) return;
@@ -147,7 +167,7 @@ export default function CreateAutomationScreen() {
       const res = await instagramAutomationApi.getAutomations();
       const existing = res.automations.find((a) => a.id === automationId);
       if (!existing) {
-        Alert.alert('Not found', 'Automation could not be loaded.');
+        showKollabToast('Automation could not be loaded.');
         router.back();
         return;
       }
@@ -180,11 +200,8 @@ export default function CreateAutomationScreen() {
           timestamp: null,
         });
       }
-      if (!postId) {
-        setStep('Content');
-      }
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load automation');
+      showKollabToast(e instanceof Error ? e.message : 'Failed to load automation');
     } finally {
       setLoadingExisting(false);
     }
@@ -210,16 +227,6 @@ export default function CreateAutomationScreen() {
     [form, keywordsText]
   );
 
-  const canContinueContent = Boolean(payload.specificPostId);
-
-  const canContinueTrigger =
-    payload.name.length > 0 && (payload.matchType === 'any' || payload.triggerKeywords.length > 0);
-
-  const canContinueReply =
-    payload.replyType === 'ai_generated'
-      ? Boolean(payload.aiContext)
-      : payload.replyMessages.length > 0;
-
   const selectMedia = (item: InstagramMediaItem) => {
     setSelectedMedia(item);
     const defaultTrigger = item.kind === 'story' ? 'story_reply' : 'comment_keyword';
@@ -229,67 +236,6 @@ export default function CreateAutomationScreen() {
       triggerType: defaultTrigger,
       name: prev.name || `Auto DM — ${item.kind}`,
     }));
-  };
-
-  const goNext = () => {
-    if (step === 'Content' && !canContinueContent) return;
-    if (step === 'Trigger' && !canContinueTrigger) return;
-    if (step === 'Reply' && !canContinueReply) return;
-    if (step === 'Content') setStep('Trigger');
-    else if (step === 'Trigger') setStep('Reply');
-    else if (step === 'Reply') setStep('Review');
-  };
-
-  const goBack = () => {
-    if (step === 'Trigger') {
-      if (isEdit) router.back();
-      else setStep('Content');
-    } else if (step === 'Reply') setStep('Trigger');
-    else if (step === 'Review') setStep('Reply');
-    else router.back();
-  };
-
-  const runAiSuggest = async () => {
-    if (!payload.specificPostId) return;
-    setSuggestLoading(true);
-    try {
-      const { suggestion } = await instagramAutomationApi.suggestAutomation({
-        mediaId: payload.specificPostId,
-        triggerType: payload.triggerType,
-        replyType: payload.replyType,
-      });
-      setKeywordsText(formatKeywords(suggestion.suggestedKeywords));
-      if (suggestion.suggestedPublicCommentReply) {
-        setForm((prev) => ({
-          ...prev,
-          publicCommentReply: suggestion.suggestedPublicCommentReply,
-        }));
-      }
-      if (payload.replyType === 'ai_generated') {
-        setForm((prev) => ({
-          ...prev,
-          aiContext: suggestion.suggestedAiContext,
-        }));
-      } else if (suggestion.suggestedReplyMessages[0]) {
-        setForm((prev) => ({
-          ...prev,
-          replyMessages: suggestion.suggestedReplyMessages,
-        }));
-      }
-    } catch (e) {
-      Alert.alert('Suggestion failed', e instanceof Error ? e.message : 'Try again');
-    } finally {
-      setSuggestLoading(false);
-    }
-  };
-
-  const runAiPreview = async () => {
-    if (!payload.aiContext) return;
-    setPreviewLoading(true);
-    const sample = payload.triggerKeywords[0] ?? 'Hey, can you share the link?';
-    const preview = await previewAi(payload.aiContext, sample);
-    setAiPreview(preview);
-    setPreviewLoading(false);
   };
 
   const savePayload = async (replaceExisting = false) => {
@@ -302,436 +248,328 @@ export default function CreateAutomationScreen() {
     router.replace('/account-screens/dm-automation' as never);
   };
 
+  const goNext = () => {
+    if (step === 0 && !payload.specificPostId) {
+      showKollabToast('Pick a reel, post, or story to automate.');
+      return;
+    }
+    if (step === 1) {
+      if (!payload.name) {
+        showKollabToast('Give this automation a name.');
+        return;
+      }
+      if (payload.matchType !== 'any' && payload.triggerKeywords.length === 0) {
+        showKollabToast('Add at least one keyword.');
+        return;
+      }
+    }
+    if (step < SETUP_STEPS.length - 1) setStep((n) => n + 1);
+  };
+
   const submit = async () => {
+    if (!payload.specificPostId) {
+      showKollabToast('Pick a reel, post, or story to automate.');
+      return;
+    }
+    if (!payload.name) {
+      showKollabToast('Give this automation a name.');
+      return;
+    }
+    if (payload.matchType !== 'any' && payload.triggerKeywords.length === 0) {
+      showKollabToast('Add at least one keyword.');
+      return;
+    }
+    const hasReply =
+      payload.replyType === 'ai_generated'
+        ? Boolean(payload.aiContext)
+        : payload.replyMessages.length > 0;
+    if (!hasReply) {
+      showKollabToast('Add a reply message.');
+      return;
+    }
     try {
       await savePayload(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Save failed';
       if (message.toLowerCase().includes('already exists')) {
-        Alert.alert(
-          'Automation exists',
-          'This content already has an active automation for this trigger. Replace it?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Replace',
-              style: 'destructive',
-              onPress: () => {
-                void savePayload(true).catch((err) => {
-                  Alert.alert('Error', err instanceof Error ? err.message : 'Save failed');
-                });
-              },
-            },
-          ]
-        );
+        void showKollabConfirm({
+          title: 'Automation exists',
+          message: 'This content already has an active automation for this trigger. Replace it?',
+          confirmLabel: 'Replace',
+          destructive: true,
+        }).then((ok) => {
+          if (!ok) return;
+          void savePayload(true).catch((err) => {
+            showKollabToast(err instanceof Error ? err.message : 'Save failed');
+          });
+        });
         return;
       }
-      Alert.alert('Error', message);
+      showKollabToast(message);
     }
   };
 
   if (loadingExisting) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={shell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 32 }} />
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader
-        title={isEdit ? 'Edit automation' : 'Set up Auto DM'}
-        subtitle={`Step ${stepIndex + 1} of ${STEPS.length}: ${step}`}
+    <ScrollScreen canvasColor={kollab.color.screen} padH={space.gutter}>
+      <KollabScreenHeader
+        title={isEdit ? 'Edit automation' : 'New automation'}
+        subtitle={`${SETUP_STEPS[step].title} · step ${step + 1} of ${SETUP_STEPS.length}`}
+        backTone="well"
       />
 
-      <View style={styles.stepDots}>
-        {STEPS.map((s, i) => (
-          <View
-            key={s}
-            style={[
-              styles.dot,
-              { backgroundColor: shell.borderSubtle },
-              i <= stepIndex ? [styles.dotActive, { backgroundColor: shell.cta }] : null,
-            ]}
-          />
-        ))}
+      <View style={styles.stepper}>
+        {SETUP_STEPS.map((item, index) => {
+          const on = index === step;
+          const done = index < step;
+          return (
+            <Pressable
+              key={item.title}
+              onPress={() => {
+                if (index < step) setStep(index);
+              }}
+              style={styles.stepItem}
+            >
+              <View
+                style={[
+                  styles.stepDot,
+                  {
+                    backgroundColor: on || done ? kollab.color.panel : kollab.color.well,
+                    borderColor: on ? kollab.color.chartreuse : 'transparent',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.stepNum,
+                    { color: on || done ? kollab.color.chartreuse : kollab.color.ink },
+                  ]}
+                >
+                  {index + 1}
+                </Text>
+              </View>
+              <Text
+                style={[styles.stepLabel, { color: kollab.color.ink, opacity: on ? 1 : 0.45 }]}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {step === 'Content' ? (
-        <PremiumCard style={styles.section}>
-          <Text style={[styles.helpText, { color: shell.textSecondary }]}>
-            Select the reel, post, or story you want to automate. Auto DMs only run on that content.
-          </Text>
-          <PremiumSegmentedControl
-            segments={MEDIA_TABS.map((t) => ({ key: t.key, label: t.label }))}
-            value={mediaTab}
-            onChange={(key) => setMediaTab(key as MediaTab)}
-            compact
-          />
-          <View style={styles.mediaHeader}>
-            <Text style={[styles.label, { color: shell.textPrimary }]}>Select content</Text>
-            <TouchableOpacity onPress={() => void loadMedia(true)} disabled={mediaLoading}>
-              <Text style={[styles.refreshText, { color: shell.cta }]}>
-                {mediaLoading ? 'Loading…' : 'Refresh'}
-              </Text>
-            </TouchableOpacity>
+      <Text style={[styles.stepIntro, { color: kollab.color.ink }]}>
+        {SETUP_STEPS[step].subtitle}
+      </Text>
+
+      {step === 0 ? (
+        <>
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Content</Text>
+          <View style={styles.chipRow}>
+            {MEDIA_TABS.map((t) => {
+              const on = mediaTab === t.key;
+              const chip = choiceChipColors(kollab, on);
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => setMediaTab(t.key)}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: chip.backgroundColor,
+                      borderColor: chip.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chipText, { color: chip.color }]}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
           {mediaLoading && mediaItems.length === 0 ? (
-            <ActivityIndicator color={shell.cta} style={{ marginVertical: spacing.lg }} />
-          ) : mediaItems.length === 0 ? (
-            <Text style={[styles.emptyMedia, { color: shell.textSecondary }]}>
-              No {mediaTab} found. Pull to refresh or post new content.
-            </Text>
+            <ActivityIndicator color={kollab.color.ink} style={{ marginBottom: 16 }} />
           ) : (
-            <FlatList
-              data={mediaItems}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              scrollEnabled={false}
-              columnWrapperStyle={styles.mediaRow}
-              renderItem={({ item }) => {
+            <View style={styles.mediaRow}>
+              {mediaItems.slice(0, 6).map((item) => {
                 const selected = selectedMedia?.id === item.id;
                 return (
-                  <TouchableOpacity
+                  <Pressable
+                    key={item.id}
+                    onPress={() => selectMedia(item)}
                     style={[
                       styles.mediaTile,
-                      { backgroundColor: shell.canvasAlt },
-                      selected ? [styles.mediaTileSelected, { borderColor: shell.cta }] : null,
+                      {
+                        backgroundColor: kollab.color.imgBg,
+                        borderColor: selected ? kollab.color.chartreuse : 'transparent',
+                      },
                     ]}
-                    onPress={() => selectMedia(item)}
                   >
                     {item.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: item.thumbnailUrl }}
-                        style={[styles.mediaThumb, { backgroundColor: shell.borderSubtle }]}
-                      />
+                      <Image source={{ uri: item.thumbnailUrl }} style={styles.mediaThumb} />
                     ) : (
-                      <View
-                        style={[
-                          styles.mediaThumb,
-                          styles.mediaThumbPlaceholder,
-                          { backgroundColor: shell.borderSubtle },
-                        ]}
-                      >
-                        <Text style={[styles.mediaPlaceholderText, { color: shell.textMuted }]}>
-                          {item.kind}
+                      <View style={styles.mediaThumb} />
+                    )}
+                    {selected ? (
+                      <View style={[styles.check, { backgroundColor: kollab.color.chartreuse }]}>
+                        <Text style={[styles.checkMark, { color: kollab.color.onChartreuse }]}>
+                          ✓
                         </Text>
                       </View>
-                    )}
-                    <Text
-                      style={[styles.mediaMeta, { color: shell.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.likeCount != null ? `${item.likeCount} likes` : item.kind}
-                    </Text>
-                  </TouchableOpacity>
+                    ) : null}
+                  </Pressable>
                 );
-              }}
-            />
+              })}
+            </View>
           )}
-        </PremiumCard>
+        </>
       ) : null}
 
-      {step === 'Trigger' ? (
-        <PremiumCard style={styles.section}>
-          {selectedMedia ? (
-            <Text style={[styles.helpText, { color: shell.textSecondary }]}>
-              Target: {selectedMedia.kind} ·{' '}
-              {selectedMedia.caption?.slice(0, 60) || selectedMedia.id}
-            </Text>
-          ) : null}
-          <Text style={[styles.label, { color: shell.textPrimary }]}>Automation name</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: shell.cardBorder,
-                color: shell.textPrimary,
-                backgroundColor: shell.card,
-              },
-            ]}
+      {step === 1 ? (
+        <>
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Automation name</Text>
+          <KollabTextField
+            surface="well"
+            placeholder="e.g. Comment LINK reply"
             value={form.name}
             onChangeText={(name) => setForm({ ...form, name })}
-            placeholder="e.g. Comment LINK reply"
-            placeholderTextColor={shell.textMuted}
+            style={styles.field}
           />
-          <Text style={[styles.label, { color: shell.textPrimary }]}>Trigger type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {triggerOptions.map((opt) => {
-              const active = form.triggerType === opt.key;
-              return (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: shell.iceBlue },
-                    active && [
-                      styles.chipActive,
-                      { backgroundColor: shell.cta, borderColor: shell.cta },
-                    ],
-                  ]}
-                  onPress={() => setForm({ ...form, triggerType: opt.key })}
-                >
-                  <Text
-                    style={[styles.chipText, { color: active ? palette.white : shell.textPrimary }]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <Text style={[styles.label, { color: shell.textPrimary }]}>Match type</Text>
-          <PremiumSegmentedControl
-            segments={MATCH_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
+
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Trigger type</Text>
+          <ChipRow
+            options={triggerOptions}
+            value={form.triggerType}
+            onChange={(triggerType) => setForm({ ...form, triggerType })}
+            kollab={kollab}
+          />
+
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Match</Text>
+          <ChipRow
+            options={MATCH_OPTIONS}
             value={form.matchType}
-            onChange={(matchType) => setForm({ ...form, matchType: matchType as DmMatchType })}
-            compact
+            onChange={(matchType) => setForm({ ...form, matchType })}
+            kollab={kollab}
           />
+
           {form.matchType !== 'any' ? (
             <>
-              <Text style={[styles.label, { color: shell.textPrimary }]}>
-                Keywords (comma separated)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    borderColor: shell.cardBorder,
-                    color: shell.textPrimary,
-                    backgroundColor: shell.card,
-                  },
-                ]}
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Keywords</Text>
+              <KollabTextField
+                surface="well"
+                placeholder="LINK, INFO, PRICE"
                 value={keywordsText}
                 onChangeText={setKeywordsText}
-                placeholder="LINK, INFO, PRICE"
-                placeholderTextColor={shell.textMuted}
-                multiline
+                style={styles.field}
               />
             </>
           ) : null}
+
           {form.triggerType === 'comment_keyword' ? (
             <>
-              <Text style={[styles.label, { color: shell.textPrimary }]}>
-                Public comment reply (optional)
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+                Public comment reply
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: shell.cardBorder,
-                    color: shell.textPrimary,
-                    backgroundColor: shell.card,
-                  },
-                ]}
+              <KollabTextField
+                surface="well"
+                placeholder="Check your DMs!"
                 value={form.publicCommentReply ?? ''}
                 onChangeText={(publicCommentReply) => setForm({ ...form, publicCommentReply })}
-                placeholder="Check your DMs!"
-                placeholderTextColor={shell.textMuted}
+                style={styles.field}
               />
             </>
           ) : null}
-        </PremiumCard>
+        </>
       ) : null}
 
-      {step === 'Reply' ? (
-        <PremiumCard style={styles.section}>
-          <SecondaryButton
-            label={suggestLoading ? 'Suggesting…' : 'Suggest with AI'}
-            disabled={suggestLoading || !payload.specificPostId}
-            onPress={() => void runAiSuggest()}
+      {step === 2 ? (
+        <>
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Reply type</Text>
+          <ChipRow
+            options={REPLY_OPTIONS}
+            value={form.replyType}
+            onChange={(replyType) => setForm({ ...form, replyType })}
+            kollab={kollab}
           />
-          <Text style={[styles.label, { color: shell.textPrimary }]}>Reply type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {REPLY_OPTIONS.map((opt) => {
-              const active = form.replyType === opt.key;
-              return (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: shell.iceBlue },
-                    active && [
-                      styles.chipActive,
-                      { backgroundColor: shell.cta, borderColor: shell.cta },
-                    ],
-                  ]}
-                  onPress={() => setForm({ ...form, replyType: opt.key })}
-                >
-                  <Text
-                    style={[styles.chipText, { color: active ? palette.white : shell.textPrimary }]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
 
           {form.replyType === 'ai_generated' ? (
             <>
-              <Text style={[styles.label, { color: shell.textPrimary }]}>AI context</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    borderColor: shell.cardBorder,
-                    color: shell.textPrimary,
-                    backgroundColor: shell.card,
-                  },
-                ]}
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>AI context</Text>
+              <KollabTextField
+                surface="well"
+                multiline
+                placeholder="Describe your brand, offer, and tone..."
                 value={form.aiContext ?? ''}
                 onChangeText={(aiContext) => setForm({ ...form, aiContext })}
-                placeholder="Describe your brand, offer, and tone..."
-                placeholderTextColor={shell.textMuted}
-                multiline
+                style={styles.field}
               />
-              <SecondaryButton
-                label={previewLoading ? 'Generating...' : 'Preview AI reply'}
-                disabled={previewLoading || !form.aiContext?.trim()}
-                onPress={() => void runAiPreview()}
-              />
-              {aiPreview ? (
-                <View style={[styles.previewBox, { backgroundColor: shell.canvasAlt }]}>
-                  <Text style={[styles.previewLabel, { color: shell.textSecondary }]}>Preview</Text>
-                  <Text style={[styles.previewText, { color: shell.textPrimary }]}>
-                    {aiPreview}
-                  </Text>
-                </View>
-              ) : null}
             </>
           ) : (
             <>
-              <Text style={[styles.label, { color: shell.textPrimary }]}>Reply message</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    borderColor: shell.cardBorder,
-                    color: shell.textPrimary,
-                    backgroundColor: shell.card,
-                  },
-                ]}
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Reply message</Text>
+              <KollabTextField
+                surface="well"
+                multiline
+                placeholder="Thanks for reaching out!"
                 value={form.replyMessages[0] ?? ''}
                 onChangeText={(text) => setForm({ ...form, replyMessages: [text] })}
-                placeholder="Thanks for reaching out!"
-                placeholderTextColor={shell.textMuted}
-                multiline
+                style={styles.field}
               />
-              {form.replyType === 'text_with_link' ? (
-                <>
-                  <Text style={[styles.label, { color: shell.textPrimary }]}>Link URL</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        borderColor: shell.cardBorder,
-                        color: shell.textPrimary,
-                        backgroundColor: shell.card,
-                      },
-                    ]}
-                    value={form.replyLink ?? ''}
-                    onChangeText={(replyLink) => setForm({ ...form, replyLink })}
-                    placeholder="https://..."
-                    placeholderTextColor={shell.textMuted}
-                    autoCapitalize="none"
-                  />
-                  <Text style={[styles.label, { color: shell.textPrimary }]}>Link label</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        borderColor: shell.cardBorder,
-                        color: shell.textPrimary,
-                        backgroundColor: shell.card,
-                      },
-                    ]}
-                    value={form.replyLinkLabel ?? ''}
-                    onChangeText={(replyLinkLabel) => setForm({ ...form, replyLinkLabel })}
-                    placeholder="Shop now"
-                    placeholderTextColor={shell.textMuted}
-                  />
-                </>
-              ) : null}
             </>
           )}
-        </PremiumCard>
+
+          <View style={styles.linkRow}>
+            <KollabTextField
+              surface="well"
+              placeholder="https://..."
+              value={form.replyLink ?? ''}
+              onChangeText={(replyLink) =>
+                setForm({
+                  ...form,
+                  replyLink,
+                  replyType:
+                    form.replyType === 'text' && replyLink ? 'text_with_link' : form.replyType,
+                })
+              }
+              autoCapitalize="none"
+              style={styles.linkUrl}
+            />
+            <KollabTextField
+              surface="well"
+              placeholder="Shop now"
+              value={form.replyLinkLabel ?? ''}
+              onChangeText={(replyLinkLabel) => setForm({ ...form, replyLinkLabel })}
+              style={styles.linkLabel}
+            />
+          </View>
+        </>
       ) : null}
 
-      {step === 'Review' ? (
-        <PremiumCard style={styles.section}>
-          {selectedMedia?.thumbnailUrl ? (
-            <Image source={{ uri: selectedMedia.thumbnailUrl }} style={styles.reviewThumb} />
-          ) : null}
-          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-            <Text style={styles.reviewLabel}>Content: </Text>
-            {selectedMedia?.kind ?? 'selected'} ({payload.specificPostId.slice(0, 12)}…)
-          </Text>
-          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-            <Text style={styles.reviewLabel}>Name: </Text>
-            {payload.name}
-          </Text>
-          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-            <Text style={styles.reviewLabel}>Trigger: </Text>
-            {payload.triggerType.replace(/_/g, ' ')}
-          </Text>
-          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-            <Text style={styles.reviewLabel}>Match: </Text>
-            {payload.matchType}
-          </Text>
-          {payload.triggerKeywords.length ? (
-            <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-              <Text style={styles.reviewLabel}>Keywords: </Text>
-              {payload.triggerKeywords.join(', ')}
-            </Text>
-          ) : null}
-          <Text style={[styles.reviewRow, { color: shell.textPrimary }]}>
-            <Text style={styles.reviewLabel}>Reply: </Text>
-            {payload.replyType.replace(/_/g, ' ')}
-          </Text>
-          {payload.replyType === 'ai_generated' ? (
-            <Text style={[styles.reviewBody, { color: shell.textSecondary }]}>
-              {payload.aiContext}
-            </Text>
-          ) : (
-            <Text style={[styles.reviewBody, { color: shell.textSecondary }]}>
-              {payload.replyMessages[0]}
-            </Text>
-          )}
-        </PremiumCard>
-      ) : null}
-
-      <View style={styles.actions}>
-        <SecondaryButton
-          label={stepIndex === 0 ? 'Cancel' : 'Back'}
-          onPress={() => {
-            if (step === 'Trigger' && !isEdit) goBack();
-            else if (step === 'Content') router.back();
-            else goBack();
-          }}
-        />
-        {step === 'Review' ? (
-          <PrimaryButton
-            label={isEdit ? 'Save changes' : 'Start automation'}
-            onPress={() => void submit()}
-            loading={isSaving}
-            disabled={isSaving}
+      <View style={styles.navRow}>
+        {step > 0 ? (
+          <KollabButton
+            label="Previous"
+            variant="soft"
+            onPress={() => setStep((n) => Math.max(0, n - 1))}
+            style={styles.navBtn}
           />
+        ) : null}
+        {step < SETUP_STEPS.length - 1 ? (
+          <KollabButton label="Next" variant="ink" onPress={goNext} style={styles.navBtn} />
         ) : (
-          <PrimaryButton
-            label="Continue"
-            onPress={goNext}
-            disabled={
-              step === 'Content'
-                ? !canContinueContent
-                : step === 'Trigger'
-                  ? !canContinueTrigger
-                  : !canContinueReply
-            }
+          <KollabButton
+            label={isSaving ? 'Saving…' : isEdit ? 'Save' : 'Create automation'}
+            variant="ink"
+            onPress={() => void submit()}
+            disabled={isSaving}
+            style={styles.navBtn}
           />
         )}
       </View>
@@ -740,86 +578,66 @@ export default function CreateAutomationScreen() {
 }
 
 const styles = StyleSheet.create({
-  stepDots: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md },
-  dot: { flex: 1, height: 4, borderRadius: 2 },
-  dotActive: {},
-  section: { marginBottom: spacing.md },
-  helpText: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: spacing.sm,
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
-  label: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontFamily: fonts.regular,
-    fontSize: 15,
-  },
-  textArea: { minHeight: 88, textAlignVertical: 'top' },
-  chipScroll: { marginBottom: spacing.sm, flexGrow: 0 },
+  field: { marginBottom: 16 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    marginRight: spacing.xs,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 15,
   },
-  chipActive: {},
-  chipText: { fontFamily: fonts.semiBold, fontSize: 13 },
-  chipTextActive: { color: palette.white },
-  previewBox: {
-    marginTop: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-  },
-  previewLabel: { fontFamily: fonts.semiBold, fontSize: 12, marginBottom: 4 },
-  previewText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
-  reviewThumb: { width: '100%', height: 180, borderRadius: radius.md, marginBottom: spacing.sm },
-  reviewRow: { fontFamily: fonts.regular, fontSize: 14, marginBottom: spacing.xs },
-  reviewLabel: { fontFamily: fonts.semiBold },
-  reviewBody: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: spacing.xs,
-  },
-  actions: { gap: spacing.sm, marginTop: spacing.sm },
-  mediaHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  refreshText: { fontFamily: fonts.semiBold, fontSize: 13 },
-  emptyMedia: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    marginVertical: spacing.md,
-  },
-  mediaRow: { gap: spacing.sm, marginBottom: spacing.sm },
+  chipText: { fontFamily: font.semiBold, fontSize: 12.5 },
+  mediaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   mediaTile: {
-    flex: 1,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    width: 96,
+    height: 132,
+    borderRadius: 18,
     overflow: 'hidden',
+    borderWidth: 2.5,
   },
-  mediaTileSelected: {},
-  mediaThumb: { width: '100%', aspectRatio: 0.75 },
-  mediaThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  mediaPlaceholderText: { fontFamily: fonts.semiBold, fontSize: 12 },
-  mediaMeta: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    padding: spacing.xs,
+  mediaThumb: { width: 96, height: 132 },
+  check: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 22,
+    height: 22,
+    borderRadius: 99,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  checkMark: { fontSize: 12, fontFamily: font.bold },
+  linkRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  linkUrl: { flex: 1, minWidth: 0 },
+  linkLabel: { width: 110 },
+  stepper: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  stepItem: { flex: 1, alignItems: 'center', gap: 6 },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 99,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNum: { fontFamily: font.bold, fontSize: 12 },
+  stepLabel: { fontFamily: font.semiBold, fontSize: 11.5 },
+  stepIntro: {
+    fontFamily: font.body,
+    fontSize: 13,
+    opacity: 0.55,
+    marginBottom: 16,
+  },
+  navRow: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 20 },
+  navBtn: { flex: 1 },
 });

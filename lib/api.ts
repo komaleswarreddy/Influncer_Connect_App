@@ -131,6 +131,7 @@ function shouldUseMockResponses(baseUrl: string): boolean {
 
 // Mock response handler to prevent 404 errors
 const handleMockResponse = (endpoint: string, method: string, data?: unknown) => {
+  const pathOnly = endpoint.split('?')[0];
   // Simulate successful responses for common endpoints
   const mockResponses: Record<string, unknown> = {
     '/api/campaigns': {
@@ -255,8 +256,8 @@ const handleMockResponse = (endpoint: string, method: string, data?: unknown) =>
   };
 
   // Return mock response if endpoint exists
-  if (mockResponses[endpoint]) {
-    return Promise.resolve(mockResponses[endpoint]);
+  if (mockResponses[endpoint] || mockResponses[pathOnly]) {
+    return Promise.resolve(mockResponses[endpoint] ?? mockResponses[pathOnly]);
   }
 
   // For other endpoints, return a generic success response
@@ -332,7 +333,12 @@ class ApiClient {
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
+      const timeoutMs =
+        endpoint.includes('/api/content-ideas/trending') ||
+        endpoint.includes('/api/scheduled-posts/generate-caption')
+          ? 60000
+          : 30000;
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       let response: Response;
       try {
         response = await fetch(`${API_URL}${endpoint}`, {

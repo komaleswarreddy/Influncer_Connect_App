@@ -13,16 +13,26 @@ interface SchedulerState {
   posts: ScheduledPost[];
   calendar: Record<string, ScheduledPost[]>;
   captionSuggestions: CaptionSuggestion[];
+  exampleCaptions: CaptionSuggestion[];
   lastUpload: MediaUploadResult | null;
   isLoading: boolean;
   isSaving: boolean;
+  isLoadingExamples: boolean;
   error: string | null;
   fetchPosts: (params?: { status?: ScheduledPost['status']; month?: string }) => Promise<void>;
   fetchCalendar: (year: number, month: number) => Promise<void>;
   uploadMedia: (file: UploadFilePart) => Promise<MediaUploadResult>;
-  generateCaptions: (topic: string, contentType: SchedulerContentType) => Promise<CaptionSuggestion[]>;
+  fetchExampleCaptions: (contentType?: SchedulerContentType) => Promise<void>;
+  generateCaptions: (
+    topic: string,
+    contentType: SchedulerContentType,
+    opts?: { refresh?: boolean }
+  ) => Promise<CaptionSuggestion[]>;
   createPost: (payload: CreateScheduledPostPayload) => Promise<ScheduledPost>;
-  updatePost: (postId: string, payload: Partial<CreateScheduledPostPayload>) => Promise<ScheduledPost>;
+  updatePost: (
+    postId: string,
+    payload: Partial<CreateScheduledPostPayload>
+  ) => Promise<ScheduledPost>;
   cancelPost: (postId: string) => Promise<void>;
   retryDmLink: (postId: string) => Promise<ScheduledPost>;
   clearCaptionSuggestions: () => void;
@@ -33,9 +43,11 @@ export const useSchedulerStore = create<SchedulerState>((set) => ({
   posts: [],
   calendar: {},
   captionSuggestions: [],
+  exampleCaptions: [],
   lastUpload: null,
   isLoading: false,
   isSaving: false,
+  isLoadingExamples: false,
   error: null,
 
   fetchPosts: async (params) => {
@@ -77,10 +89,25 @@ export const useSchedulerStore = create<SchedulerState>((set) => ({
     }
   },
 
-  generateCaptions: async (topic, contentType) => {
+  fetchExampleCaptions: async (contentType = 'reel') => {
+    set({ isLoadingExamples: true, error: null });
+    try {
+      const suggestions = await schedulerApi.generateCaption('', contentType);
+      set({ exampleCaptions: suggestions, isLoadingExamples: false });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Could not load caption examples',
+        isLoadingExamples: false,
+      });
+    }
+  },
+
+  generateCaptions: async (topic, contentType, opts) => {
     set({ isSaving: true, error: null });
     try {
-      const suggestions = await schedulerApi.generateCaption(topic, contentType);
+      const suggestions = await schedulerApi.generateCaption(topic, contentType, {
+        refresh: opts?.refresh ?? true,
+      });
       set({ captionSuggestions: suggestions, isSaving: false });
       return suggestions;
     } catch (err) {

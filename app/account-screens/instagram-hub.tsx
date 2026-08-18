@@ -1,35 +1,22 @@
 import React, { useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import {
   ScrollScreen,
-  SectionHeader,
-  PremiumCard,
-  PrimaryButton,
-  SecondaryButton,
+  KollabScreenHeader,
+  KollabButton,
+  Glyph,
+  KollabStatusChip,
+  showKollabToast,
+  showKollabConfirm,
 } from '@/components/ui';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import { useSchedulerStore } from '@/store/scheduler-store';
-import { appShell, spacing, radius, palette } from '@/theme';
-import { fonts } from '@/components/ui/typography';
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
+import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
 
 export default function InstagramHubScreen() {
   const router = useRouter();
+  const kollab = useKollab();
   const {
     connection,
     isConnected,
@@ -64,195 +51,226 @@ export default function InstagramHubScreen() {
   );
 
   useEffect(() => {
-    if (error) Alert.alert('Error', error, [{ text: 'OK', onPress: clearError }]);
+    if (error) {
+      showKollabToast(error);
+      clearError();
+    }
   }, [error, clearError]);
 
   if (isLoading && !connection) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 32 }} />
       </ScrollScreen>
     );
   }
 
   if (!isConnected) {
     return (
-      <ScrollScreen safeAreaEdges={['bottom']}>
-        <SectionHeader title="Instagram" subtitle="DM automation and content scheduling" />
-        <PremiumCard style={styles.heroCard}>
-          <Ionicons name="logo-instagram" size={40} color={appShell.cta} />
-          <Text style={styles.heroTitle}>Connect your Instagram</Text>
-          <Text style={styles.heroBody}>
+      <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+        <KollabScreenHeader title="Instagram" subtitle="Not connected" />
+        <View
+          style={[styles.connectCard, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <View style={[styles.igWell, { backgroundColor: kollab.color.tint }]}>
+            <Glyph name="ig" color={kollab.color.violet} size={26} />
+          </View>
+          <Text style={[styles.connectTitle, { color: kollab.color.ink }]}>
+            Connect your{' '}
+            <Text style={{ fontFamily: font.displayItalic, color: kollab.color.violet }}>
+              Instagram
+            </Text>
+          </Text>
+          <Text style={[styles.connectBody, { color: kollab.color.ink }]}>
             One connection powers DM automations and scheduled reels, posts, and stories.
           </Text>
-          <PrimaryButton
-            label="Connect Instagram"
+          <KollabButton
+            label={isSaving ? 'Connecting…' : 'Connect Instagram'}
+            disabled={isSaving}
             onPress={() => void connectInstagram()}
-            loading={isSaving}
           />
-        </PremiumCard>
-        <PremiumCard style={styles.previewCard}>
-          <Text style={styles.previewTitle}>Schedule Content</Text>
-          <Text style={styles.previewBody}>
+        </View>
+        <View
+          style={[styles.previewCard, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <Text style={[styles.previewTitle, { color: kollab.color.ink }]}>Schedule Content</Text>
+          <Text style={[styles.previewBody, { color: kollab.color.ink }]}>
             Upload reels and posts, write captions, and pick a publish time.
           </Text>
-        </PremiumCard>
-        <PremiumCard style={styles.previewCard}>
-          <Text style={styles.previewTitle}>DM Automation</Text>
-          <Text style={styles.previewBody}>
+        </View>
+        <View
+          style={[styles.previewCard, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <Text style={[styles.previewTitle, { color: kollab.color.ink }]}>DM Automation</Text>
+          <Text style={[styles.previewBody, { color: kollab.color.ink }]}>
             Auto-reply to comments, story replies, and DM keywords on specific content.
           </Text>
-        </PremiumCard>
+        </View>
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader title="Instagram" subtitle="Connected tools" />
+    <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <KollabScreenHeader
+        title="Instagram"
+        subtitle={
+          connection?.instagramUsername ? `@${connection.instagramUsername}` : 'Connected tools'
+        }
+      />
 
       {!hasPublishScope ? (
-        <PremiumCard style={styles.bannerCard}>
-          <View style={styles.bannerRow}>
-            <Ionicons name="warning-outline" size={22} color={appShell.cta} />
-            <View style={styles.bannerCopy}>
-              <Text style={styles.bannerTitle}>Reconnect to schedule posts</Text>
-              <Text style={styles.bannerBody}>
-                Publishing permission is missing. Reconnect Instagram to enable the content
-                scheduler.
-              </Text>
-            </View>
-          </View>
-          <PrimaryButton
-            label="Reconnect Instagram"
+        <View style={[styles.banner, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+          <Text style={[styles.bannerTitle, { color: kollab.color.ink }]}>
+            Reconnect to schedule posts
+          </Text>
+          <Text style={[styles.bannerBody, { color: kollab.color.ink }]}>
+            Publishing permission is missing. Reconnect Instagram to enable the content scheduler.
+          </Text>
+          <KollabButton
+            label={isSaving ? 'Reconnecting…' : 'Reconnect Instagram'}
+            disabled={isSaving}
             onPress={() => void connectInstagram()}
-            loading={isSaving}
           />
-        </PremiumCard>
+        </View>
       ) : null}
 
-      <PremiumCard style={styles.profileCard}>
-        <View style={styles.profileRow}>
-          {connection?.profilePictureUrl ? (
-            <Image source={{ uri: connection.profilePictureUrl }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person-outline" size={24} color={appShell.textMuted} />
-            </View>
-          )}
-          <View style={styles.profileCopy}>
-            <Text style={styles.username}>@{connection?.instagramUsername}</Text>
-            <Text style={styles.followers}>
-              {formatCount(connection?.followerCount ?? 0)} followers
+      <View style={[styles.liveBar, { backgroundColor: kollab.color.panel }]}>
+        <View style={[styles.liveIcon, { backgroundColor: kollab.color.chartreuse }]}>
+          <Glyph name="ig" color={kollab.color.onChartreuse} size={22} />
+        </View>
+        <View style={styles.liveCopy}>
+          <Text style={[styles.liveName, { color: kollab.color.panelInk }]}>
+            @{connection?.instagramUsername}
+          </Text>
+          <Text style={[styles.liveMeta, { color: kollab.color.panelInk }]}>
+            {connection?.accountType ?? 'Business'} · connected
+          </Text>
+        </View>
+        <KollabStatusChip tone="live" label="Live" />
+      </View>
+
+      <View style={styles.tools}>
+        <Pressable
+          onPress={() => router.push('/account-screens/schedule-content' as never)}
+          style={[styles.tool, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <View style={[styles.toolIcon, { backgroundColor: kollab.color.tint }]}>
+            <Glyph name="schedule" color={kollab.color.violet} size={21} />
+          </View>
+          <View style={styles.toolCopy}>
+            <Text style={[styles.toolTitle, { color: kollab.color.ink }]}>Schedule Content</Text>
+            <Text style={[styles.toolMeta, { color: kollab.color.ink }]}>
+              {scheduledCount} post{scheduledCount === 1 ? '' : 's'} scheduled
             </Text>
           </View>
-        </View>
-      </PremiumCard>
+          <Text style={[styles.chevron, { color: kollab.color.ink }]}>›</Text>
+        </Pressable>
 
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => router.push('/account-screens/schedule-content' as never)}
-      >
-        <PremiumCard style={styles.navCard}>
-          <View style={styles.navRow}>
-            <View style={styles.navIcon}>
-              <Ionicons name="calendar-outline" size={24} color={appShell.cta} />
-            </View>
-            <View style={styles.navCopy}>
-              <Text style={styles.navTitle}>Schedule Content</Text>
-              <Text style={styles.navBody}>{scheduledCount} upcoming</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={appShell.textMuted} />
+        <Pressable
+          onPress={() => router.push('/account-screens/dm-automation' as never)}
+          style={[styles.tool, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <View style={[styles.toolIcon, { backgroundColor: kollab.color.tint }]}>
+            <Glyph name="dm" color={kollab.color.violet} size={21} />
           </View>
-        </PremiumCard>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => router.push('/account-screens/dm-automation' as never)}
-      >
-        <PremiumCard style={styles.navCard}>
-          <View style={styles.navRow}>
-            <View style={styles.navIcon}>
-              <Ionicons name="chatbubbles-outline" size={24} color={appShell.cta} />
-            </View>
-            <View style={styles.navCopy}>
-              <Text style={styles.navTitle}>DM Automation</Text>
-              <Text style={styles.navBody}>{activeAutomations} active</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={appShell.textMuted} />
+          <View style={styles.toolCopy}>
+            <Text style={[styles.toolTitle, { color: kollab.color.ink }]}>DM Automation</Text>
+            <Text style={[styles.toolMeta, { color: kollab.color.ink }]}>
+              {activeAutomations} automation{activeAutomations === 1 ? '' : 's'} active
+            </Text>
           </View>
-        </PremiumCard>
-      </TouchableOpacity>
+          <Text style={[styles.chevron, { color: kollab.color.ink }]}>›</Text>
+        </Pressable>
+      </View>
 
-      <SecondaryButton
+      <KollabButton
         label={isSaving ? 'Disconnecting…' : 'Disconnect Instagram'}
+        variant="hairline"
         disabled={isSaving}
         onPress={() => {
           if (isSaving) return;
-          Alert.alert(
-            'Disconnect Instagram?',
-            'DM automations will pause. Scheduled posts stay in your queue but will not publish until you reconnect.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Disconnect',
-                style: 'destructive',
-                onPress: () => void disconnectInstagram(),
-              },
-            ]
-          );
+          void showKollabConfirm({
+            title: 'Disconnect Instagram?',
+            message:
+              'DM automations will pause. Scheduled posts stay in your queue but will not publish until you reconnect.',
+            confirmLabel: 'Disconnect',
+            destructive: true,
+          }).then((ok) => {
+            if (ok) void disconnectInstagram();
+          });
         }}
-        style={[styles.disconnectBtn, isSaving && styles.disconnectBtnDisabled]}
       />
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroCard: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
-  heroTitle: { fontFamily: fonts.bold, fontSize: 20, color: appShell.textPrimary },
-  heroBody: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    color: appShell.textMuted,
-    textAlign: 'center',
-  },
-  previewCard: { marginTop: spacing.sm },
-  previewTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  previewBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted, marginTop: 4 },
-  bannerCard: { marginBottom: spacing.md, gap: spacing.sm },
-  bannerRow: { flexDirection: 'row', gap: spacing.sm },
-  bannerCopy: { flex: 1 },
-  bannerTitle: { fontFamily: fonts.semiBold, fontSize: 15, color: appShell.textPrimary },
-  bannerBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted, marginTop: 2 },
-  profileCard: { marginBottom: spacing.md },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 52, height: 52, borderRadius: radius.pill },
-  avatarPlaceholder: {
+  connectCard: { borderRadius: 24, padding: 24, marginBottom: 12 },
+  igWell: {
     width: 52,
     height: 52,
-    borderRadius: radius.pill,
-    backgroundColor: appShell.canvasAlt,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  connectTitle: { ...kType.sectionTitle },
+  connectBody: {
+    fontFamily: font.body,
+    fontSize: 13.5,
+    lineHeight: 21,
+    opacity: 0.6,
+    marginVertical: 8,
+  },
+  previewCard: { borderRadius: 22, padding: 18, marginBottom: 10, opacity: 0.65 },
+  previewTitle: { ...kType.rowTitle },
+  previewBody: {
+    fontFamily: font.body,
+    fontSize: 12.5,
+    lineHeight: 19,
+    opacity: 0.6,
+    marginTop: 4,
+  },
+  banner: { borderRadius: 22, padding: 16, marginBottom: 16, gap: 8 },
+  bannerTitle: { fontFamily: font.semiBold, fontSize: 15 },
+  bannerBody: { fontFamily: font.body, fontSize: 13, opacity: 0.55, marginBottom: 6 },
+  liveBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+  },
+  liveIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileCopy: { flex: 1 },
-  username: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  followers: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted },
-  navCard: { marginBottom: spacing.sm },
-  navRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  navIcon: {
+  liveCopy: { flex: 1 },
+  liveName: { fontFamily: font.semiBold, fontSize: 15 },
+  liveMeta: { fontFamily: font.body, fontSize: 12, opacity: 0.6 },
+  tools: { gap: 10, marginBottom: 18 },
+  tool: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderRadius: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+  toolIcon: {
     width: 44,
     height: 44,
-    borderRadius: radius.md,
-    backgroundColor: appShell.canvasAlt,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navCopy: { flex: 1 },
-  navTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  navBody: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted },
-  disconnectBtn: { marginTop: spacing.md },
-  disconnectBtnDisabled: { opacity: 0.55 },
+  toolCopy: { flex: 1 },
+  toolTitle: { ...kType.rowTitle },
+  toolMeta: { fontFamily: font.body, fontSize: 12, opacity: 0.55, marginTop: 1 },
+  chevron: { fontSize: 16, opacity: 0.35 },
 });

@@ -10,9 +10,10 @@ import {
   type NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PremiumCard, PrimaryButton, SecondaryButton } from '@/components/ui';
-import { appShell, spacing, radius } from '@/theme';
+import { PremiumCard, KollabButton } from '@/components/ui';
+import { spacing, radius } from '@/theme';
 import { fonts } from '@/components/ui/typography';
+import { useKollab } from '@/theme/kollab-tokens';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -166,6 +167,7 @@ function WheelColumn<T extends string | number>({
 }
 
 export default function ScheduleDateTimeSheet({ visible, value, onClose, onConfirm }: Props) {
+  const kollab = useKollab();
   const [year, setYear] = useState(value.date.getFullYear());
   const [month, setMonth] = useState(value.date.getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState(value.date.getDate());
@@ -231,11 +233,11 @@ export default function ScheduleDateTimeSheet({ visible, value, onClose, onConfi
 
           <View style={styles.monthRow}>
             <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={8}>
-              <Ionicons name="chevron-back-outline" size={22} color={appShell.cta} />
+              <Ionicons name="chevron-back-outline" size={22} color={kollab.color.ink} />
             </TouchableOpacity>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={8}>
-              <Ionicons name="chevron-forward-outline" size={22} color={appShell.cta} />
+              <Ionicons name="chevron-forward-outline" size={22} color={kollab.color.ink} />
             </TouchableOpacity>
           </View>
 
@@ -307,8 +309,19 @@ export default function ScheduleDateTimeSheet({ visible, value, onClose, onConfi
           </View>
 
           <View style={styles.actions}>
-            <SecondaryButton label="Cancel" onPress={onClose} style={styles.actionBtn} />
-            <PrimaryButton label="Confirm" onPress={handleConfirm} style={styles.actionBtn} />
+            <KollabButton
+              label="Cancel"
+              variant="soft"
+              onPress={onClose}
+              style={styles.actionBtn}
+              compact
+            />
+            <KollabButton
+              label="Confirm"
+              onPress={handleConfirm}
+              style={styles.actionBtn}
+              compact
+            />
           </View>
         </PremiumCard>
       </View>
@@ -330,18 +343,18 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontFamily: fonts.bold,
     fontSize: 18,
-    color: appShell.textPrimary,
+    color: '#171410',
     textAlign: 'center',
   },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  monthLabel: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
+  monthLabel: { fontFamily: fonts.semiBold, fontSize: 16, color: '#171410' },
   weekdayRow: { flexDirection: 'row', justifyContent: 'space-around' },
   weekday: {
     flex: 1,
     textAlign: 'center',
     fontFamily: fonts.semiBold,
     fontSize: 11,
-    color: appShell.textMuted,
+    color: 'rgba(23,20,16,0.45)',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: {
@@ -351,17 +364,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  cellSelected: { backgroundColor: appShell.cta },
+  cellSelected: { backgroundColor: '#171410' },
   cellDisabled: { opacity: 0.35 },
-  cellText: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.textPrimary },
-  cellTextSelected: { color: '#fff' },
-  cellTextDisabled: { color: appShell.textMuted },
+  cellText: { fontFamily: fonts.semiBold, fontSize: 14, color: '#171410' },
+  cellTextSelected: { color: '#F5F3ED' },
+  cellTextDisabled: { color: 'rgba(23,20,16,0.45)' },
   pickerRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
   pickerCol: { flex: 1 },
   pickerLabel: {
     fontFamily: fonts.semiBold,
     fontSize: 11,
-    color: appShell.textMuted,
+    color: 'rgba(23,20,16,0.45)',
     textAlign: 'center',
     marginBottom: spacing.xs,
   },
@@ -395,10 +408,10 @@ const styles = StyleSheet.create({
   wheelItemText: {
     fontFamily: fonts.semiBold,
     fontSize: 16,
-    color: appShell.textMuted,
+    color: 'rgba(23,20,16,0.45)',
   },
   wheelItemTextActive: {
-    color: appShell.textPrimary,
+    color: '#171410',
     fontFamily: fonts.bold,
     fontSize: 18,
   },

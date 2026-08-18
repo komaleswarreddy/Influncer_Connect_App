@@ -2,24 +2,25 @@ import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   type ListRenderItemInfo,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { PremiumOpportunityCard, SectionHeader } from '@/components/ui';
 import { rateCardsApi } from '@/lib/rate-cards-api';
 import {
   bookingStatusShort,
   bookingStatusTone,
   labelForContentType,
-  platformForContentType,
+  type OpportunityStatusTone,
 } from '@/lib/opportunity-card-ui';
-import { appShell, radius, spacing } from '@/theme';
+import { formatInr } from '@/lib/currency';
+import { KollabButton, KollabScreenHeader, showKollabToast } from '@/components/ui';
+import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Deliverable = { status?: string; brandFeedback?: string | null };
 
@@ -28,19 +29,29 @@ function canDeliver(status: string, deliverable?: Deliverable | null): boolean {
   return status === 'in_progress' && deliverable?.status === 'revision_requested';
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const a = parts[0]?.[0] ?? 'B';
+  const b = parts[1]?.[0] ?? parts[0]?.[1] ?? '';
+  return (a + b).toUpperCase();
+}
+
+function statusColors(tone: OpportunityStatusTone, kollab: KollabTokens) {
+  if (tone === 'pending' || tone === 'active' || tone === 'success') {
+    return { bg: kollab.color.chartreuse, fg: kollab.color.onChartreuse };
+  }
+  if (tone === 'review') return { bg: kollab.color.tealTint, fg: kollab.color.teal };
+  if (tone === 'warning' || tone === 'declined')
+    return { bg: kollab.color.heatTint, fg: kollab.color.heat };
+  return { bg: kollab.color.tint, fg: kollab.color.violetDeep };
+}
+
 type Row = {
   booking: Record<string, unknown>;
   brand?: { name?: string };
   deliverable?: Deliverable | null;
 };
 
-/**
- * Owns its own scroll + pull-to-refresh via FlatList (real virtualization for
- * bookings histories that grow over time) — do NOT render this inside another
- * ScrollView/ScrollScreen with scrolling enabled, or virtualization is lost
- * and you'll get the "VirtualizedLists nested in ScrollViews" warning.
- * Host screens should use the non-scrolling `Screen` shell instead.
- */
 export function BookingsList({
   showHeader = true,
   highlightBookingId,
@@ -49,6 +60,8 @@ export function BookingsList({
   highlightBookingId?: string;
 }) {
   const router = useRouter();
+  const kollab = useKollab();
+  const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,16 +94,11 @@ export function BookingsList({
     async (id: string, status: 'accepted' | 'declined') => {
       try {
         await rateCardsApi.respondBooking(id, status);
-        const message =
-          status === 'accepted'
-            ? 'Booking accepted. Submit your content when ready — payment is held in escrow until the brand approves.'
-            : 'Booking declined.';
         setError(null);
         await load(true);
-        Alert.alert('Done', message);
+        showKollabToast(status === 'accepted' ? 'Booking accepted' : 'Invite declined');
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed';
-        setError(msg);
+        setError(e instanceof Error ? e.message : 'Failed');
       }
     },
     [load]
@@ -118,115 +126,107 @@ export function BookingsList({
       const status = String(booking.status);
       const contentType = String(booking.contentType ?? '');
       const brandName = brand?.name ?? 'Brand';
-      const qty = String(booking.quantity ?? 1);
-      const tone = bookingStatusTone(status, deliverable);
       const pill = bookingStatusShort(status, deliverable);
-      const platform = platformForContentType(contentType);
-      const quote =
-        deliverable?.brandFeedback && deliverable.status === 'revision_requested'
-          ? deliverable.brandFeedback
-          : booking.messageFromBrand
-            ? String(booking.messageFromBrand)
-            : undefined;
-      const quoteLabel =
-        deliverable?.brandFeedback && deliverable.status === 'revision_requested'
-          ? 'Brand feedback'
-          : quote
-            ? 'Brand note'
-            : undefined;
-
-      const hasFooter = status === 'pending' || canDeliver(status, deliverable);
-      const canOpenDeliver = canDeliver(status, deliverable);
-
-      const footer = (
-        <>
-          {status === 'pending' ? (
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.btn} onPress={() => void respond(id, 'accepted')}>
-                <Text style={styles.btnText}>Accept</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnOutline]}
-                onPress={() => void respond(id, 'declined')}
-              >
-                <Text style={[styles.btnText, styles.outlineText]}>Decline</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          {canOpenDeliver ? (
-            <TouchableOpacity style={styles.btn} onPress={() => openDeliver(booking)}>
-              <Text style={styles.btnText}>Deliver content</Text>
-            </TouchableOpacity>
-          ) : null}
-        </>
-      );
+      const tone = bookingStatusTone(status, deliverable);
+      const st = statusColors(tone, kollab);
+      const pending = status === 'pending';
+      const deliver = canDeliver(status, deliverable);
+      const highlighted = Boolean(highlightBookingId && highlightBookingId === id);
 
       return (
-        <PremiumOpportunityCard
-          highlighted={Boolean(highlightBookingId && highlightBookingId === id)}
-          title={labelForContentType(contentType)}
-          subtitle={`${brandName} · Direct booking`}
-          platform={platform === 'ugc' ? 'ugc' : platform}
-          statusLabel={pill}
-          statusTone={tone}
-          amountPrimary={`₹${Number(booking.totalAmount ?? 0).toLocaleString('en-IN')}`}
-          amountSecondary={`Qty ${qty}`}
-          quote={quote}
-          quoteLabel={quoteLabel}
-          showChevron={canOpenDeliver && !hasFooter}
-          onPress={canOpenDeliver && !hasFooter ? () => openDeliver(booking) : undefined}
-          footer={hasFooter ? footer : undefined}
-        />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: kollab.color.card },
+            kollab.shadow.card,
+            highlighted && { borderWidth: 1.5, borderColor: kollab.color.violet },
+          ]}
+        >
+          <View style={styles.top}>
+            <View style={[styles.logo, { backgroundColor: kollab.color.panel }]}>
+              <Text style={[styles.logoText, { color: kollab.color.panelInk }]}>
+                {initials(brandName)}
+              </Text>
+            </View>
+            <View style={styles.copy}>
+              <Text style={[styles.brand, { color: kollab.color.ink }]} numberOfLines={1}>
+                {brandName}
+              </Text>
+              <Text style={[styles.item, { color: kollab.color.ink }]} numberOfLines={1}>
+                {labelForContentType(contentType)}
+              </Text>
+            </View>
+            <View style={styles.right}>
+              <Text style={[styles.amount, { color: kollab.color.ink }]}>
+                {formatInr(Number(booking.totalAmount ?? 0))}
+              </Text>
+              <View style={[styles.status, { backgroundColor: st.bg }]}>
+                <Text style={[styles.statusText, { color: st.fg }]}>{pill}</Text>
+              </View>
+            </View>
+          </View>
+          {pending ? (
+            <View style={[styles.footer, { borderTopColor: kollab.color.hairline }]}>
+              <KollabButton
+                label="Decline"
+                variant="hairline"
+                compact
+                style={styles.action}
+                onPress={() => void respond(id, 'declined')}
+              />
+              <KollabButton
+                label="Accept"
+                variant="ink"
+                compact
+                style={styles.action}
+                onPress={() => void respond(id, 'accepted')}
+              />
+            </View>
+          ) : null}
+          {deliver ? (
+            <View style={[styles.footer, { borderTopColor: kollab.color.hairline }]}>
+              <KollabButton label="Deliver content" compact onPress={() => openDeliver(booking)} />
+            </View>
+          ) : null}
+        </View>
       );
     },
-    [highlightBookingId, openDeliver, respond]
+    [highlightBookingId, openDeliver, respond, kollab]
   );
-
-  const showEmptyRateCardCta = rows.length === 0 && !error && !loading;
 
   const listHeader = (
     <>
       {showHeader ? (
-        <SectionHeader
-          title="PriceCard Bookings"
-          subtitle="Direct requests from brands at your price card prices"
+        <KollabScreenHeader
+          title="Price card bookings"
+          subtitle="Direct requests from your price card"
         />
       ) : null}
-
       {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => void load()}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+        <View style={[styles.errorBox, { backgroundColor: kollab.color.heatTint }]}>
+          <Text style={[styles.errorText, { color: kollab.color.heat }]}>{error}</Text>
+          <KollabButton label="Retry" compact onPress={() => void load()} />
         </View>
       ) : null}
-
       {loading && !refreshing ? (
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.lg }} />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 16 }} />
       ) : null}
     </>
   );
 
   const listEmpty =
     loading || error ? null : (
-      <View style={styles.empty}>
-        <Text style={styles.emptyText}>No booking requests yet.</Text>
-        {showEmptyRateCardCta ? (
-          <>
-            <Text style={styles.emptyHint}>
-              Enable Public price card and Open for direct bookings in your Price Card settings.
-            </Text>
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => router.push('/account-screens/rate-card' as never)}
-            >
-              <Text style={styles.linkBtnText}>Open Price Card</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-      </View>
+      <Text style={[styles.empty, { color: kollab.color.ink }]}>No booking requests yet.</Text>
     );
+
+  const listFooter = (
+    <KollabButton
+      label="Open Price Card"
+      variant="hairline"
+      onPress={() => router.push('/account-screens/rate-card' as never)}
+      style={styles.priceCardBtn}
+    />
+  );
 
   return (
     <FlatList
@@ -235,53 +235,53 @@ export function BookingsList({
       renderItem={renderRow}
       ListHeaderComponent={listHeader}
       ListEmptyComponent={listEmpty}
+      ListFooterComponent={listFooter}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => void load(true)}
-          tintColor={appShell.cta}
+          tintColor={kollab.color.ink}
         />
       }
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingTop: showHeader ? 0 : insets.top + 8 }]}
       showsVerticalScrollIndicator={false}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  listContent: { flexGrow: 1 },
-  empty: { marginTop: spacing.md, gap: spacing.sm },
-  emptyText: { fontFamily: 'Inter_600SemiBold', color: appShell.textPrimary },
-  emptyHint: { fontFamily: 'Inter_400Regular', color: appShell.textSecondary, lineHeight: 20 },
-  linkBtn: {
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: appShell.cta,
+  listContent: {
+    flexGrow: 1,
+    paddingHorizontal: space.gutter,
+    paddingBottom: space.xl,
   },
-  linkBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  errorBox: {
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(220, 38, 38, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.25)',
-  },
-  errorText: { fontFamily: 'Inter_400Regular', color: '#b91c1c', lineHeight: 20 },
-  retryBtn: { marginTop: spacing.sm, alignSelf: 'flex-start' },
-  retryText: { fontFamily: 'Inter_600SemiBold', color: appShell.cta },
-  actions: { flexDirection: 'row', gap: spacing.sm },
-  btn: {
-    flex: 1,
-    backgroundColor: appShell.cta,
-    padding: spacing.sm,
-    borderRadius: radius.md,
+  card: { borderRadius: 22, paddingVertical: 16, paddingHorizontal: 18, marginBottom: 10 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  logo: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: appShell.cta },
-  btnText: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
-  outlineText: { color: appShell.cta },
+  logoText: { fontFamily: font.bold, fontSize: 12 },
+  copy: { flex: 1, minWidth: 0 },
+  brand: { fontFamily: font.semiBold, fontSize: 14 },
+  item: { fontFamily: font.body, fontSize: 11.5, opacity: 0.55, marginTop: 1 },
+  right: { alignItems: 'flex-end', flexShrink: 0 },
+  amount: { ...kType.rowTitle },
+  status: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginTop: 3 },
+  statusText: { fontFamily: font.bold, fontSize: 10.5 },
+  footer: {
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 13,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  action: { flex: 1 },
+  empty: { fontFamily: font.body, fontSize: 13, opacity: 0.55, marginBottom: 16 },
+  errorBox: { borderRadius: 16, padding: 14, gap: 8, marginBottom: 12 },
+  errorText: { fontFamily: font.body, fontSize: 13 },
+  priceCardBtn: { marginTop: 6, marginBottom: 20 },
 });

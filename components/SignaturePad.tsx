@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import ViewShot from 'react-native-view-shot';
+import { showKollabDialog } from '@/components/ui';
 
 interface SignaturePadProps {
   value: string;
@@ -29,38 +30,34 @@ export default function SignaturePad({ value, onChange }: SignaturePadProps) {
             {value ? (
               <Text style={styles.signatureText}>Signature captured</Text>
             ) : (
-              <Text style={styles.placeholderText}>
-                Tap Draw Signature to open signature pad
-              </Text>
+              <Text style={styles.placeholderText}>Tap Draw Signature to open signature pad</Text>
             )}
           </View>
         </ViewShot>
       </View>
-      
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.button}
           onPress={() => {
-            Alert.alert(
-              'Signature Pad',
-              'Signature drawing functionality will be implemented with a proper drawing library like react-native-signature-canvas',
-              [
-                { text: 'OK', onPress: () => {
-                  // For now, simulate a signature capture
-                  onChange('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
-                }}
-              ]
-            );
+            void showKollabDialog({
+              title: 'Signature pad',
+              message:
+                'Signature drawing will use a drawing canvas. Continue to capture a placeholder for now.',
+              actions: [{ id: 'ok', label: 'Continue', variant: 'primary' }],
+            }).then((id) => {
+              if (id !== 'ok') return;
+              onChange(
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+              );
+            });
           }}
         >
           <Text style={styles.buttonText}>Draw Signature</Text>
         </TouchableOpacity>
-        
+
         {value && (
-          <TouchableOpacity
-            style={[styles.button, styles.clearButton]}
-            onPress={clearSignature}
-          >
+          <TouchableOpacity style={[styles.button, styles.clearButton]} onPress={clearSignature}>
             <Text style={styles.clearButtonText}>Clear</Text>
           </TouchableOpacity>
         )}
@@ -125,4 +122,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-}); 
+});

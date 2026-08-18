@@ -1,225 +1,98 @@
 import React, { useState } from 'react';
-import {
-  Alert,
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Text,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Button } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, Pressable, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
 import { signInWithCognito } from '../lib/cognito-auth';
-import { loginScreen, premiumButton } from '@/theme';
-
-const PILL = 999;
+import { useKollab } from '@/theme/kollab-tokens';
+import { showKollabToast } from '@/components/ui';
 
 type Props = {
   mode: 'login' | 'register';
-  appearance?: 'paper' | 'premium';
+  /** lime Google pill (HTML login) vs ink Google pill on white sheets. */
+  variant?: 'lime' | 'ink';
 };
 
-function ssoLabel(mode: 'login' | 'register') {
-  return mode === 'register' ? 'Sign up' : 'Sign in';
+function GoogleMark() {
+  return (
+    <Svg width={19} height={19} viewBox="0 0 24 24">
+      <Path
+        d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4z"
+        fill="#4285F4"
+      />
+      <Path
+        d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.7-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"
+        fill="#34A853"
+      />
+      <Path d="M6.4 13.9a6 6 0 0 1 0-3.8V7.5H3.1a10 10 0 0 0 0 9l3.3-2.6z" fill="#FBBC05" />
+      <Path
+        d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.8-2.8A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.7 9.4 5.9 12 5.9z"
+        fill="#EA4335"
+      />
+    </Svg>
+  );
 }
 
-export function CognitoAuthButtons({ mode, appearance = 'paper' }: Props) {
+export function CognitoAuthButtons({ mode, variant = 'lime' }: Props) {
   const router = useRouter();
+  const kollab = useKollab();
   const exchangeCognitoIdToken = useAuthStore((s) => s.exchangeCognitoIdToken);
   const [busy, setBusy] = useState(false);
-  const label = ssoLabel(mode);
+  const label = mode === 'register' ? 'Continue with Google' : 'Continue with Google';
 
   const runCognitoFlow = async () => {
     setBusy(true);
-    const t0 = Date.now();
     try {
       const { idToken } = await signInWithCognito();
-      if (__DEV__) console.log(`[auth] cognito UI+token done in ${Date.now() - t0}ms`);
-      const tEx = Date.now();
       await exchangeCognitoIdToken(idToken);
-      if (__DEV__)
-        console.log(`[auth] backend exchange ${Date.now() - tEx}ms; total ${Date.now() - t0}ms`);
       const step = useAuthStore.getState().nextStep;
       router.replace(getInfluencerEntryPath(step));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
       if (/cancel/i.test(msg) || /dismiss/i.test(msg)) return;
-      Alert.alert(mode === 'register' ? 'Sign up failed' : 'Sign in failed', msg);
+      showKollabToast(msg);
     } finally {
       setBusy(false);
     }
   };
 
-  if (appearance === 'premium') {
-    return (
-      <View style={styles.premiumWrap}>
-        <View style={styles.shadowHost}>
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={runCognitoFlow}
-            disabled={busy}
-            style={[styles.touchable, busy && styles.touchableDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel={label}
-          >
-            <View style={styles.clip}>
-              <LinearGradient
-                colors={[...premiumButton.baseGradient]}
-                locations={[...premiumButton.baseLocations]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <LinearGradient
-                colors={[...premiumButton.glossGradient]}
-                locations={[...premiumButton.glossLocations]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={[styles.glossLayer, { height: premiumButton.glossHeightPercent }]}
-                pointerEvents="none"
-              />
-              <View style={styles.rimHighlight} pointerEvents="none" />
-              <View style={styles.contentRow}>
-                {busy ? (
-                  <ActivityIndicator color={premiumButton.labelColor} size="small" />
-                ) : (
-                  <>
-                    <View style={styles.iconSlot}>
-                      <MaterialCommunityIcons
-                        name="shield-account"
-                        size={24}
-                        color={premiumButton.iconColor}
-                      />
-                    </View>
-                    <Text style={styles.premiumLabel} numberOfLines={1}>
-                      {label}
-                    </Text>
-                  </>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const bg = variant === 'lime' ? kollab.color.chartreuse : kollab.color.ink;
+  const fg = variant === 'lime' ? kollab.color.onChartreuse : kollab.color.chartreuse;
 
   return (
-    <View style={styles.wrap}>
-      <Button
-        mode="contained"
-        buttonColor={loginScreen.primaryDark}
-        textColor={loginScreen.textOnPrimary}
-        onPress={runCognitoFlow}
-        loading={busy}
-        disabled={busy}
-        style={styles.button}
-        icon={() => (
-          <MaterialCommunityIcons
-            name="shield-account"
-            size={22}
-            color={loginScreen.textOnPrimary}
-          />
-        )}
-      >
-        {label}
-      </Button>
-    </View>
+    <Pressable
+      onPress={runCognitoFlow}
+      disabled={busy}
+      style={[styles.btn, { backgroundColor: bg, opacity: busy ? 0.7 : 1 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {busy ? (
+        <ActivityIndicator color={fg} size="small" />
+      ) : (
+        <>
+          <GoogleMark />
+          <Text style={[styles.label, { color: fg }]}>{label}</Text>
+        </>
+      )}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: '100%' },
-  button: { marginVertical: 6, borderRadius: 10 },
-  premiumWrap: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  shadowHost: {
-    width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
-    borderRadius: PILL,
-    backgroundColor: 'transparent',
-    ...Platform.select({
-      ios: {
-        shadowColor: premiumButton.shadowColor,
-        shadowOffset: premiumButton.shadowOffset,
-        shadowOpacity: premiumButton.shadowOpacity,
-        shadowRadius: premiumButton.shadowRadius,
-      },
-      android: {
-        elevation: premiumButton.elevation,
-      },
-    }),
-  },
-  touchable: {
-    width: '100%',
-    borderRadius: PILL,
-    borderWidth: 1,
-    borderColor: premiumButton.rimOuter,
-  },
-  touchableDisabled: { opacity: 0.7 },
-  clip: {
-    borderRadius: PILL,
-    minHeight: premiumButton.minHeight,
-    paddingVertical: premiumButton.padV,
-    paddingHorizontal: premiumButton.padH,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-  },
-  glossLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: PILL,
-    borderTopRightRadius: PILL,
-  },
-  rimHighlight: {
-    position: 'absolute',
-    top: 1,
-    left: '8%',
-    right: '8%',
-    height: 1,
-    backgroundColor: premiumButton.rimLine,
-    borderRadius: 1,
-    opacity: 0.95,
-  },
-  contentRow: {
+  btn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'nowrap',
-    zIndex: 2,
-    paddingHorizontal: 4,
+    gap: 11,
+    borderRadius: 999,
+    paddingVertical: 18,
+    width: '100%',
   },
-  iconSlot: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  premiumLabel: {
-    flexShrink: 0,
-    fontSize: 17,
-    fontWeight: '800',
-    color: premiumButton.labelColor,
-    letterSpacing: 0.35,
-    textAlign: 'center',
-    ...Platform.select({
-      android: { includeFontPadding: false, textAlignVertical: 'center' },
-      ios: {
-        textShadowColor: 'rgba(0, 0, 0, 0.22)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
-      },
-    }),
+  label: {
+    fontFamily: 'InstrumentSans_600SemiBold',
+    fontSize: 16,
   },
 });
+
+export default CognitoAuthButtons;

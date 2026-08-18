@@ -4,16 +4,14 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Modal,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   type ListRenderItemInfo,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import {
   useCampaignStore,
   type Campaign,
@@ -21,23 +19,24 @@ import {
   type ParticipationCampaignEmbed,
 } from '@/store/campaign-store';
 import { useInfluencerStore } from '@/store/influencer-store';
-import {
-  PremiumCard,
-  PremiumTextInput,
-  PrimaryButton,
-  SecondaryButton,
-  SectionHeader,
-} from '@/components/ui';
-import { appShell, palette, radius, shadow, spacing } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { KollabButton } from '@/components/ui/KollabButton';
+import { KollabScreenHeader } from '@/components/ui/KollabScreenHeader';
+import { KollabTextField } from '@/components/ui/KollabTextField';
+import { showKollabToast } from '@/components/ui/PremiumToast';
+import { KollabStatusChip } from '@/components/ui/KollabStatusChip';
+import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+
+const DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
 
 function resolveCampaignDisplay(
   listCampaign: Campaign | undefined,
   embedded: ParticipationCampaignEmbed | null | undefined
-): {
-  title: string;
-  brandName: string;
-} | null {
+): { title: string; brandName: string } | null {
   const emb = embedded ?? undefined;
   const title = listCampaign?.name ?? emb?.name;
   if (!title) return null;
@@ -45,22 +44,24 @@ function resolveCampaignDisplay(
   return { title, brandName };
 }
 
-function StarRatingDisplay({ rating }: { rating: number }) {
-  return (
-    <View style={{ flexDirection: 'row' }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Ionicons
-          key={i}
-          name={i <= rating ? 'star' : 'star-outline'}
-          size={18}
-          color={i <= rating ? '#F59E0B' : appShell.textMuted}
-        />
-      ))}
-    </View>
-  );
+function brandInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase() || 'BR';
+}
+
+function formatDate(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return DATE_FMT.format(d);
 }
 
 export default function RatingCardsScreen() {
+  const kollab = useKollab();
+  const styles = useKollabStyles(kollab);
   const {
     participations,
     campaigns,
@@ -134,7 +135,7 @@ export default function RatingCardsScreen() {
   const handleSubmitRating = async () => {
     if (!selectedParticipation) return;
     if (ratingValue === 0) {
-      Alert.alert('Error', 'Please select a rating');
+      showKollabToast('Please select a rating');
       return;
     }
     try {
@@ -143,10 +144,10 @@ export default function RatingCardsScreen() {
       setSelectedParticipation(null);
       setRatingValue(0);
       setReview('');
-      Alert.alert('Success', 'Rating submitted successfully!');
+      showKollabToast('Rating submitted successfully!');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to submit rating';
-      Alert.alert('Error', msg);
+      showKollabToast(msg);
     }
   };
 
@@ -163,6 +164,15 @@ export default function RatingCardsScreen() {
     [fetchBrandRatings]
   );
 
+  const ratedValues = Object.values(ratings).filter(
+    (r): r is NonNullable<typeof r> => r != null && Number.isFinite(r.overallRating)
+  );
+  const avg =
+    ratedValues.length > 0
+      ? ratedValues.reduce((sum, r) => sum + r.overallRating, 0) / ratedValues.length
+      : 0;
+  const avgLabel = ratedValues.length > 0 ? avg.toFixed(1).replace(/\.0$/, '') : '—';
+
   const keyExtractor = useCallback((p: CampaignParticipation) => p.id, []);
 
   const renderItem = useCallback(
@@ -173,67 +183,77 @@ export default function RatingCardsScreen() {
       );
       if (!display) return null;
       const rating = ratings[p.id];
+      const score = rating ? rating.overallRating.toFixed(1).replace(/\.0$/, '') : null;
+      const date = formatDate(rating?.createdAt || p.completedAt || p.joinedAt);
 
       return (
-        <PremiumCard style={styles.ratingCard}>
-          <Text style={styles.cardTitle}>{display.title}</Text>
-          <Text style={styles.cardSubtitle}>{display.brandName}</Text>
-          <View style={styles.ratingBlock}>
-            <View style={styles.ratingRow}>
-              <Text style={styles.ratingLabel}>Your rating</Text>
-              {rating ? (
-                <StarRatingDisplay rating={rating.overallRating} />
-              ) : (
-                <Text style={styles.notRated}>Not rated yet</Text>
-              )}
+        <View style={styles.ratingCard}>
+          <View style={styles.cardTop}>
+            <View style={styles.brandWell}>
+              <Text style={styles.brandLetter}>{brandInitials(display.brandName)}</Text>
             </View>
-            {rating?.review ? (
-              <Text style={styles.reviewSnippet} numberOfLines={6}>
-                {rating.review}
+            <View style={styles.cardCopy}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {display.title}
               </Text>
-            ) : null}
+              {date ? <Text style={styles.cardDate}>{date}</Text> : null}
+            </View>
+            {score ? (
+              <View style={styles.scoreChip}>
+                <Text style={styles.scoreChipText}>{score} ★</Text>
+              </View>
+            ) : (
+              <KollabStatusChip tone="neutral" label="Unrated" />
+            )}
+          </View>
+          {rating?.review ? <Text style={styles.reviewBody}>{rating.review}</Text> : null}
+          <View style={styles.kindChip}>
+            <Text style={styles.kindChipText}>Influencer to collab</Text>
           </View>
           <View style={styles.cardActions}>
             {!rating ? (
-              <PrimaryButton compact label="Rate campaign" onPress={() => handleOpenRating(p)} />
+              <KollabButton compact label="Rate campaign" onPress={() => handleOpenRating(p)} />
             ) : null}
-            {rating ? (
-              <PrimaryButton
-                compact
-                label="View brand ratings"
-                onPress={() => handleOpenBrandRatings(p)}
-              />
-            ) : (
-              <SecondaryButton
-                label="View brand ratings"
-                onPress={() => handleOpenBrandRatings(p)}
-              />
-            )}
+            <KollabButton
+              compact
+              variant={rating ? 'primary' : 'hairline'}
+              label="View brand ratings"
+              onPress={() => handleOpenBrandRatings(p)}
+            />
           </View>
-        </PremiumCard>
+        </View>
       );
     },
-    [campaigns, ratings, handleOpenRating, handleOpenBrandRatings]
+    [campaigns, ratings, handleOpenRating, handleOpenBrandRatings, styles]
   );
 
   const listHeader = useMemo(
     () => (
       <>
-        <SectionHeader
-          title="Campaign ratings"
+        <KollabScreenHeader
+          title="Collab ratings"
           subtitle="Rate partnerships and view brand feedback"
+          backTone="card"
         />
-        {(ratingsLoading || campaignsLoading) && (
-          <ActivityIndicator
-            size="large"
-            color={appShell.cta}
-            style={{ marginVertical: spacing.md }}
-          />
-        )}
+        <View style={styles.panelCard}>
+          <Text style={styles.panelEyebrow}>Your average</Text>
+          <Text style={styles.panelMetric}>
+            {avgLabel}
+            <Text style={styles.panelMetricMuted}> / 5</Text>
+          </Text>
+          <Text style={styles.panelDelta}>
+            {ratedValues.length > 0
+              ? `Brand rating across ${ratedValues.length} completed collab${ratedValues.length === 1 ? '' : 's'}`
+              : 'No ratings yet — rate a completed collab to see your average'}
+          </Text>
+        </View>
+        {ratingsLoading || campaignsLoading ? (
+          <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginVertical: 16 }} />
+        ) : null}
         {ratingsError ? <Text style={styles.errorText}>{ratingsError}</Text> : null}
       </>
     ),
-    [ratingsLoading, campaignsLoading, ratingsError]
+    [ratingsLoading, campaignsLoading, ratingsError, styles, kollab, avgLabel, ratedValues.length]
   );
 
   const listEmpty =
@@ -242,7 +262,7 @@ export default function RatingCardsScreen() {
     );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <FlatList
         data={participations}
         keyExtractor={keyExtractor}
@@ -259,30 +279,36 @@ export default function RatingCardsScreen() {
             <Text style={styles.modalTitle}>Rate campaign</Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((i) => (
-                <TouchableOpacity key={i} onPress={() => setRatingValue(i)}>
-                  <Ionicons
-                    name={i <= ratingValue ? 'star' : 'star-outline'}
-                    size={28}
-                    color={i <= ratingValue ? '#F59E0B' : appShell.textMuted}
-                  />
-                </TouchableOpacity>
+                <Pressable key={i} onPress={() => setRatingValue(i)}>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      color: i <= ratingValue ? kollab.color.chartreuse : kollab.color.inkFaint,
+                    }}
+                  >
+                    ★
+                  </Text>
+                </Pressable>
               ))}
             </View>
-            <PremiumTextInput
+            <KollabTextField
               style={styles.reviewInput}
               placeholder="Write a review (optional)"
               value={review}
               onChangeText={setReview}
               multiline
               maxLength={500}
+              surface="well"
             />
-            <PrimaryButton
+            <KollabButton
               style={styles.modalBtn}
+              variant="ink"
               label="Submit rating"
               onPress={handleSubmitRating}
             />
-            <SecondaryButton
+            <KollabButton
               style={styles.modalBtn}
+              variant="hairline"
               label="Cancel"
               onPress={() => setShowRatingModal(false)}
             />
@@ -299,9 +325,17 @@ export default function RatingCardsScreen() {
             adminRatings[brandModalParticipation.id].length > 0 ? (
               adminRatings[brandModalParticipation.id].map((r, idx) => (
                 <View key={r.id || idx} style={styles.brandRatingCard}>
-                  <StarRatingDisplay rating={r.overallRating} />
+                  <View style={styles.scoreChip}>
+                    <Text style={styles.scoreChipText}>
+                      {r.overallRating.toFixed(1).replace(/\.0$/, '')} ★
+                    </Text>
+                  </View>
                   {r.status !== 'approved' ? (
-                    <Text style={styles.pendingBadge}>Pending review</Text>
+                    <KollabStatusChip
+                      tone="neutral"
+                      label="Pending review"
+                      style={styles.pendingBadge}
+                    />
                   ) : null}
                   {r.review ? <Text style={styles.brandRatingText}>{r.review}</Text> : null}
                 </View>
@@ -309,8 +343,9 @@ export default function RatingCardsScreen() {
             ) : (
               <Text style={styles.emptyText}>No brand ratings yet.</Text>
             )}
-            <SecondaryButton
+            <KollabButton
               style={styles.modalBtn}
+              variant="soft"
               label="Close"
               onPress={() => setShowBrandModal(false)}
             />
@@ -321,76 +356,161 @@ export default function RatingCardsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: appShell.canvas },
-  content: { padding: spacing.md, paddingBottom: spacing.lg },
-  ratingCard: { marginBottom: spacing.sm },
-  cardTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  cardSubtitle: {
-    marginTop: 2,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    color: appShell.textSecondary,
-  },
-  ratingBlock: {
-    marginTop: spacing.sm,
-    backgroundColor: appShell.canvasAlt,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.borderSubtle,
-  },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  ratingLabel: { color: appShell.textPrimary, fontFamily: fonts.semiBold, fontSize: 13 },
-  notRated: { color: appShell.textMuted, fontFamily: fonts.regular, fontSize: 13 },
-  reviewSnippet: {
-    marginTop: spacing.xs,
-    color: appShell.textSecondary,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  cardActions: { marginTop: spacing.sm, gap: spacing.xs },
-  errorText: { color: palette.error, marginBottom: spacing.sm, fontFamily: fonts.regular },
-  emptyText: { color: appShell.textSecondary, fontFamily: fonts.regular },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  modalContent: {
-    backgroundColor: appShell.card,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    width: '88%',
-    maxWidth: 400,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appShell.cardBorder,
-    ...shadow.card,
-  },
-  modalTitle: { fontSize: 17, fontFamily: fonts.bold, color: appShell.cta, marginBottom: 10 },
-  starRow: { flexDirection: 'row', marginBottom: 12 },
-  reviewInput: { width: '100%', minHeight: 60, marginBottom: 12 },
-  modalBtn: { alignSelf: 'stretch', width: '100%', marginTop: spacing.sm },
-  brandRatingCard: {
-    backgroundColor: appShell.iceBlue,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-    alignSelf: 'stretch',
-  },
-  brandRatingText: {
-    color: appShell.textPrimary,
-    fontSize: 14,
-    lineHeight: 21,
-    fontFamily: fonts.regular,
-  },
-  pendingBadge: {
-    marginTop: 6,
-    fontSize: 12,
-    fontFamily: fonts.semiBold,
-    color: appShell.textMuted,
-  },
-});
+function useKollabStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: kollab.color.screen },
+        content: { paddingHorizontal: 22, paddingBottom: 40 },
+        panelCard: {
+          backgroundColor: kollab.color.panel,
+          borderRadius: 24,
+          padding: 22,
+          marginBottom: 16,
+        },
+        panelEyebrow: {
+          fontFamily: font.body,
+          fontSize: 12,
+          color: kollab.color.panelInk,
+          opacity: 0.6,
+        },
+        panelMetric: {
+          fontFamily: font.display,
+          fontSize: 44,
+          color: kollab.color.panelInk,
+          marginVertical: 2,
+        },
+        panelMetricMuted: {
+          fontFamily: font.display,
+          fontSize: 24,
+          color: kollab.color.panelInk,
+          opacity: 0.45,
+        },
+        panelDelta: {
+          fontFamily: font.semiBold,
+          fontSize: 12,
+          color: kollab.color.chartreuse,
+        },
+        ratingCard: {
+          backgroundColor: kollab.color.card,
+          borderRadius: 22,
+          paddingVertical: 16,
+          paddingHorizontal: 18,
+          marginBottom: 10,
+          ...kollab.shadow.card,
+        },
+        cardTop: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 11,
+        },
+        brandWell: {
+          width: 38,
+          height: 38,
+          borderRadius: 12,
+          backgroundColor: kollab.color.violet,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        },
+        brandLetter: {
+          fontFamily: font.bold,
+          fontSize: 12,
+          color: kollab.color.inkOn,
+        },
+        cardCopy: { flex: 1, minWidth: 0 },
+        cardTitle: {
+          fontFamily: font.semiBold,
+          fontSize: 13.5,
+          color: kollab.color.ink,
+        },
+        cardDate: {
+          fontFamily: font.body,
+          fontSize: 11.5,
+          color: kollab.color.ink,
+          opacity: 0.55,
+          marginTop: 2,
+        },
+        scoreChip: {
+          backgroundColor: kollab.color.chartreuse,
+          borderRadius: 999,
+          paddingHorizontal: 11,
+          paddingVertical: 5,
+          flexShrink: 0,
+        },
+        scoreChipText: {
+          fontFamily: font.bold,
+          fontSize: 12,
+          color: kollab.color.onChartreuse,
+        },
+        reviewBody: {
+          fontFamily: font.body,
+          fontSize: 13,
+          lineHeight: 20,
+          color: kollab.color.ink,
+          opacity: 0.65,
+          marginTop: 11,
+        },
+        kindChip: {
+          alignSelf: 'flex-start',
+          backgroundColor: kollab.color.tealTint,
+          borderRadius: 999,
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          marginTop: 11,
+        },
+        kindChipText: {
+          fontFamily: font.bold,
+          fontSize: 10.5,
+          color: kollab.color.teal,
+        },
+        cardActions: { marginTop: 12, gap: 8 },
+        errorText: { color: kollab.color.heat, marginBottom: 12, fontFamily: font.body },
+        emptyText: { color: kollab.color.inkMuted, fontFamily: font.body },
+        modalContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'rgba(11,9,6,0.5)',
+        },
+        modalContent: {
+          backgroundColor: kollab.color.card,
+          borderRadius: 26,
+          padding: 18,
+          width: '88%',
+          maxWidth: 400,
+          alignItems: 'center',
+          ...kollab.shadow.card,
+        },
+        modalTitle: {
+          ...kType.sectionTitle,
+          color: kollab.color.ink,
+          marginBottom: 10,
+        },
+        starRow: { flexDirection: 'row', marginBottom: 12, gap: 4 },
+        reviewInput: {
+          width: '100%',
+          minHeight: 60,
+          marginBottom: 12,
+        },
+        modalBtn: { alignSelf: 'stretch', width: '100%', marginTop: 10 },
+        brandRatingCard: {
+          backgroundColor: kollab.color.well,
+          borderRadius: 17,
+          padding: 14,
+          marginBottom: 8,
+          alignSelf: 'stretch',
+          gap: 8,
+        },
+        brandRatingText: {
+          color: kollab.color.ink,
+          fontSize: 13,
+          lineHeight: 20,
+          fontFamily: font.body,
+          opacity: 0.65,
+        },
+        pendingBadge: { marginTop: 2 },
+      }),
+    [kollab]
+  );
+}

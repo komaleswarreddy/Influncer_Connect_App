@@ -13,8 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, Pattern, Circle, Rect } from 'react-native-svg';
-import { radius, shadow } from '@/theme';
-import { fonts } from './typography';
+import { useKollab, radius as kollabRadius, font } from '@/theme/kollab-tokens';
 import { HOME_DESIGN, HERO_STATS_CANVAS, heroCardHeight, scaleX } from '@/lib/home-mock-layout';
 
 const HERO_STATS = require('@/assets/hero_stats.png');
@@ -37,7 +36,7 @@ function HeroDotGrid() {
       <Svg width="100%" height="100%">
         <Defs>
           <Pattern id={patternId} patternUnits="userSpaceOnUse" width={14} height={14}>
-            <Circle cx={7} cy={7} r={1} fill="rgba(80, 130, 255, 0.14)" />
+            <Circle cx={7} cy={7} r={1} fill="rgba(221, 233, 106, 0.18)" />
           </Pattern>
         </Defs>
         <Rect width="100%" height="100%" fill={`url(#${patternId})`} />
@@ -54,6 +53,7 @@ export function HomeReferenceHeroCard({
   onDetailsPress,
   style,
 }: Props) {
+  const kollab = useKollab();
   const [cardWidth, setCardWidth] = useState(HOME_DESIGN.cardWidth);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -68,7 +68,10 @@ export function HomeReferenceHeroCard({
   const sx = (px: number) => scaleX(cardWidth, px);
 
   return (
-    <View style={[styles.shell, shadow.card, { height: cardHeight }, style]} onLayout={onLayout}>
+    <View
+      style={[styles.shell, kollab.shadow.card, { height: cardHeight }, style]}
+      onLayout={onLayout}
+    >
       <LinearGradient
         colors={[...HERO_STATS_CANVAS.gradient]}
         locations={[...HERO_STATS_CANVAS.gradientLocations]}
@@ -146,13 +149,37 @@ export function HomeReferenceHeroCard({
                   activeOpacity={0.88}
                   accessibilityRole="button"
                   accessibilityLabel="Link Accounts"
-                  style={[styles.connectBtn, styles.connectBtnUnderLabel]}
+                  style={[
+                    styles.connectBtn,
+                    styles.connectBtnUnderLabel,
+                    {
+                      backgroundColor: kollab.color.chartreuse,
+                      borderColor: 'rgba(221,233,106,0.55)',
+                    },
+                  ]}
                 >
-                  <View style={styles.connectBtnInnerGlow} pointerEvents="none" />
-                  <Text style={styles.connectBtnText} numberOfLines={1}>
+                  <View
+                    style={[
+                      styles.connectBtnInnerGlow,
+                      {
+                        borderColor: 'rgba(221,233,106,0.25)',
+                        backgroundColor: 'rgba(221,233,106,0.08)',
+                      },
+                    ]}
+                    pointerEvents="none"
+                  />
+                  <Text
+                    style={[styles.connectBtnText, { color: kollab.color.onChartreuse }]}
+                    numberOfLines={1}
+                  >
                     Link Accounts
                   </Text>
-                  <Ionicons name="arrow-forward" size={14} color="#141E33" style={styles.chevron} />
+                  <Ionicons
+                    name="arrow-forward"
+                    size={14}
+                    color={kollab.color.onChartreuse}
+                    style={styles.chevron}
+                  />
                 </TouchableOpacity>
               )}
             </>
@@ -165,7 +192,7 @@ export function HomeReferenceHeroCard({
 
 const styles = StyleSheet.create({
   shell: {
-    borderRadius: radius.xl,
+    borderRadius: kollabRadius.cardL,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -210,21 +237,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: radius.pill,
+    borderRadius: kollabRadius.pill,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     marginBottom: 8,
   },
   overline: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.semiBold,
     fontSize: 8,
     letterSpacing: 1.1,
     color: 'rgba(255, 255, 255, 0.55)',
     textTransform: 'uppercase',
   },
   title: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 24,
     letterSpacing: -0.6,
     lineHeight: 30,
@@ -232,7 +259,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   connectedHeadline: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 22,
     letterSpacing: -0.55,
     lineHeight: 28,
@@ -241,14 +268,14 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   connectedHeadlineAccent: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 22,
     letterSpacing: -0.55,
     lineHeight: 28,
-    color: '#A5B4FC',
+    color: '#DDE96A',
   },
   connectedSubline: {
-    fontFamily: fonts.regular,
+    fontFamily: font.body,
     fontSize: 11,
     lineHeight: 15,
     color: 'rgba(255, 255, 255, 0.58)',
@@ -256,13 +283,13 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   metricLabel: {
-    fontFamily: fonts.regular,
+    fontFamily: font.body,
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.5)',
     marginBottom: 2,
   },
   metricValue: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 32,
     color: '#FFFFFF',
     letterSpacing: -1,
@@ -270,7 +297,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     ...Platform.select({ android: { includeFontPadding: false } }),
   },
-  /** Empty-state CTA: white fill, navy text, soft neon violet glow */
+  /** Empty-state CTA: chartreuse fill, ink text, soft chartreuse glow */
   connectBtnUnderLabel: {
     marginTop: 14,
     marginBottom: 4,
@@ -282,24 +309,22 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
     position: 'relative',
     overflow: 'visible',
-    borderRadius: radius.pill,
+    borderRadius: kollabRadius.pill,
     paddingVertical: 8,
     paddingLeft: 14,
     paddingRight: 12,
     marginRight: 8,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: 'rgba(108, 92, 255, 0.55)',
     ...Platform.select({
       ios: {
-        shadowColor: '#6C5CFF',
+        shadowColor: '#DDE96A',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.4,
         shadowRadius: 14,
       },
       android: {
         elevation: 6,
-        shadowColor: '#6C5CFF',
+        shadowColor: '#DDE96A',
       },
       default: {},
     }),
@@ -307,16 +332,13 @@ const styles = StyleSheet.create({
   /** Soft inset wash — RN has no inset box-shadow */
   connectBtnInnerGlow: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: radius.pill,
+    borderRadius: kollabRadius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.18)',
-    backgroundColor: 'rgba(124, 92, 255, 0.06)',
   },
   connectBtnText: {
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 13,
     lineHeight: 16,
-    color: '#141E33',
     letterSpacing: 0.05,
     flexShrink: 0,
     zIndex: 1,

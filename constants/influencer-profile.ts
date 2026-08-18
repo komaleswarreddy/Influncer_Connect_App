@@ -21,6 +21,9 @@ export const INFLUENCER_NICHES = [
   'Automotive',
 ] as const;
 
+/** Profile picker: the five niches Kollab collabs use most. */
+export const PROFILE_NICHES = ['Fashion', 'Beauty', 'Lifestyle', 'Food', 'Travel'] as const;
+
 export const INFLUENCER_COUNTRIES = [
   'United States',
   'United Kingdom',

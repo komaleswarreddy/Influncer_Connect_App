@@ -1,99 +1,66 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Switch,
-  Alert,
-  ActivityIndicator,
-  FlatList,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollScreen, PrimaryButton, SecondaryButton, SectionHeader, PremiumCard } from '@/components/ui';
+import {
+  ScrollScreen,
+  KollabScreenHeader,
+  KollabButton,
+  KollabChatBubble,
+  showKollabConfirm,
+  showKollabToast,
+} from '@/components/ui';
 import { useInstagramAutomationStore } from '@/store/instagram-automation-store';
 import {
   instagramAutomationApi,
   type DmAutomation,
   type DmAutomationLog,
-  type InstagramMediaItem,
 } from '@/lib/instagram-automation-api';
-import { appShell, spacing, radius, palette } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
+const TRIGGER_LABELS: Record<string, string> = {
+  comment_keyword: 'Comment keyword',
+  story_reply: 'Story reply',
+  dm_keyword: 'DM keyword',
+};
 
 export default function AutomationDetailScreen() {
   const router = useRouter();
+  const kollab = useKollab();
   const { automationId } = useLocalSearchParams<{ automationId: string }>();
   const { toggleAutomation, deleteAutomation, isSaving } = useInstagramAutomationStore();
 
   const [automation, setAutomation] = useState<DmAutomation | null>(null);
   const [logs, setLogs] = useState<DmAutomationLog[]>([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [linkedMedia, setLinkedMedia] = useState<InstagramMediaItem | null>(null);
 
   const loadAutomation = useCallback(async () => {
     if (!automationId) return;
-    const res = await instagramAutomationApi.getAutomations();
-    const found = res.automations.find((a) => a.id === automationId) ?? null;
-    setAutomation(found);
-    if (found?.linkedMedia) {
-      setLinkedMedia(found.linkedMedia);
-    } else if (found?.specificPostId) {
-      try {
-        const res = await instagramAutomationApi.getMediaById(found.specificPostId);
-        setLinkedMedia(res.media);
-      } catch {
-        setLinkedMedia(null);
+    setLoading(true);
+    try {
+      const res = await instagramAutomationApi.getAutomations();
+      const found = res.automations.find((a) => a.id === automationId) ?? null;
+      setAutomation(found);
+      if (!found) {
+        showKollabToast('Automation could not be loaded.');
+        router.back();
+      } else {
+        try {
+          const logRes = await instagramAutomationApi.getAutomationLogs(automationId, 1);
+          setLogs(logRes.logs);
+        } catch {
+          setLogs([]);
+        }
       }
-    } else {
-      setLinkedMedia(null);
-    }
-    if (!found) {
-      Alert.alert('Not found', 'Automation could not be loaded.');
-      router.back();
+    } catch (e) {
+      showKollabToast(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
     }
   }, [automationId, router]);
 
-  const loadLogs = useCallback(
-    async (nextPage: number, append: boolean) => {
-      if (!automationId) return;
-      if (append) setLoadingMore(true);
-      else setLoading(true);
-      try {
-        const res = await instagramAutomationApi.getAutomationLogs(automationId, nextPage);
-        setLogs((prev) => (append ? [...prev, ...res.logs] : res.logs));
-        setPage(res.page);
-        setTotal(res.total);
-      } catch (e) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load logs');
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [automationId]
-  );
-
   useEffect(() => {
     void loadAutomation();
-    void loadLogs(1, false);
-  }, [loadAutomation, loadLogs]);
+  }, [loadAutomation]);
 
   const handleToggle = async () => {
     if (!automation) return;
@@ -103,223 +70,146 @@ export default function AutomationDetailScreen() {
 
   const handleDelete = () => {
     if (!automation) return;
-    Alert.alert('Delete automation?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void deleteAutomation(automation.id).then(() => {
-            router.replace('/account-screens/dm-automation' as never);
-          });
-        },
-      },
-    ]);
+    void showKollabConfirm({
+      title: 'Delete automation?',
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    }).then((ok) => {
+      if (!ok) return;
+      void deleteAutomation(automation.id).then(() => {
+        router.replace('/account-screens/dm-automation' as never);
+      });
+    });
   };
-
-  const hasMore = logs.length < total;
 
   if (loading && !automation) {
     return (
       <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 32 }} />
       </ScrollScreen>
     );
   }
 
   if (!automation) return null;
 
-  const stats = automation.stats;
+  const rows = [
+    { label: 'Trigger', value: TRIGGER_LABELS[automation.triggerType] ?? automation.triggerType },
+    { label: 'Match', value: automation.matchType },
+    { label: 'Reply', value: automation.replyType.replace(/_/g, ' ') },
+    { label: 'Status', value: automation.isActive ? 'Active' : 'Paused' },
+  ];
+  const previewIn = automation.triggerKeywords[0] || 'LINK';
+  const previewOut =
+    automation.replyMessages[0] || automation.aiContext?.slice(0, 80) || 'Thanks for reaching out!';
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader title={automation.name} subtitle="Automation details" />
+    <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <KollabScreenHeader title={automation.name} subtitle="Automation details" />
 
-      {linkedMedia ? (
-        <PremiumCard style={styles.mediaCard}>
-          <View style={styles.mediaRow}>
-            {linkedMedia.thumbnailUrl ? (
-              <Image source={{ uri: linkedMedia.thumbnailUrl }} style={styles.mediaThumb} />
-            ) : null}
-            <View style={styles.mediaCopy}>
-              <Text style={styles.mediaKind}>
-                {(linkedMedia.kind || 'content').toUpperCase()}
-              </Text>
-              {linkedMedia.caption ? (
-                <Text style={styles.mediaCaption} numberOfLines={2}>
-                  {linkedMedia.caption}
-                </Text>
-              ) : (
-                <Text style={styles.mediaCaptionMuted}>Linked Instagram content</Text>
-              )}
-              {(linkedMedia.likeCount != null || linkedMedia.commentCount != null) && (
-                <Text style={styles.mediaStats}>
-                  {linkedMedia.likeCount != null ? linkedMedia.likeCount + ' likes' : ''}
-                  {linkedMedia.likeCount != null && linkedMedia.commentCount != null ? ' · ' : ''}
-                  {linkedMedia.commentCount != null ? linkedMedia.commentCount + ' comments' : ''}
-                </Text>
-              )}
-            </View>
+      <View style={[styles.rowsCard, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+        {rows.map((r, i) => (
+          <View
+            key={r.label}
+            style={[
+              styles.row,
+              { borderBottomColor: i === rows.length - 1 ? 'transparent' : kollab.color.hairline },
+            ]}
+          >
+            <Text style={[styles.rowLabel, { color: kollab.color.ink }]}>{r.label}</Text>
+            <Text style={[styles.rowValue, { color: kollab.color.ink }]}>{r.value}</Text>
           </View>
-        </PremiumCard>
-      ) : null}
-
-
-      <PremiumCard style={styles.card}>
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>{automation.isActive ? 'Active' : 'Paused'}</Text>
-          <Switch
-            value={automation.isActive}
-            onValueChange={() => void handleToggle()}
-            disabled={isSaving}
-            trackColor={{ false: appShell.borderSubtle, true: appShell.cta }}
-            thumbColor={palette.white}
-          />
-        </View>
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats?.totalTriggered ?? automation.totalSent}</Text>
-            <Text style={styles.statLabel}>Triggered</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats?.totalSent ?? automation.totalSent}</Text>
-            <Text style={styles.statLabel}>Sent</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats?.totalDelivered ?? 0}</Text>
-            <Text style={styles.statLabel}>Delivered</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats?.totalRepliedBack ?? automation.totalReplied}</Text>
-            <Text style={styles.statLabel}>Replied back</Text>
-          </View>
-        </View>
-      </PremiumCard>
-
-      <View style={styles.actions}>
-        <PrimaryButton
-          label="Edit"
-          compact
-          onPress={() =>
-            router.push({
-              pathname: '/account-screens/create-automation',
-              params: { automationId: automation.id },
-            } as never)
-          }
-        />
-        <SecondaryButton label="Delete" onPress={handleDelete} />
+        ))}
       </View>
 
-      <Text style={styles.logsTitle}>Activity log</Text>
-      {logs.length === 0 && !loading ? (
-        <PremiumCard>
-          <Text style={styles.emptyLogs}>No activity yet. Triggers will appear here.</Text>
-        </PremiumCard>
-      ) : (
-        <PremiumCard padded={false}>
-          <FlatList
-            data={logs}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View style={styles.logRow}>
-                <View style={styles.logHeader}>
-                  <Text style={styles.logUser}>@{item.triggerUsername ?? item.triggerUserId}</Text>
-                  <Text style={styles.logDate}>{formatDate(item.createdAt)}</Text>
-                </View>
-                {item.triggerText ? <Text style={styles.logText}>{item.triggerText}</Text> : null}
-                <Text style={styles.logStatus}>
-                  {item.deliveryStatus}
-                  {item.errorMessage ? ` · ${item.errorMessage}` : ''}
-                </Text>
+      {automation.triggerKeywords.length > 0 ? (
+        <>
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Keywords</Text>
+          <View style={styles.kwRow}>
+            {automation.triggerKeywords.map((k) => (
+              <View key={k} style={[styles.kw, { backgroundColor: kollab.color.tint }]}>
+                <Text style={[styles.kwText, { color: kollab.color.violetDeep }]}>{k}</Text>
               </View>
-            )}
-            ListFooterComponent={
-              hasMore ? (
-                <View style={styles.loadMoreWrap}>
-                  <SecondaryButton
-                    label={loadingMore ? 'Loading...' : 'Load more'}
-                    disabled={loadingMore}
-                    onPress={() => void loadLogs(page + 1, true)}
-                  />
-                </View>
-              ) : null
-            }
-          />
-        </PremiumCard>
-      )}
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Reply preview</Text>
+      <View style={[styles.preview, { backgroundColor: kollab.color.tint }]}>
+        <KollabChatBubble variant="received" text={previewIn} />
+        <KollabChatBubble variant="sent" text={previewOut} />
+      </View>
+
+      <KollabButton
+        label={automation.isActive ? 'Pause automation' : 'Resume automation'}
+        variant="hairline"
+        disabled={isSaving}
+        onPress={() => void handleToggle()}
+      />
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: '/account-screens/create-automation',
+            params: { automationId: automation.id },
+          } as never)
+        }
+        style={styles.editLink}
+      >
+        <Text style={[styles.editText, { color: kollab.color.violetDeep }]}>Edit</Text>
+      </Pressable>
+      <Pressable onPress={handleDelete} style={styles.editLink}>
+        <Text style={[styles.editText, { color: kollab.color.heat }]}>Delete</Text>
+      </Pressable>
+
+      {logs.length > 0 ? (
+        <View style={[styles.rowsCard, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+          {logs.slice(0, 8).map((item, i) => (
+            <View
+              key={item.id}
+              style={[
+                styles.row,
+                {
+                  borderBottomColor:
+                    i === Math.min(logs.length, 8) - 1 ? 'transparent' : kollab.color.hairline,
+                },
+              ]}
+            >
+              <Text style={[styles.rowLabel, { color: kollab.color.ink }]} numberOfLines={1}>
+                @{item.triggerUsername ?? item.triggerUserId}
+              </Text>
+              <Text style={[styles.rowValue, { color: kollab.color.ink }]}>
+                {item.deliveryStatus}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  mediaCard: { marginBottom: spacing.md },
-  mediaRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  mediaThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.sm,
-    backgroundColor: appShell.iceBlue,
-  },
-  mediaCopy: { flex: 1, gap: spacing.xs },
-  mediaKind: {
-    fontFamily: fonts.semiBold,
-    fontSize: 12,
-    color: appShell.cta,
-    letterSpacing: 0.5,
-  },
-  mediaCaption: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: appShell.textPrimary,
-  },
-  mediaCaptionMuted: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    color: appShell.textMuted,
-  },
-  mediaStats: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: appShell.textSecondary,
-  },
-  card: { marginBottom: spacing.md },
-  toggleRow: {
+  rowsCard: { borderRadius: 22, paddingHorizontal: 18, marginBottom: 12 },
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    alignItems: 'baseline',
+    gap: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
   },
-  toggleLabel: { fontFamily: fonts.semiBold, fontSize: 15, color: appShell.textPrimary },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  statItem: {
-    width: '47%',
-    backgroundColor: appShell.canvasAlt,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    alignItems: 'center',
+  rowLabel: { width: 104, fontFamily: font.body, fontSize: 12.5, opacity: 0.55 },
+  rowValue: { flex: 1, fontFamily: font.semiBold, fontSize: 13.5, textAlign: 'right' },
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
-  statValue: { fontFamily: fonts.bold, fontSize: 18, color: appShell.textPrimary },
-  statLabel: { fontFamily: fonts.regular, fontSize: 11, color: appShell.textSecondary, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  logsTitle: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    color: appShell.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  emptyLogs: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary, textAlign: 'center' },
-  logRow: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: appShell.borderSubtle,
-  },
-  logHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  logUser: { fontFamily: fonts.semiBold, fontSize: 13, color: appShell.textPrimary },
-  logDate: { fontFamily: fonts.regular, fontSize: 11, color: appShell.textMuted },
-  logText: { fontFamily: fonts.regular, fontSize: 13, color: appShell.textSecondary, marginTop: 4 },
-  logStatus: { fontFamily: fonts.regular, fontSize: 11, color: appShell.textMuted, marginTop: 4 },
-  loadMoreWrap: { padding: spacing.md },
+  kwRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 18 },
+  kw: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 6 },
+  kwText: { fontFamily: font.bold, fontSize: 11.5 },
+  preview: { borderRadius: 20, padding: 16, marginBottom: 18, gap: 8 },
+  editLink: { alignItems: 'center', paddingVertical: 12 },
+  editText: { fontFamily: font.semiBold, fontSize: 13.5 },
 });

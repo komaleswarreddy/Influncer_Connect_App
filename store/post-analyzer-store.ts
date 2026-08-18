@@ -75,7 +75,7 @@ export const usePostAnalyzerStore = create<PostAnalyzerStore>((set, get) => ({
         currentPersistError: response.persistError,
         isAnalyzing: false,
       });
-      void get().fetchQuota();
+      await get().fetchQuota();
       return response.data;
     } catch (err) {
       if (err instanceof PostAnalyzerDailyLimitError) {
@@ -103,7 +103,7 @@ export const usePostAnalyzerStore = create<PostAnalyzerStore>((set, get) => ({
     try {
       const result = await analyzeBulkPosts(urls, campaignId);
       set({ bulkResults: result, isBulkAnalyzing: false });
-      void get().fetchQuota();
+      await get().fetchQuota();
       return result;
     } catch (err) {
       if (err instanceof PostAnalyzerDailyLimitError) {

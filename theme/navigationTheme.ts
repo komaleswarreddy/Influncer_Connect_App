@@ -1,16 +1,16 @@
 import { DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
-import { appShellDark, appShellLight } from './tokens';
+import { lightColor, darkColor } from './kollab-tokens';
 
 export const appNavigationLight: Theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: appShellLight.cta,
-    background: appShellLight.canvas,
-    card: appShellLight.card,
-    text: appShellLight.textPrimary,
-    border: appShellLight.borderSubtle,
-    notification: appShellLight.cta,
+    primary: lightColor.ink,
+    background: lightColor.screen,
+    card: lightColor.card,
+    text: lightColor.ink,
+    border: lightColor.hairline,
+    notification: lightColor.heat,
   },
 };
 
@@ -18,11 +18,11 @@ export const appNavigationDark: Theme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    primary: appShellDark.cta,
-    background: appShellDark.canvas,
-    card: appShellDark.card,
-    text: appShellDark.textPrimary,
-    border: appShellDark.borderSubtle,
-    notification: appShellDark.cta,
+    primary: darkColor.ink,
+    background: darkColor.screen,
+    card: darkColor.card,
+    text: darkColor.ink,
+    border: darkColor.hairline,
+    notification: darkColor.heat,
   },
 };

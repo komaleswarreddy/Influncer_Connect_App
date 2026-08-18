@@ -35,6 +35,9 @@
     "build:production": "eas build --platform android --profile production"
   },
   "dependencies": {
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/instrument-sans": "^0.4.2",
+    "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
@@ -50,6 +53,7 @@
     "expo": "~53.0.27",
     "expo-auth-session": "~6.2.1",
     "expo-blur": "~14.1.5",
+    "expo-clipboard": "~7.1.5",
     "expo-constants": "~17.1.6",
     "expo-crypto": "~14.1.5",
     "expo-dev-client": "~5.2.4",

@@ -6,6 +6,19 @@ export function normParticipationStatus(status?: string | null): string {
     .toLowerCase();
 }
 
+/** Campaign id from an application or similar row (camel or snake case). */
+export function applicationCampaignId(
+  row?: {
+    campaignId?: unknown;
+    campaign_id?: unknown;
+    campaign?: { id?: unknown } | null;
+  } | null
+): string {
+  const nested = row?.campaign && typeof row.campaign === 'object' ? row.campaign.id : undefined;
+  return String(row?.campaignId ?? row?.campaign_id ?? nested ?? '')
+    .trim()
+    .toLowerCase();
+}
 /** Contract signed and influencer is enrolled — no more signing needed. */
 export function isParticipationEnrolled(
   participation?: {
@@ -44,4 +57,21 @@ export function canOpenCampaignContract(
   const approvedReady = appSt === 'approved';
 
   return needsSigning && (inviteBacked || approvedReady || legacyNoApplication);
+}
+
+/** Submitted / in-review applications that are not yet enrolled collabs. */
+export function isPendingCollabActivity(
+  application: {
+    status?: string | null;
+    campaignId?: unknown;
+    campaign?: { id?: unknown } | null;
+  } | null,
+  participation?: {
+    status?: string | null;
+    influencer_signature?: string | null;
+  } | null
+): boolean {
+  const st = normParticipationStatus(application?.status);
+  if (!st || st === 'rejected') return false;
+  return !isParticipationEnrolled(participation, application?.status);
 }

@@ -1,23 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
-  Image,
-  Alert,
   ActivityIndicator,
-  ActionSheetIOS,
-  Platform,
   ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { PrimaryButton, SecondaryButton } from '@/components/ui';
+import {
+  KollabButton,
+  KollabScreenHeader,
+  KollabTextField,
+  showKollabToast,
+  showKollabDialog,
+} from '@/components/ui';
 import type { CatalogProduct } from '@/lib/catalog-api';
-import { spacing, radius, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { useKollab, font, space, choiceChipColors } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
 
 type VisitType = 'home' | 'salon' | 'center' | 'online' | 'virtual';
 type PriceUnit = 'per_session' | 'per_hour';
@@ -69,6 +72,9 @@ export function CatalogProductSheet({
   onUploadImage,
   itemLabel = 'product',
 }: Props) {
+  const kollab = useKollab();
+  const insets = useSafeAreaInsets();
+  const styles = useStyles(kollab);
   const isService = itemLabel === 'service';
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -79,7 +85,6 @@ export function CatalogProductSheet({
   const [priceUnit, setPriceUnit] = useState<PriceUnit>('per_session');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const shell = useAppShell();
 
   useEffect(() => {
     if (visible) {
@@ -98,7 +103,7 @@ export function CatalogProductSheet({
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', `Allow access to add a ${itemLabel} photo.`);
+      showKollabToast(`Allow access to add a ${itemLabel} photo.`);
       return;
     }
     const result = useCamera
@@ -118,48 +123,47 @@ export function CatalogProductSheet({
       );
       setImageUrl(url);
     } catch (e) {
-      Alert.alert('Upload failed', formatDeliverError(e));
+      showKollabToast(formatDeliverError(e));
     } finally {
       setUploading(false);
     }
   };
 
   const showImageOptions = () => {
-    const options = ['Take photo', 'Choose from gallery', 'Cancel'];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, (idx) => {
-        if (idx === 0) void pickImage(true);
-        if (idx === 1) void pickImage(false);
-      });
-    } else {
-      Alert.alert(`${itemLabel[0]?.toUpperCase()}${itemLabel.slice(1)} photo`, 'Choose a source', [
-        { text: 'Take photo', onPress: () => void pickImage(true) },
-        { text: 'Gallery', onPress: () => void pickImage(false) },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
+    void showKollabDialog({
+      title: `${itemLabel[0]?.toUpperCase()}${itemLabel.slice(1)} photo`,
+      message: 'Choose a source',
+      actions: [
+        { id: 'camera', label: 'Take photo', variant: 'ink' },
+        { id: 'gallery', label: 'Choose from gallery', variant: 'primary' },
+        { id: 'cancel', label: 'Cancel', variant: 'soft' },
+      ],
+    }).then((id) => {
+      if (id === 'camera') void pickImage(true);
+      if (id === 'gallery') void pickImage(false);
+    });
   };
 
   const handleSave = async () => {
     const trimmed = name.trim();
     const priceNum = Number(price);
     if (!trimmed) {
-      Alert.alert('Name required', `Enter a ${itemLabel} name.`);
+      showKollabToast(`Enter a ${itemLabel} name.`);
       return;
     }
     if (!Number.isFinite(priceNum) || priceNum <= 0) {
-      Alert.alert('Price required', 'Enter a valid price.');
+      showKollabToast('Enter a valid price.');
       return;
     }
     if (!imageUrl) {
-      Alert.alert('Photo required', `Add a ${itemLabel} photo before saving.`);
+      showKollabToast(`Add a ${itemLabel} photo before saving.`);
       return;
     }
     let durationNum: number | undefined;
     if (isService) {
       durationNum = Number(durationMinutes);
       if (!Number.isFinite(durationNum) || durationNum < 5) {
-        Alert.alert('Duration required', 'Enter duration in minutes (at least 5).');
+        showKollabToast('Enter duration in minutes (at least 5).');
         return;
       }
     }
@@ -180,11 +184,13 @@ export function CatalogProductSheet({
       });
       onClose();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : `Failed to save ${itemLabel}`);
+      showKollabToast(e instanceof Error ? e.message : `Failed to save ${itemLabel}`);
     } finally {
       setSaving(false);
     }
   };
+
+  const title = product ? `Edit ${itemLabel}` : `Add ${itemLabel}`;
 
   return (
     <Modal
@@ -194,224 +200,186 @@ export function CatalogProductSheet({
       onRequestClose={onClose}
     >
       <ScrollView
-        style={[styles.sheet, { backgroundColor: shell.canvas }]}
-        contentContainerStyle={styles.sheetContent}
+        style={[styles.sheet, { backgroundColor: kollab.color.screen }]}
+        contentContainerStyle={[
+          styles.sheetContent,
+          { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 24) + 24 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.title, { color: shell.textPrimary }]}>
-          {product ? `Edit ${itemLabel}` : `Add ${itemLabel}`}
-        </Text>
-        <Text style={[styles.subtitle, { color: shell.textSecondary }]}>{categoryName}</Text>
+        <KollabScreenHeader title={title} subtitle={categoryName} onBack={onClose} />
 
-        <TouchableOpacity
+        <Pressable
           style={[
             styles.imageBox,
-            { borderColor: shell.cardBorder, backgroundColor: shell.canvasAlt },
+            { borderColor: kollab.color.outline, backgroundColor: kollab.color.well },
           ]}
           onPress={showImageOptions}
           disabled={uploading}
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${itemLabel} photo`}
         >
           {uploading ? (
-            <ActivityIndicator color={shell.cta} />
+            <ActivityIndicator color={kollab.color.ink} />
           ) : imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.preview} resizeMode="contain" />
+            <Image source={{ uri: imageUrl }} style={styles.preview} contentFit="contain" />
           ) : (
             <>
-              <Text style={[styles.imageHint, { color: shell.textSecondary }]}>
-                📷 Tap to add photo
-              </Text>
-              <Text style={[styles.imageRequired, { color: shell.textMuted }]}>Required</Text>
+              <Text style={[styles.imageHint, { color: kollab.color.ink }]}>Tap to add photo</Text>
+              <Text style={[styles.imageRequired, { color: kollab.color.ink }]}>Required</Text>
             </>
           )}
-        </TouchableOpacity>
+        </Pressable>
 
-        <Text style={[styles.label, { color: shell.textPrimary }]}>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>
           {`${itemLabel[0]?.toUpperCase()}${itemLabel.slice(1)} name`}
         </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              borderColor: shell.cardBorder,
-              color: shell.textPrimary,
-              backgroundColor: shell.card,
-            },
-          ]}
+        <KollabTextField
           value={name}
           onChangeText={setName}
           placeholder={isService ? 'e.g. Bridal Makeup' : 'e.g. Butter Chicken'}
-          placeholderTextColor={shell.textMuted}
         />
 
-        <Text style={[styles.label, { color: shell.textPrimary }]}>Price (₹)</Text>
-        <View style={styles.priceRow}>
-          <Text style={[styles.rupee, { color: shell.textPrimary }]}>₹</Text>
-          <TextInput
-            style={[
-              styles.input,
-              styles.priceInput,
-              {
-                borderColor: shell.cardBorder,
-                color: shell.textPrimary,
-                backgroundColor: shell.card,
-              },
-            ]}
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={shell.textMuted}
-          />
-        </View>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>Price (₹)</Text>
+        <KollabTextField
+          value={price}
+          onChangeText={setPrice}
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
 
         {isService ? (
           <>
-            <Text style={[styles.label, { color: shell.textPrimary }]}>Duration (minutes)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  borderColor: shell.cardBorder,
-                  color: shell.textPrimary,
-                  backgroundColor: shell.card,
-                },
-              ]}
+            <Text style={[styles.label, { color: kollab.color.ink }]}>Duration (minutes)</Text>
+            <KollabTextField
               value={durationMinutes}
               onChangeText={setDurationMinutes}
               keyboardType="number-pad"
               placeholder="60"
-              placeholderTextColor={shell.textMuted}
             />
 
-            <Text style={[styles.label, { color: shell.textPrimary }]}>Where</Text>
+            <Text style={[styles.label, { color: kollab.color.ink }]}>Where</Text>
             <View style={styles.chipRow}>
               {VISIT_OPTIONS.map((opt) => {
                 const active = visitType === opt.key;
+                const chip = choiceChipColors(kollab, active);
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={opt.key}
+                    onPress={() => setVisitType(opt.key)}
                     style={[
                       styles.chip,
                       {
-                        backgroundColor: active ? shell.cta : shell.iceBlue,
-                        borderColor: active ? shell.cta : 'transparent',
+                        backgroundColor: chip.backgroundColor,
+                        borderColor: chip.borderColor,
                       },
                     ]}
-                    onPress={() => setVisitType(opt.key)}
                   >
-                    <Text style={[styles.chipText, { color: active ? '#fff' : shell.textPrimary }]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
+                    <Text style={[styles.chipText, { color: chip.color }]}>{opt.label}</Text>
+                  </Pressable>
                 );
               })}
             </View>
 
-            <Text style={[styles.label, { color: shell.textPrimary }]}>Price label (optional)</Text>
+            <Text style={[styles.label, { color: kollab.color.ink }]}>Price label (optional)</Text>
             <View style={styles.chipRow}>
               {PRICE_UNIT_OPTIONS.map((opt) => {
                 const active = priceUnit === opt.key;
+                const chip = choiceChipColors(kollab, active);
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={opt.key}
+                    onPress={() => setPriceUnit(opt.key)}
                     style={[
                       styles.chip,
                       {
-                        backgroundColor: active ? shell.cta : shell.iceBlue,
-                        borderColor: active ? shell.cta : 'transparent',
+                        backgroundColor: chip.backgroundColor,
+                        borderColor: chip.borderColor,
                       },
                     ]}
-                    onPress={() => setPriceUnit(opt.key)}
                   >
-                    <Text style={[styles.chipText, { color: active ? '#fff' : shell.textPrimary }]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
+                    <Text style={[styles.chipText, { color: chip.color }]}>{opt.label}</Text>
+                  </Pressable>
                 );
               })}
             </View>
           </>
         ) : null}
 
-        <Text style={[styles.label, { color: shell.textPrimary }]}>Description (optional)</Text>
-        <TextInput
-          style={[
-            styles.input,
-            styles.textArea,
-            {
-              borderColor: shell.cardBorder,
-              color: shell.textPrimary,
-              backgroundColor: shell.card,
-            },
-          ]}
+        <Text style={[styles.label, { color: kollab.color.ink }]}>Description (optional)</Text>
+        <KollabTextField
           value={description}
           onChangeText={setDescription}
           placeholder={isService ? "What's included in this service" : 'Brief description'}
-          placeholderTextColor={shell.textMuted}
           multiline
           maxLength={200}
+          style={styles.textArea}
         />
 
         <View style={styles.footer}>
-          <PrimaryButton
-            label={`Save ${itemLabel}`}
+          <KollabButton
+            label={saving ? 'Saving…' : `Save ${itemLabel}`}
             onPress={() => void handleSave()}
-            loading={saving}
             disabled={saving || uploading}
           />
-          <SecondaryButton label="Cancel" onPress={onClose} />
+          <KollabButton label="Cancel" variant="soft" onPress={onClose} />
         </View>
       </ScrollView>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: { flex: 1 },
-  sheetContent: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl * 2,
-  },
-  title: { fontFamily: fonts.bold, fontSize: 22, marginBottom: 4 },
-  subtitle: { fontFamily: fonts.regular, fontSize: 14, marginBottom: spacing.md },
-  imageBox: {
-    height: 160,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-  },
-  preview: { width: '100%', height: '100%' },
-  imageHint: { fontFamily: fonts.semiBold, fontSize: 15 },
-  imageRequired: { fontFamily: fonts.regular, fontSize: 12, marginTop: 4 },
-  label: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontFamily: fonts.regular,
-    fontSize: 15,
-  },
-  textArea: { minHeight: 88, textAlignVertical: 'top' },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  rupee: { fontFamily: fonts.semiBold, fontSize: 18 },
-  priceInput: { flex: 1 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs },
-  chip: {
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  chipText: { fontFamily: fonts.semiBold, fontSize: 13 },
-  footer: { marginTop: spacing.lg, gap: spacing.sm },
-});
+function useStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        sheet: { flex: 1 },
+        sheetContent: {
+          paddingHorizontal: space.gutter,
+        },
+        imageBox: {
+          height: 180,
+          borderRadius: 20,
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: 8,
+          marginBottom: 8,
+          overflow: 'hidden',
+        },
+        preview: { width: '100%', height: '100%' },
+        imageHint: {
+          fontFamily: font.semiBold,
+          fontSize: 14,
+        },
+        imageRequired: {
+          fontFamily: font.body,
+          fontSize: 12,
+          opacity: 0.55,
+          marginTop: 4,
+        },
+        label: {
+          fontFamily: font.semiBold,
+          fontSize: 12.5,
+          opacity: 0.62,
+          marginBottom: 7,
+          marginTop: 14,
+        },
+        textArea: { minHeight: 88 },
+        chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+        chip: {
+          borderWidth: 1.5,
+          borderRadius: 999,
+          paddingHorizontal: 15,
+          paddingVertical: 9,
+        },
+        chipText: {
+          fontFamily: font.semiBold,
+          fontSize: 12.5,
+        },
+        footer: { marginTop: 22, gap: 9 },
+      }),
+    [kollab]
+  );
+}

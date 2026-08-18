@@ -13,8 +13,19 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
+import {
+  BricolageGrotesque_600SemiBold,
+  BricolageGrotesque_700Bold,
+} from '@expo-google-fonts/bricolage-grotesque';
+import {
+  InstrumentSans_400Regular,
+  InstrumentSans_500Medium,
+  InstrumentSans_600SemiBold,
+  InstrumentSans_700Bold,
+} from '@expo-google-fonts/instrument-sans';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 import { initSentry, wrapWithSentry } from '@/lib/sentry';
 import { useEffect } from 'react';
@@ -24,15 +35,14 @@ import { PaperProvider } from 'react-native-paper';
 import { useAuthStore } from '@/store/auth-store';
 import { useThemeStore } from '@/store/theme-store';
 import {
-  appShellDark,
-  appShellLight,
   appPaperLight,
   appPaperDark,
   appNavigationLight,
   appNavigationDark,
   useAppShell,
+  useKollab,
 } from '@/theme';
-import { PremiumToastHost } from '@/components/ui';
+import { PremiumToastHost, KollabDialogHost } from '@/components/ui';
 
 initSentry();
 
@@ -42,6 +52,7 @@ function RootLayout() {
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const themeHydrated = useThemeStore((s) => s.hydrated);
   const shell = useAppShell();
+  const kollab = useKollab();
   const isDark = appearance === 'dark';
   const paperTheme = isDark ? appPaperDark : appPaperLight;
   const navTheme = isDark ? appNavigationDark : appNavigationLight;
@@ -58,6 +69,12 @@ function RootLayout() {
     PlusJakartaSans_800ExtraBold,
     Sora_600SemiBold,
     Sora_700Bold,
+    BricolageGrotesque_600SemiBold,
+    BricolageGrotesque_700Bold,
+    InstrumentSans_400Regular,
+    InstrumentSans_500Medium,
+    InstrumentSans_600SemiBold,
+    InstrumentSans_700Bold,
   });
 
   useEffect(() => {
@@ -67,6 +84,10 @@ function RootLayout() {
   useEffect(() => {
     void hydrateTheme();
   }, [hydrateTheme]);
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(kollab.color.screen);
+  }, [kollab.color.screen]);
 
   // Push (expo-notifications) is intentionally not registered here.
   // Expo Go SDK 53+ errors on any import of that package on Android.
@@ -78,10 +99,10 @@ function RootLayout() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: isDark ? appShellDark.canvas : appShellLight.canvas,
+          backgroundColor: kollab.color.screen,
         }}
       >
-        <ActivityIndicator size="large" color={isDark ? appShellDark.cta : appShellLight.cta} />
+        <ActivityIndicator size="large" color={kollab.color.ink} />
       </View>
     );
   }
@@ -89,7 +110,7 @@ function RootLayout() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navTheme}>
-        <Stack>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: kollab.color.screen } }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ title: 'Login', headerShown: false }} />
           <Stack.Screen
@@ -102,6 +123,7 @@ function RootLayout() {
           <Stack.Screen name="+not-found" />
         </Stack>
         <PremiumToastHost />
+        <KollabDialogHost />
         <StatusBar style={shell.isDark ? 'light' : 'dark'} />
       </ThemeProvider>
     </PaperProvider>

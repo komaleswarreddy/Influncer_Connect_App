@@ -1,17 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Platform as RNPlatform } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { FontAwesome } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import {
-  PremiumTextInput,
-  ScrollScreen,
-  SectionHeader,
-  PremiumSegmentedControl,
-  type PremiumSegment,
-} from '@/components/ui';
-import { premiumNavy, radius, shadow, spacing, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { ScrollScreen, KollabScreenHeader, KollabTextField } from '@/components/ui';
+import { useKollab, font, choiceChipColors } from '@/theme/kollab-tokens';
+import { formatInr } from '@/lib/currency';
 
 type PlatformKey = 'instagram' | 'youtube' | 'twitter';
 
@@ -195,23 +186,6 @@ const nicheMultipliers: Record<string, number> = {
   'General Entertainment': 0.95,
   'Pets/Animals': 0.95,
 };
-const platformConfig = {
-  instagram: {
-    icon: <FontAwesome name="instagram" size={20} color="#E1306C" />,
-    contentTypes: ['Standard Post', 'Video/Reel', 'Story', 'Carousel'],
-  },
-  youtube: {
-    icon: <FontAwesome name="youtube-play" size={20} color="#FF0000" />,
-    contentTypes: ['Video/Reel'],
-  },
-  twitter: {
-    icon: <FontAwesome name="twitter" size={20} color="#1DA1F2" />,
-    contentTypes: ['Tweet'],
-  },
-};
-
-const PLATFORM_KEYS: PlatformKey[] = ['instagram', 'youtube', 'twitter'];
-
 function getPlatformRate(platform: PlatformKey, followers: number, currency: 'usd' | 'inr') {
   const rates = platformBaseRates[platform];
   const tier = rates.find((r) => followers >= r.followers_min && followers <= r.followers_max);
@@ -229,9 +203,8 @@ function getPlatformRate(platform: PlatformKey, followers: number, currency: 'us
   }
   if (currency === 'usd') {
     return { min: tier.rate_usd_min, max: tier.rate_usd_max };
-  } else {
-    return { min: tier.rate_inr_min, max: tier.rate_inr_max };
   }
+  return { min: tier.rate_inr_min, max: tier.rate_inr_max };
 }
 function getEngagementMultiplier(platform: PlatformKey, engagementRate: number) {
   const multipliers = engagementRateMultipliers[platform];
@@ -263,297 +236,180 @@ function calculateRate({
   const baseRateINRMin = (followers / 1000) * ratePer1kINR.min;
   const baseRateINRMax = (followers / 1000) * ratePer1kINR.max;
   const engagementMultiplier = getEngagementMultiplier(platform, engagementRate);
-  const finalRateUSDMin =
-    baseRateUSDMin *
-    nicheMultiplier *
-    engagementMultiplier *
-    contentTypeMultiplier *
-    usageRightsMultiplier;
-  const finalRateUSDMax =
-    baseRateUSDMax *
-    nicheMultiplier *
-    engagementMultiplier *
-    contentTypeMultiplier *
-    usageRightsMultiplier;
-  const finalRateINRMin =
-    baseRateINRMin *
-    nicheMultiplier *
-    engagementMultiplier *
-    contentTypeMultiplier *
-    usageRightsMultiplier;
-  const finalRateINRMax =
-    baseRateINRMax *
-    nicheMultiplier *
-    engagementMultiplier *
-    contentTypeMultiplier *
-    usageRightsMultiplier;
+  const mul =
+    nicheMultiplier * engagementMultiplier * contentTypeMultiplier * usageRightsMultiplier;
   return {
-    usd_min: finalRateUSDMin,
-    usd_max: finalRateUSDMax,
-    inr_min: finalRateINRMin,
-    inr_max: finalRateINRMax,
+    usd_min: baseRateUSDMin * mul,
+    usd_max: baseRateUSDMax * mul,
+    inr_min: baseRateINRMin * mul,
+    inr_max: baseRateINRMax * mul,
   };
 }
 
-export default function InfluencerRateCalculator() {
-  const shell = useAppShell();
-  const [platform, setPlatform] = useState<PlatformKey>('instagram');
-  const [followers, setFollowers] = useState(50000);
-  const [engagementRate, setEngagementRate] = useState(3.5);
-  const [niche, setNiche] = useState('Lifestyle');
-  const [contentType, setContentType] = useState('Standard Post');
-  const [usageRights, setUsageRights] = useState('3 months ads');
-  const [result, setResult] = useState({ usd_min: 0, usd_max: 0, inr_min: 0, inr_max: 0 });
+const HTML_NICHES: { label: string; key: string }[] = [
+  { label: 'Fashion', key: 'Fashion' },
+  { label: 'Fitness', key: 'Fitness' },
+  { label: 'Tech', key: 'Technology/SaaS' },
+  { label: 'Food', key: 'Food/Cooking' },
+  { label: 'Lifestyle', key: 'Lifestyle' },
+];
 
-  const platformSegments: PremiumSegment[] = useMemo(
-    () =>
-      PLATFORM_KEYS.map((p) => ({
-        key: p,
-        label: p === 'youtube' ? 'YouTube' : p.charAt(0).toUpperCase() + p.slice(1),
-        icon: platformConfig[p].icon,
-      })),
-    []
+const HTML_TYPES: { label: string; platform: PlatformKey; contentType: string }[] = [
+  { label: 'Instagram Reel', platform: 'instagram', contentType: 'Video/Reel' },
+  { label: 'Instagram Post', platform: 'instagram', contentType: 'Standard Post' },
+  { label: 'Instagram Story', platform: 'instagram', contentType: 'Story' },
+  { label: 'YouTube Integration', platform: 'youtube', contentType: 'Video/Reel' },
+];
+
+const HTML_RIGHTS: { label: string; key: string }[] = [
+  { label: 'Organic only', key: 'Standard' },
+  { label: 'Paid ads 30d', key: '3 months ads' },
+  { label: 'Whitelisting', key: '1 year ads' },
+];
+
+function ChipRow({
+  options,
+  value,
+  onChange,
+  kollab,
+}: {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  kollab: ReturnType<typeof useKollab>;
+}) {
+  return (
+    <View style={styles.chipRow}>
+      {options.map((opt) => {
+        const on = value === opt;
+        const chip = choiceChipColors(kollab, on);
+        return (
+          <Pressable
+            key={opt}
+            onPress={() => onChange(opt)}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: chip.backgroundColor,
+                borderColor: chip.borderColor,
+              },
+            ]}
+          >
+            <Text style={[styles.chipText, { color: chip.color }]}>{opt}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
+}
 
-  useEffect(() => {
-    const calculatedRates = calculateRate({
-      platform,
-      followers: Number(followers),
-      engagementRate: Number(engagementRate),
-      nicheMultiplier: nicheMultipliers[niche] ?? 1,
-      contentTypeMultiplier: contentTypeMultipliers[contentType] ?? 1,
-      usageRightsMultiplier: usageRightsMultipliers[usageRights] ?? 1,
-    });
-    setResult(calculatedRates);
-  }, [platform, followers, engagementRate, niche, contentType, usageRights]);
+export default function InfluencerRateCalculator() {
+  const kollab = useKollab();
+  const [followers, setFollowers] = useState('50000');
+  const [engagementRate, setEngagementRate] = useState('3.5');
+  const [nicheLabel, setNicheLabel] = useState('Lifestyle');
+  const [typeLabel, setTypeLabel] = useState('Instagram Reel');
+  const [rightsLabel, setRightsLabel] = useState('Organic only');
 
-  useEffect(() => {
-    if (!platformConfig[platform].contentTypes.includes(contentType)) {
-      setContentType(platformConfig[platform].contentTypes[0]);
-    }
-  }, [platform, contentType]);
+  const niche = HTML_NICHES.find((n) => n.label === nicheLabel)?.key ?? 'Lifestyle';
+  const typeSpec = HTML_TYPES.find((t) => t.label === typeLabel) ?? HTML_TYPES[0];
+  const rights = HTML_RIGHTS.find((r) => r.label === rightsLabel)?.key ?? 'Standard';
+
+  const result = calculateRate({
+    platform: typeSpec.platform,
+    followers: Number(followers) || 0,
+    engagementRate: Number(engagementRate) || 0,
+    nicheMultiplier: nicheMultipliers[niche] ?? 1,
+    contentTypeMultiplier: contentTypeMultipliers[typeSpec.contentType] ?? 1,
+    usageRightsMultiplier: usageRightsMultipliers[rights] ?? 1,
+  });
+
+  const mid = Math.round((result.inr_min + result.inr_max) / 2);
+  const followersK = Math.round((Number(followers) || 0) / 1000);
 
   return (
-    <ScrollScreen
-      safeAreaEdges={['left', 'right', 'bottom']}
-      padH={spacing.md}
-      scrollProps={{ showsVerticalScrollIndicator: false }}
-    >
-      <SectionHeader
-        overline="Tools"
+    <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <KollabScreenHeader
         title="Rate calculator"
-        subtitle="Estimate collaboration rates from reach, engagement, and usage."
-        comfortable
+        subtitle="Estimate what a collaboration is worth"
       />
-      <PremiumSegmentedControl
-        segments={platformSegments}
-        value={platform}
-        onChange={(key) => setPlatform(key as PlatformKey)}
-        style={styles.platformSegments}
-      />
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: shell.textSecondary }]}>Followers / Subscribers</Text>
-        <PremiumTextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={followers.toString()}
-          onChangeText={(v) => setFollowers(Number(v.replace(/[^0-9]/g, '')))}
-          placeholder="e.g., 50000"
-        />
-      </View>
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: shell.textSecondary }]}>Engagement Rate (%)</Text>
-        <PremiumTextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={engagementRate.toString()}
-          onChangeText={(v) => setEngagementRate(Number(v.replace(/[^0-9.]/g, '')))}
-          placeholder="e.g., 3.5"
-        />
-      </View>
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: shell.textSecondary }]}>Niche / Industry</Text>
-        <View
-          style={[
-            styles.pickerWrapper,
-            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
-          ]}
-        >
-          <Picker
-            selectedValue={niche}
-            onValueChange={setNiche}
-            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
-          >
-            {Object.keys(nicheMultipliers).map((n) => (
-              <Picker.Item key={n} label={n} value={n} />
-            ))}
-          </Picker>
-        </View>
-      </View>
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: shell.textSecondary }]}>Content Type</Text>
-        <View
-          style={[
-            styles.pickerWrapper,
-            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
-          ]}
-        >
-          <Picker
-            selectedValue={contentType}
-            onValueChange={setContentType}
-            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
-          >
-            {platformConfig[platform].contentTypes.map((c) => (
-              <Picker.Item key={c} label={c} value={c} />
-            ))}
-          </Picker>
-        </View>
-      </View>
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: shell.textSecondary }]}>Usage Rights</Text>
-        <View
-          style={[
-            styles.pickerWrapper,
-            { borderColor: shell.borderSubtle, backgroundColor: shell.card },
-          ]}
-        >
-          <Picker
-            selectedValue={usageRights}
-            onValueChange={setUsageRights}
-            style={[styles.picker, { color: shell.textPrimary, backgroundColor: shell.card }]}
-          >
-            {Object.keys(usageRightsMultipliers).map((u) => (
-              <Picker.Item key={u} label={u} value={u} />
-            ))}
-          </Picker>
-        </View>
-      </View>
 
-      <View
-        style={[styles.resultShell, { backgroundColor: shell.card, borderColor: shell.cardBorder }]}
-      >
-        <LinearGradient
-          colors={[...premiumNavy.base.colors]}
-          locations={[...premiumNavy.base.locations]}
-          start={premiumNavy.base.start}
-          end={premiumNavy.base.end}
-          style={styles.resultHeaderBand}
-        >
-          <LinearGradient
-            colors={[...premiumNavy.sheen.colors]}
-            locations={[...premiumNavy.sheen.locations]}
-            start={premiumNavy.sheen.start}
-            end={premiumNavy.sheen.end}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-          <Text style={styles.resultTitleOnNavy}>Your estimated rate</Text>
-        </LinearGradient>
-        <View style={[styles.resultBody, { backgroundColor: shell.card }]}>
-          <View style={styles.resultRow}>
-            <View style={[styles.resultBox, { backgroundColor: shell.iceBlue }]}>
-              <Text style={[styles.resultLabel, { color: shell.textSecondary }]}>USD</Text>
-              <Text style={[styles.resultValue, { color: shell.cta }]}>
-                ${Math.round(result.usd_min).toLocaleString()} – $
-                {Math.round(result.usd_max).toLocaleString()}
-              </Text>
-            </View>
-            <View style={[styles.resultBox, { backgroundColor: shell.iceBlue }]}>
-              <Text style={[styles.resultLabel, { color: shell.textSecondary }]}>INR</Text>
-              <Text style={[styles.resultValue, { color: shell.cta }]}>
-                ₹{Math.round(result.inr_min).toLocaleString()} – ₹
-                {Math.round(result.inr_max).toLocaleString()}
-              </Text>
-            </View>
-          </View>
-        </View>
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Followers / subscribers</Text>
+      <KollabTextField
+        placeholder="e.g., 50000"
+        keyboardType="numeric"
+        value={followers}
+        onChangeText={(v) => setFollowers(v.replace(/[^0-9]/g, ''))}
+        style={styles.field}
+      />
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Engagement rate</Text>
+      <KollabTextField
+        placeholder="e.g., 3.5"
+        keyboardType="decimal-pad"
+        value={engagementRate}
+        onChangeText={(v) => setEngagementRate(v.replace(/[^0-9.]/g, ''))}
+        style={styles.field}
+      />
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Niche / industry</Text>
+      <ChipRow
+        options={HTML_NICHES.map((n) => n.label)}
+        value={nicheLabel}
+        onChange={setNicheLabel}
+        kollab={kollab}
+      />
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Content type</Text>
+      <ChipRow
+        options={HTML_TYPES.map((t) => t.label)}
+        value={typeLabel}
+        onChange={setTypeLabel}
+        kollab={kollab}
+      />
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Usage rights</Text>
+      <ChipRow
+        options={HTML_RIGHTS.map((r) => r.label)}
+        value={rightsLabel}
+        onChange={setRightsLabel}
+        kollab={kollab}
+      />
+
+      <View style={[styles.result, { backgroundColor: kollab.color.panel }]}>
+        <Text style={[styles.resultLabel, { color: kollab.color.panelInk }]}>
+          Your estimated rate
+        </Text>
+        <Text style={[styles.resultValue, { color: kollab.color.chartreuse }]}>
+          {formatInr(mid)}
+        </Text>
+        <Text style={[styles.resultBasis, { color: kollab.color.panelInk }]}>
+          {followersK}K followers · {engagementRate}% engagement · {typeLabel.toLowerCase()} ·{' '}
+          {rightsLabel.toLowerCase()}
+        </Text>
       </View>
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  platformSegments: {
-    marginBottom: spacing.md,
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
-  inputGroup: {
-    marginBottom: 14,
+  field: { marginBottom: 14 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  chip: {
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 15,
   },
-  label: {
-    fontFamily: fonts.semiBold,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-
-    padding: spacing.sm,
-    fontSize: 14,
-  },
-  pickerWrapper: {
-    borderWidth: 1,
-
-    borderRadius: radius.md,
-
-    overflow: 'hidden',
-    minHeight: 50,
-  },
-  picker: {
-    height: RNPlatform.OS === 'ios' ? 120 : 50,
-    width: '100%',
-
-    fontSize: 14,
-  },
-  resultShell: {
-    marginTop: spacing.md,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-
-    borderWidth: StyleSheet.hairlineWidth,
-
-    ...shadow.card,
-  },
-  resultHeaderBand: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  resultTitleOnNavy: {
-    fontSize: 17,
-    fontFamily: fonts.bold,
-    color: '#F8FAFC',
-    letterSpacing: -0.3,
-    zIndex: 1,
-  },
-  resultBody: {
-    padding: spacing.md,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
-    gap: 12,
-  },
-  resultBox: {
-    flex: 1,
-    alignItems: 'center',
-    padding: spacing.sm,
-
-    borderRadius: radius.md,
-  },
-  resultLabel: {
-    fontSize: 12,
-
-    fontFamily: fonts.semiBold,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  resultValue: {
-    fontSize: 15,
-    fontFamily: fonts.bold,
-
-    textAlign: 'center',
-  },
+  chipText: { fontFamily: font.semiBold, fontSize: 12.5 },
+  result: { borderRadius: 24, padding: 22, marginTop: 6 },
+  resultLabel: { fontFamily: font.body, fontSize: 12, opacity: 0.6 },
+  resultValue: { fontFamily: font.display, fontSize: 42, marginVertical: 2 },
+  resultBasis: { fontFamily: font.body, fontSize: 12, opacity: 0.6 },
 });

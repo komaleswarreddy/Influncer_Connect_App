@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore, getInfluencerEntryPath } from '@/store/auth-store';
 import { tryCompletePendingCognitoAuth } from '@/lib/cognito-auth';
-import { appShell } from '@/theme';
+import { useKollab } from '@/theme/kollab-tokens';
+import { showKollabToast } from '@/components/ui';
 
 /**
  * Absorbs Cognito Hosted UI return: affiliateplatform://auth/callback?...
@@ -20,6 +21,7 @@ import { appShell } from '@/theme';
  *     PKCE verifier persisted right before the browser was opened.
  */
 export default function CognitoAuthCallbackScreen() {
+  const kollab = useKollab();
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isInitialized = useAuthStore((s) => s.isInitialized);
@@ -43,7 +45,7 @@ export default function CognitoAuthCallbackScreen() {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'Sign-in failed';
         if (__DEV__) console.warn('[auth/callback] cold-start token exchange failed:', msg);
-        Alert.alert('Sign in failed', msg);
+        showKollabToast(msg);
       }
     })();
 
@@ -78,7 +80,7 @@ export default function CognitoAuthCallbackScreen() {
       }
       if (!state.isLoading) {
         navigated.current = true;
-        Alert.alert('Sign in timed out', 'Please try signing in again.');
+        showKollabToast('Please try signing in again.');
         router.replace('/login' as never);
       }
     }, 12000);
@@ -87,8 +89,11 @@ export default function CognitoAuthCallbackScreen() {
   }, [isAuthenticated, isInitialized, isLoading, nextStep, router]);
 
   return (
-    <View style={styles.container} accessibilityLabel="Signing in">
-      <ActivityIndicator size="large" color={appShell.cta} />
+    <View
+      style={[styles.container, { backgroundColor: kollab.color.screen }]}
+      accessibilityLabel="Signing in"
+    >
+      <ActivityIndicator size="large" color={kollab.color.ink} />
     </View>
   );
 }
@@ -98,6 +103,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: appShell.canvas,
   },
 });

@@ -16,6 +16,9 @@ import { fonts } from './typography';
 import { PrimaryButton } from './PrimaryButton';
 import {
   catalogProductCount,
+  flattenCatalogProducts,
+  buildCategoryByProductId,
+  productImageUrl,
   type CatalogProduct,
   type InfluencerCatalog,
 } from '@/lib/catalog-api';
@@ -53,10 +56,9 @@ function statusCopy(status?: string | null): string {
   }
 }
 
+/** Preview-grid slice: available products only, capped to MAX_TILES. */
 function flattenProducts(catalog: InfluencerCatalog | null): CatalogProduct[] {
-  if (!catalog?.categories?.length) return [];
-  return catalog.categories
-    .flatMap((c) => c.products ?? [])
+  return flattenCatalogProducts(catalog)
     .filter((p) => p.isAvailable !== false)
     .slice(0, MAX_TILES);
 }
@@ -70,6 +72,7 @@ function ProductTile({
   categoryHint?: string;
   onPress: () => void;
 }) {
+  const imageUrl = productImageUrl(product);
   const shell = useAppShell();
   return (
     <Pressable
@@ -79,9 +82,9 @@ function ProductTile({
       accessibilityLabel={`${product.name}, ${formatHomeInr(product.price)}`}
     >
       <View style={styles.imageWrap}>
-        {product.imageUrl ? (
+        {imageUrl ? (
           <Image
-            source={{ uri: product.imageUrl }}
+            source={{ uri: imageUrl }}
             style={styles.image}
             contentFit="cover"
             recyclingKey={product.id}
@@ -156,15 +159,7 @@ export function HomeCatalogPreviewCard({ catalog, loading, onOpenCatalog, style 
 
   const products = useMemo(() => flattenProducts(catalog), [catalog]);
 
-  const categoryByProductId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const cat of catalog?.categories ?? []) {
-      for (const p of cat.products ?? []) {
-        map.set(p.id, cat.name);
-      }
-    }
-    return map;
-  }, [catalog?.categories]);
+  const categoryByProductId = useMemo(() => buildCategoryByProductId(catalog), [catalog]);
 
   const handleShare = useCallback(async () => {
     if (!shareUrl) {

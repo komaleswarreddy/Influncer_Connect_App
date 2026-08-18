@@ -1,30 +1,42 @@
-import React, { useCallback, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ScrollScreen, PrimaryButton, PremiumCard, SectionHeader } from '@/components/ui';
+import {
+  ScrollScreen,
+  KollabScreenHeader,
+  KollabTextField,
+  KollabSelect,
+  KollabButton,
+  showKollabToast,
+  showKollabConfirm,
+} from '@/components/ui';
 import { CatalogProductSheet } from '@/components/catalog/CatalogProductSheet';
+import { CatalogItemTile } from '@/components/catalog/CatalogItemTile';
 import { useCatalogStore } from '@/store/catalog-store';
 import {
+  catalogImageSource,
   catalogProductCount,
-  formatCatalogInr,
+  productImageUrl,
   type CatalogProduct,
   type CatalogKind,
 } from '@/lib/catalog-api';
 import { getRecommendedCategories } from '@/lib/catalog-recommendations';
-import { spacing, radius, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { formatInr } from '@/lib/currency';
+import { useKollab, font, space } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+
+function visitLabel(visit?: CatalogProduct['visitType']): string | null {
+  if (!visit) return null;
+  if (visit === 'salon') return 'At salon';
+  if (visit === 'center') return 'Center';
+  if (visit === 'online') return 'Online';
+  if (visit === 'virtual') return 'Virtual';
+  return 'Home';
+}
 
 export default function CatalogBuilderScreen() {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const styles = useStyles(kollab);
   const router = useRouter();
   const { kind: kindParam } = useLocalSearchParams<{ kind?: string }>();
   const kind: CatalogKind = kindParam === 'services' ? 'services' : 'products';
@@ -44,13 +56,11 @@ export default function CatalogBuilderScreen() {
   const isLoading = isLoadingByKind[kind];
   const isSaving = isSavingByKind[kind];
 
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [categoryChoice, setCategoryChoice] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [otherCategoryName, setOtherCategoryName] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<CatalogProduct | null>(null);
-  const categoryNameInputRef = useRef<TextInput>(null);
-  const isCustomCategory = categoryChoice === 'Other';
 
   useFocusEffect(
     useCallback(() => {
@@ -62,31 +72,41 @@ export default function CatalogBuilderScreen() {
   const isServiceCatalog = catalog?.businessType === 'services';
   const itemLabel = isServiceCatalog ? 'service' : 'product';
   const itemLabelPlural = isServiceCatalog ? 'services' : 'products';
-  const recommendedCategories = getRecommendedCategories(catalog?.businessType);
-
-  const onPickRecommendedCategory = (value: string) => {
-    setCategoryChoice(value);
-    if (value === 'Other') {
-      setNewCategoryName('');
-      // Give the picker a beat to close before focusing the revealed input.
-      setTimeout(() => categoryNameInputRef.current?.focus(), 50);
-      return;
-    }
-    setNewCategoryName(value);
-  };
+  const existingNames = useMemo(
+    () =>
+      new Set((catalog?.categories ?? []).map((c) => c.name.trim().toLowerCase()).filter(Boolean)),
+    [catalog?.categories]
+  );
+  const categoryOptions = useMemo(() => {
+    const recommended = getRecommendedCategories(catalog?.businessType);
+    return recommended.map((label) => {
+      const taken = label !== 'Other' && existingNames.has(label.toLowerCase());
+      return { value: label, label, disabled: taken };
+    });
+  }, [catalog?.businessType, existingNames]);
+  const otherSelected = selectedCategory === 'Other';
 
   const onAddCategory = async () => {
-    const name = newCategoryName.trim();
+    const name = (otherSelected ? otherCategoryName : (selectedCategory ?? '')).trim();
+    if (!selectedCategory) {
+      showKollabToast('Select a category.');
+      return;
+    }
     if (!name) {
-      Alert.alert('Name required', 'Choose a category, or enter your own.');
+      showKollabToast('Enter a category name.');
+      return;
+    }
+    if (existingNames.has(name.toLowerCase())) {
+      showKollabToast('That category is already in this catalog.');
       return;
     }
     try {
       await addCategory(kind, name);
-      setNewCategoryName('');
-      setCategoryChoice('');
+      setSelectedCategory(null);
+      setOtherCategoryName('');
+      showKollabToast('Category added');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed');
+      showKollabToast(e instanceof Error ? e.message : 'Failed');
     }
   };
 
@@ -106,161 +126,145 @@ export default function CatalogBuilderScreen() {
 
   if (isLoading && !catalog) {
     return (
-      <ScrollScreen>
-        <ActivityIndicator color={shell.cta} style={{ marginTop: spacing.xl }} />
+      <ScrollScreen padH={space.gutter}>
+        <KollabScreenHeader title="Build your catalog" subtitle="Add the items followers can buy" />
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 40 }} />
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen
-      safeAreaEdges={['bottom']}
-      footer={
-        <View>
-          <Text style={[styles.previewHint, { color: shell.textSecondary }]}>
-            {productCount > 0
-              ? 'Looks good — add more anytime, or preview now.'
-              : `Add at least one ${itemLabel} to preview your storefront.`}
-          </Text>
-          <PrimaryButton
-            label="Preview storefront"
-            disabled={productCount === 0}
-            onPress={() =>
-              router.push({
-                pathname: '/account-screens/catalog-preview',
-                params: { kind },
-              } as never)
-            }
-          />
-        </View>
-      }
-    >
-      <SectionHeader
-        title={catalog?.storeName ?? 'Build storefront'}
-        subtitle={`${productCount} ${itemLabel}${productCount === 1 ? '' : 's'} in ${isServiceCatalog ? 'service catalog' : 'product catalog'}`}
-      />
-
-      <Text style={[styles.recommendedLabel, { color: shell.textSecondary }]}>Category</Text>
-      <View
-        style={[styles.pickerWrap, { borderColor: shell.cardBorder, backgroundColor: shell.card }]}
-      >
-        <Picker
-          selectedValue={categoryChoice}
-          onValueChange={(value) => onPickRecommendedCategory(String(value))}
-        >
-          <Picker.Item
-            label="Choose a category…"
-            value=""
-            enabled={false}
-            color={shell.textMuted}
-          />
-          {recommendedCategories.map((name) => (
-            <Picker.Item key={name} label={name} value={name} color={shell.textPrimary} />
-          ))}
-        </Picker>
+    <ScrollScreen padH={0} safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.headPad}>
+        <KollabScreenHeader title="Build your catalog" subtitle="Add the items followers can buy" />
       </View>
 
-      {isCustomCategory ? (
-        <TextInput
-          ref={categoryNameInputRef}
-          style={[
-            styles.input,
-            styles.customCategoryInput,
-            {
-              borderColor: shell.cardBorder,
-              color: shell.textPrimary,
-              backgroundColor: shell.card,
-            },
-          ]}
-          value={newCategoryName}
-          onChangeText={setNewCategoryName}
-          placeholder="Enter category name"
-          placeholderTextColor={shell.textMuted}
-        />
-      ) : null}
-
-      <TouchableOpacity
-        style={[styles.addCatBtnFull, { backgroundColor: shell.cta }]}
-        onPress={() => void onAddCategory()}
-        disabled={isSaving}
-      >
-        <Text style={styles.addCatText}>+ Add category</Text>
-      </TouchableOpacity>
-
-      {catalog?.categories.map((cat) => (
-        <PremiumCard key={cat.id} style={styles.categoryCard}>
-          <View style={styles.categoryHeader}>
-            <Text style={[styles.categoryTitle, { color: shell.textPrimary }]}>{cat.name}</Text>
-            <TouchableOpacity
-              onPress={() => {
-                Alert.alert(
-                  'Delete category?',
-                  `Remove "${cat.name}" and all its ${itemLabelPlural}?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => void deleteCategory(kind, cat.id),
-                    },
-                  ]
-                );
-              }}
-            >
-              <Text style={styles.deleteText}>Delete</Text>
-            </TouchableOpacity>
+      <View style={styles.body}>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>Category</Text>
+        <View style={styles.catRow}>
+          <View style={styles.catInput}>
+            <KollabSelect
+              value={selectedCategory}
+              placeholder="Select category"
+              options={categoryOptions}
+              onChange={setSelectedCategory}
+              accessibilityLabel="Select category"
+            />
           </View>
-          {cat.products.map((p) => (
-            <View key={p.id} style={[styles.productRow, { borderTopColor: shell.cardBorder }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.productName, { color: shell.textPrimary }]}>{p.name}</Text>
-                <Text style={[styles.productPrice, { color: shell.textSecondary }]}>
-                  {formatCatalogInr(p.price)}
-                  {isServiceCatalog && p.durationMinutes ? ` · ${p.durationMinutes} min` : ''}
-                  {isServiceCatalog && p.visitType
-                    ? ` · ${
-                        p.visitType === 'salon'
-                          ? 'At salon'
-                          : p.visitType === 'center'
-                            ? 'Center'
-                            : p.visitType === 'online'
-                              ? 'Online'
-                              : p.visitType === 'virtual'
-                                ? 'Virtual'
-                                : 'Home'
-                      }`
-                    : ''}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => openEditProduct(cat.id, p)}>
-                <Text style={[styles.link, { color: shell.cta }]}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+          <KollabButton
+            label="Add"
+            variant="ink"
+            compact
+            disabled={
+              isSaving ||
+              !selectedCategory ||
+              (otherSelected && otherCategoryName.trim().length === 0)
+            }
+            onPress={() => void onAddCategory()}
+            style={styles.addBtn}
+          />
+        </View>
+        {otherSelected ? (
+          <View style={styles.otherField}>
+            <KollabTextField
+              placeholder="Enter category name"
+              value={otherCategoryName}
+              onChangeText={setOtherCategoryName}
+            />
+          </View>
+        ) : null}
+
+        <Text style={[styles.label, { color: kollab.color.ink }]}>Items</Text>
+        {(catalog?.categories ?? []).map((cat) => (
+          <View key={cat.id} style={styles.catBlock}>
+            <View style={styles.catHead}>
+              <Text style={[styles.catName, { color: kollab.color.ink }]}>{cat.name}</Text>
+              <Pressable
                 onPress={() => {
-                  Alert.alert(`Delete ${itemLabel}?`, p.name, [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => void deleteProduct(kind, p.id),
-                    },
-                  ]);
+                  void showKollabConfirm({
+                    title: 'Delete category?',
+                    message: `Remove "${cat.name}" and all its ${itemLabelPlural}?`,
+                    confirmLabel: 'Delete',
+                    destructive: true,
+                  }).then((ok) => {
+                    if (ok) void deleteCategory(kind, cat.id);
+                  });
                 }}
+                accessibilityRole="button"
               >
-                <Text style={[styles.link, styles.deleteText, { color: '#DC2626' }]}>Delete</Text>
-              </TouchableOpacity>
+                <Text style={[styles.deleteText, { color: kollab.color.heat }]}>Delete</Text>
+              </Pressable>
             </View>
-          ))}
-          <TouchableOpacity
-            style={[styles.addProductBtn, { backgroundColor: shell.iceBlue }]}
-            onPress={() => openAddProduct(cat.id)}
-          >
-            <Text
-              style={[styles.addProductText, { color: shell.cta }]}
-            >{`+ Add ${itemLabel}`}</Text>
-          </TouchableOpacity>
-        </PremiumCard>
-      ))}
+            <View style={styles.grid}>
+              {cat.products.map((p) => {
+                const metaBits = [
+                  cat.name,
+                  isServiceCatalog && p.durationMinutes ? `${p.durationMinutes} min` : null,
+                  visitLabel(p.visitType),
+                ].filter(Boolean);
+                return (
+                  <View key={p.id} style={styles.gridCell}>
+                    <CatalogItemTile
+                      cover={catalogImageSource(productImageUrl(p))}
+                      name={p.name}
+                      meta={metaBits.join(' · ') || itemLabel}
+                      priceLabel={formatInr(p.price)}
+                      onPress={() => openEditProduct(cat.id, p)}
+                    />
+                    <Pressable
+                      onPress={() => {
+                        void showKollabConfirm({
+                          title: `Delete ${itemLabel}?`,
+                          message: p.name,
+                          confirmLabel: 'Delete',
+                          destructive: true,
+                        }).then((ok) => {
+                          if (ok) void deleteProduct(kind, p.id);
+                        });
+                      }}
+                      style={styles.deleteItem}
+                    >
+                      <Text style={[styles.deleteText, { color: kollab.color.heat }]}>Remove</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <Pressable
+                onPress={() => openAddProduct(cat.id)}
+                style={[
+                  styles.addTile,
+                  { backgroundColor: kollab.color.cardSoft, borderColor: kollab.color.outline },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${itemLabel}`}
+              >
+                <Text style={[styles.addTileText, { color: kollab.color.ink }]}>
+                  + Add {itemLabel}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+
+        {catalog?.categories.length === 0 ? (
+          <Text style={[styles.empty, { color: kollab.color.ink }]}>
+            Add a category, then add {itemLabelPlural} followers can buy.
+          </Text>
+        ) : null}
+
+        <KollabButton
+          label="Preview storefront"
+          variant="ink"
+          disabled={productCount === 0}
+          onPress={() =>
+            router.push({
+              pathname: '/account-screens/catalog-preview',
+              params: { kind },
+            } as never)
+          }
+          style={styles.previewBtn}
+        />
+      </View>
 
       <CatalogProductSheet
         visible={sheetVisible}
@@ -281,64 +285,72 @@ export default function CatalogBuilderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  recommendedLabel: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    marginBottom: spacing.xs,
-  },
-  pickerWrap: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    fontFamily: fonts.regular,
-  },
-  customCategoryInput: {
-    marginBottom: spacing.sm,
-  },
-  addCatBtnFull: {
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  addCatText: { color: '#fff', fontFamily: fonts.semiBold },
-  categoryCard: { marginBottom: spacing.sm },
-  categoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  categoryTitle: { fontFamily: fonts.bold, fontSize: 16 },
-  deleteText: { color: '#DC2626', fontFamily: fonts.semiBold, fontSize: 13 },
-  productRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  productName: { fontFamily: fonts.semiBold },
-  productPrice: { fontFamily: fonts.regular, fontSize: 13 },
-  link: { fontFamily: fonts.semiBold, fontSize: 13 },
-  addProductBtn: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radius.md,
-  },
-  addProductText: { fontFamily: fonts.semiBold },
-  previewHint: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-});
+function useStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        headPad: { paddingHorizontal: space.gutter, paddingTop: 2 },
+        body: { paddingHorizontal: space.gutter, paddingBottom: 24 },
+        label: {
+          fontFamily: font.semiBold,
+          fontSize: 12.5,
+          opacity: 0.62,
+          marginBottom: 7,
+        },
+        catRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 9,
+          marginBottom: 18,
+        },
+        catInput: { flex: 1, minWidth: 0 },
+        addBtn: { paddingHorizontal: 18 },
+        otherField: { marginTop: -8, marginBottom: 18 },
+        catBlock: { marginBottom: 16 },
+        catHead: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 10,
+        },
+        catName: {
+          fontFamily: font.semiBold,
+          fontSize: 13.5,
+        },
+        deleteText: {
+          fontFamily: font.semiBold,
+          fontSize: 12.5,
+        },
+        grid: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 12,
+        },
+        gridCell: { width: '47.5%' },
+        addTile: {
+          width: '47.5%',
+          minHeight: 184,
+          borderRadius: 20,
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+        },
+        addTileText: {
+          fontFamily: font.semiBold,
+          fontSize: 13.5,
+        },
+        deleteItem: { paddingTop: 6, alignSelf: 'flex-start' },
+        empty: {
+          fontFamily: font.body,
+          fontSize: 13,
+          opacity: 0.55,
+          marginBottom: 16,
+          lineHeight: 19,
+        },
+        previewBtn: { marginTop: 8 },
+      }),
+    [kollab]
+  );
+}

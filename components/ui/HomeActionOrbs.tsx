@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
-import { useHomeDesign, homeFonts } from '@/theme/homeDesign';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 export type HomeActionOrbGlyph =
   'trends' | 'schedule' | 'autoDm' | 'priceCard' | 'rateCalculator' | 'storefront';
@@ -76,7 +76,7 @@ function Glyph({ glyph, color }: { glyph: HomeActionOrbGlyph; color: string }) {
 }
 
 function Orb({ action }: { action: HomeActionOrb }) {
-  const d = useHomeDesign();
+  const kollab = useKollab();
   return (
     <Pressable
       onPress={action.onPress}
@@ -88,30 +88,26 @@ function Orb({ action }: { action: HomeActionOrb }) {
         style={[
           styles.orb,
           {
-            shadowColor: d.isDark ? '#000000' : d.ink,
-            shadowOpacity: d.isDark ? 0.8 : 0.45,
+            shadowColor: kollab.shadow.fab.shadowColor,
+            shadowOpacity: kollab.shadow.fab.shadowOpacity,
           },
         ]}
       >
         <LinearGradient
-          colors={d.orb}
-          locations={[0, 0.52, 1]}
+          colors={kollab.fabGradient}
           start={{ x: 0.15, y: 0 }}
           end={{ x: 0.85, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         {/* Specular sheen across the top third — the mock's --spec layer. */}
         <LinearGradient
-          colors={[
-            d.isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.18)',
-            'rgba(255,255,255,0)',
-          ]}
+          colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']}
           style={styles.spec}
           pointerEvents="none"
         />
-        <Glyph glyph={action.glyph} color={d.isDark ? d.ink : '#FFFFFF'} />
+        <Glyph glyph={action.glyph} color={kollab.color.chartreuse} />
       </View>
-      <Text style={[styles.label, { color: d.ink }]} numberOfLines={1}>
+      <Text style={[styles.label, { color: kollab.color.ink }]} numberOfLines={1}>
         {action.label}
       </Text>
     </Pressable>
@@ -187,7 +183,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   label: {
-    fontFamily: homeFonts.bold,
+    fontFamily: font.bold,
     fontSize: 13,
     letterSpacing: -0.2,
   },

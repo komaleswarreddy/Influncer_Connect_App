@@ -1,268 +1,68 @@
-import React, { useCallback, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Share,
-  Linking,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Share, Linking } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import {
-  ScrollScreen,
-  PrimaryButton,
-  SectionHeader,
-  PremiumCard,
-  UnderlineTabBar,
-} from '@/components/ui';
-import { CatalogPendingState } from '@/components/catalog/CatalogPendingState';
+import { ScrollScreen, KollabScreenHeader, KollabButton, showKollabToast } from '@/components/ui';
 import { useCatalogStore } from '@/store/catalog-store';
-import { catalogProductCount, isCatalogSetupComplete, type CatalogKind } from '@/lib/catalog-api';
-import { appShell, spacing, radius, shadow } from '@/theme';
-import { fonts } from '@/components/ui/typography';
-import { showPremiumToast } from '@/components/ui/PremiumToast';
+import {
+  catalogCoverUrl,
+  catalogImageSource,
+  catalogProductCount,
+  flattenCatalogProducts,
+  isCatalogSetupComplete,
+  productImageUrl,
+  type CatalogKind,
+  type CatalogProduct,
+  type CatalogStatus,
+} from '@/lib/catalog-api';
+import { formatInr } from '@/lib/currency';
+import { useKollab, font, space, choiceChipColors, type as kType } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
 
-const MODULES = [
-  {
-    key: 'products' as const,
-    title: 'Product Catalog',
-    hint: 'Sell physical items — food, clothes, and more.',
-    icon: 'bag-handle-outline' as const,
-  },
-  {
-    key: 'services' as const,
-    title: 'Service Catalog',
-    hint: 'Offer bookable services like makeup or consultations.',
-    icon: 'calendar-outline' as const,
-  },
+const TABS: { key: CatalogKind; label: string }[] = [
+  { key: 'products', label: 'Products' },
+  { key: 'services', label: 'Services' },
 ];
 
-/** Everything below the tab bar for one catalog kind — reused whichever tab is active. */
-function CatalogKindPanel({ kind }: { kind: CatalogKind }) {
-  const router = useRouter();
-  const {
-    catalogs,
-    isLoading: isLoadingByKind,
-    error: errorByKind,
-    fetchMyCatalog,
-    reopenCatalog,
-    isSaving: isSavingByKind,
-  } = useCatalogStore();
-  const catalog = catalogs[kind];
-  const isLoading = isLoadingByKind[kind];
-  const error = errorByKind[kind];
-  const isSaving = isSavingByKind[kind];
-  const isServiceCatalog = kind === 'services';
-  const catalogKindLabel = isServiceCatalog ? 'Service catalog' : 'Product catalog';
-  const itemLabelPlural = isServiceCatalog ? 'services' : 'products';
+function productCover(product: CatalogProduct, catalogCover?: string | null) {
+  return catalogImageSource(productImageUrl(product) ?? catalogCover);
+}
 
-  if (isLoading && !catalog) {
-    return <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />;
-  }
+function visitLabel(visit?: CatalogProduct['visitType']): string | null {
+  if (!visit) return null;
+  if (visit === 'salon') return 'At salon';
+  if (visit === 'center') return 'Center';
+  if (visit === 'online') return 'Online';
+  if (visit === 'virtual') return 'Virtual';
+  return 'Home';
+}
 
-  if (error && !catalog) {
-    return (
-      <PremiumCard style={styles.heroCard}>
-        <Text style={styles.heroTitle}>Couldn't load your {catalogKindLabel.toLowerCase()}</Text>
-        <Text style={styles.heroBody}>{error}</Text>
-        <PrimaryButton
-          label="Retry"
-          onPress={() => void fetchMyCatalog(kind)}
-          loading={isLoading}
-        />
-      </PremiumCard>
-    );
-  }
+function productMeta(product: CatalogProduct, isService: boolean, categoryName?: string): string {
+  const bits: string[] = [];
+  if (categoryName) bits.push(categoryName);
+  if (isService && product.durationMinutes) bits.push(`${product.durationMinutes} min`);
+  const visit = visitLabel(product.visitType);
+  if (visit) bits.push(visit);
+  if (!bits.length && product.description) return product.description;
+  return bits.join(' · ') || (isService ? 'Service' : 'Product');
+}
 
-  if (catalog?.status === 'approved') {
-    const shareUrl = catalog.liveStoreUrl?.trim() || null;
-    const shareStorefront = async () => {
-      if (!shareUrl) {
-        showPremiumToast({
-          title: 'Link not ready',
-          message: 'Live link will appear once Ops finishes publishing.',
-          durationMs: 2400,
-        });
-        return;
-      }
-      try {
-        await Share.share({
-          message: `Check out my storefront: ${shareUrl}`,
-          url: shareUrl,
-          title: catalog.storeName || 'My Storefront',
-        });
-      } catch {
-        showPremiumToast({
-          title: 'Share failed',
-          message: 'Could not open the share sheet. Try again.',
-          durationMs: 2200,
-        });
-      }
-    };
-    const openStorefront = async () => {
-      if (!shareUrl) return;
-      const can = await Linking.canOpenURL(shareUrl);
-      if (!can) {
-        showPremiumToast({
-          title: 'Cannot open link',
-          message: shareUrl,
-          durationMs: 2600,
-        });
-        return;
-      }
-      await Linking.openURL(shareUrl);
-    };
-    return (
-      <PremiumCard>
-        <Text style={styles.heroTitle}>Your storefront is live</Text>
-        <Text style={styles.heroBody}>
-          {catalogProductCount(catalog)} {itemLabelPlural} · share your storefront link with
-          followers.
-        </Text>
-        {shareUrl ? (
-          <Text style={styles.heroBody}>{shareUrl}</Text>
-        ) : (
-          <Text style={styles.heroBody}>Live link will appear once Ops finishes publishing.</Text>
-        )}
-        <View style={styles.actions}>
-          <PrimaryButton
-            label="Share storefront"
-            onPress={() => void shareStorefront()}
-            disabled={!shareUrl}
-          />
-          {shareUrl ? (
-            <PrimaryButton
-              label="Open in browser"
-              compact
-              pill
-              onPress={() => void openStorefront()}
-            />
-          ) : null}
-        </View>
-      </PremiumCard>
-    );
-  }
-
-  if (catalog?.status === 'rejected') {
-    const feedback = (catalog as { adminFeedback?: string }).adminFeedback;
-    return (
-      <PremiumCard>
-        <Text style={styles.heroTitle}>{catalogKindLabel} not approved</Text>
-        {feedback ? (
-          <Text style={styles.heroBody}>{feedback}</Text>
-        ) : (
-          <Text style={styles.heroBody}>Please update your storefront and resubmit.</Text>
-        )}
-        <PrimaryButton
-          label="Edit & resubmit"
-          onPress={() => {
-            void reopenCatalog(kind).then(() =>
-              router.push({
-                pathname: '/account-screens/catalog-builder',
-                params: { kind },
-              } as never)
-            );
-          }}
-        />
-      </PremiumCard>
-    );
-  }
-
-  if (catalog?.status === 'pending_approval') {
-    return (
-      <CatalogPendingState
-        categoryCount={catalog.categories.length}
-        productCount={catalogProductCount(catalog)}
-        itemLabelPlural={itemLabelPlural}
-        refreshing={isLoading || isSaving}
-        onRefresh={() => void fetchMyCatalog(kind)}
-        onEditCatalog={() => {
-          void reopenCatalog(kind).then(() => {
-            router.push({
-              pathname: '/account-screens/catalog-builder',
-              params: { kind },
-            } as never);
-          });
-        }}
-      />
-    );
-  }
-
-  const setupDone = isCatalogSetupComplete(catalog);
-  const productCount = catalogProductCount(catalog);
-
-  if (!setupDone) {
-    const module = MODULES.find((m) => m.key === kind)!;
-    return (
-      <TouchableOpacity
-        style={[styles.moduleCard, shadow.card, styles.singleModuleCard]}
-        onPress={() =>
-          router.push({
-            pathname: '/account-screens/catalog-setup',
-            params: { mode: kind },
-          } as never)
-        }
-        accessibilityRole="button"
-      >
-        <View style={styles.moduleIconWell}>
-          <Ionicons name={module.icon} size={26} color={appShell.cta} />
-        </View>
-        <Text style={styles.moduleTitle}>Set up your {catalogKindLabel.toLowerCase()}</Text>
-        <Text style={styles.moduleHint}>{module.hint}</Text>
-        <View style={styles.getStartedBtn}>
-          <Text style={styles.getStartedBtnText}>Get started</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <PremiumCard style={styles.progressCard}>
-      <Text style={styles.progressTitle}>Build progress</Text>
-      <View style={styles.stepRow}>
-        <Text style={styles.stepDone}>✓ {catalogKindLabel} set up</Text>
-      </View>
-      <View style={styles.stepRow}>
-        <Text style={productCount > 0 ? styles.stepDone : styles.stepPending}>
-          {productCount > 0 ? '✓' : '○'} {isServiceCatalog ? 'Services' : 'Products'} added (
-          {productCount})
-        </Text>
-      </View>
-      <View style={styles.stepRow}>
-        <Text style={styles.stepPending}>○ Submitted for approval</Text>
-      </View>
-      <View style={styles.actions}>
-        <PrimaryButton
-          label="Continue building"
-          onPress={() =>
-            router.push({ pathname: '/account-screens/catalog-builder', params: { kind } } as never)
-          }
-        />
-        {productCount > 0 ? (
-          <PrimaryButton
-            label="Preview & submit"
-            compact
-            pill
-            onPress={() =>
-              router.push({
-                pathname: '/account-screens/catalog-preview',
-                params: { kind },
-              } as never)
-            }
-          />
-        ) : null}
-      </View>
-    </PremiumCard>
-  );
+function statusSpec(
+  status: CatalogStatus | undefined,
+  kollab: KollabTokens
+): { short: string; bg: string; fg: string } {
+  if (status === 'approved') return { short: 'Live', ...kollab.statusChip.live };
+  if (status === 'pending_approval') return { short: 'Review', ...kollab.statusChip.info };
+  if (status === 'rejected') return { short: 'Rejected', ...kollab.statusChip.warn };
+  return { short: 'Draft', ...kollab.statusChip.neutral };
 }
 
 export default function CatalogHomeScreen() {
   const router = useRouter();
-  const { catalogs, isLoading, fetchMyCatalog } = useCatalogStore();
+  const kollab = useKollab();
+  const styles = useStyles(kollab);
+  const { catalogs, isLoading, error, fetchMyCatalog, reopenCatalog, isSaving } = useCatalogStore();
   const [activeTab, setActiveTab] = useState<CatalogKind>('products');
 
   useFocusEffect(
@@ -272,281 +72,477 @@ export default function CatalogHomeScreen() {
     }, [fetchMyCatalog])
   );
 
+  const kind = activeTab;
+  const catalog = catalogs[kind];
+  const loading = isLoading[kind];
+  const err = error[kind];
+  const saving = isSaving[kind];
+  const isService = kind === 'services';
+  const itemWord = isService ? 'service' : 'product';
+  const itemWordPlural = isService ? 'services' : 'products';
+  const count = catalogProductCount(catalog);
+  const setupDone = isCatalogSetupComplete(catalog);
+  const storeCover = catalogCoverUrl(catalog);
+  const products = flattenCatalogProducts(catalog);
+  const categoryById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cat of catalog?.categories ?? []) {
+      for (const p of cat.products ?? []) map.set(p.id, cat.name);
+    }
+    return map;
+  }, [catalog]);
+  const st = statusSpec(catalog?.status, kollab);
+
+  const goSetup = () =>
+    router.push({ pathname: '/account-screens/catalog-setup', params: { mode: kind } } as never);
+  const goBuilder = () =>
+    router.push({ pathname: '/account-screens/catalog-builder', params: { kind } } as never);
+  const goPreview = () =>
+    router.push({ pathname: '/account-screens/catalog-preview', params: { kind } } as never);
+
+  const onCta = () => {
+    if (catalog?.status === 'rejected') {
+      void reopenCatalog(kind).then(() => goBuilder());
+      return;
+    }
+    if (catalog?.status === 'approved' || (setupDone && count > 0)) {
+      goPreview();
+      return;
+    }
+    if (setupDone) {
+      goBuilder();
+      return;
+    }
+    goSetup();
+  };
+
+  const ctaLabel =
+    catalog?.status === 'rejected'
+      ? 'Edit & resubmit'
+      : catalog?.status === 'approved' || (setupDone && count > 0)
+        ? 'Preview storefront'
+        : setupDone
+          ? 'Continue building'
+          : 'Continue setup';
+
+  const shareUrl = catalog?.liveStoreUrl?.trim() || null;
+  const shareStorefront = async () => {
+    if (!shareUrl) {
+      showKollabToast('Live link will appear once Ops finishes publishing.');
+      return;
+    }
+    try {
+      await Share.share({
+        message: `Check out my storefront: ${shareUrl}`,
+        url: shareUrl,
+        title: catalog?.storeName || 'My storefront',
+      });
+      showKollabToast('Storefront link copied');
+    } catch {
+      showKollabToast('Could not open the share sheet. Try again.');
+    }
+  };
+
   const anyLoading = isLoading.products || isLoading.services;
   if (anyLoading && !catalogs.products && !catalogs.services) {
     return (
-      <ScrollScreen>
-        <ActivityIndicator color={appShell.cta} style={{ marginTop: spacing.xl }} />
-      </ScrollScreen>
-    );
-  }
-
-  const productsStarted = isCatalogSetupComplete(catalogs.products);
-  const servicesStarted = isCatalogSetupComplete(catalogs.services);
-
-  if (!productsStarted && !servicesStarted) {
-    return (
-      <ScrollScreen safeAreaEdges={['bottom']} dotBackground={false}>
-        <SectionHeader title="My Storefront" subtitle="Choose what you want to set up" />
-        <View style={styles.moduleRow}>
-          {MODULES.map((m, idx) => (
-            <TouchableOpacity
-              key={m.key}
-              style={[styles.moduleCard, styles.premiumCardShadow]}
-              onPress={() =>
-                router.push({
-                  pathname: '/account-screens/catalog-setup',
-                  params: { mode: m.key },
-                } as never)
-              }
-              accessibilityRole="button"
-            >
-              <View style={styles.moduleContentWrapper}>
-                <View style={styles.moduleTopGroup}>
-                  <View style={styles.moduleIconWell}>
-                    <Ionicons name={m.icon} size={20} color={appShell.cta} />
-                  </View>
-                  <Text style={styles.moduleTitle}>{m.title}</Text>
-                  <Text style={styles.moduleHint}>{m.hint}</Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.arrowButtonContainer,
-                    { backgroundColor: idx === 0 ? '#E8DFFF' : '#CFFAF2' },
-                  ]}
-                >
-                  <Ionicons
-                    name="arrow-forward"
-                    size={14}
-                    color={idx === 0 ? '#7C6EFF' : '#10B981'}
-                  />
-                </View>
-              </View>
-
-              <View
-                style={[
-                  styles.cornerDecoration,
-                  { backgroundColor: idx === 0 ? '#EEE8FF' : '#DDFCF4' },
-                ]}
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.heroDivider}>
-          <Text style={styles.heroDividerText}>— CREATE. SELL. GROW. —</Text>
-        </View>
-
-        <View style={styles.heroSection}>
-          <View style={styles.heroTitleWrapper}>
-            <Text style={styles.heroMainTitle}>Build your store,</Text>
-            <Text style={[styles.heroMainTitle, styles.heroTitleAccent]}>your way</Text>
-          </View>
-          <Text style={styles.heroSubtitle}>
-            Reach more people, showcase what you do, and turn your passion into income.
-          </Text>
-        </View>
-
-        <View style={styles.phoneContainer}>
-          <Image
-            source={require('../../assets/phone_mock_png.jpeg')}
-            style={styles.phoneMockup}
-            contentFit="contain"
+      <ScrollScreen padH={0} safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.headPad}>
+          <KollabScreenHeader
+            title="My storefront"
+            subtitle="Products and services you sell to followers"
           />
         </View>
-
-        <View style={styles.heroFooter}>
-          <Text style={styles.heroFooterText}>✨ Your brand. Your story. Your store.</Text>
-        </View>
+        <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 40 }} />
       </ScrollScreen>
     );
   }
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']} dotBackground={false}>
-      <SectionHeader title="My Storefront" subtitle="Manage your product and service catalogs" />
-      <UnderlineTabBar
-        style={styles.tabBar}
-        tabs={[
-          { key: 'products', label: 'Products' },
-          { key: 'services', label: 'Services' },
-        ]}
-        value={activeTab}
-        onChange={(key) => setActiveTab(key as CatalogKind)}
-      />
-      <CatalogKindPanel kind={activeTab} />
+    <ScrollScreen padH={0} safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.headPad}>
+        <KollabScreenHeader
+          title="My storefront"
+          subtitle="Products and services you sell to followers"
+        />
+      </View>
+
+      <View style={styles.chips}>
+        {TABS.map((t) => {
+          const on = t.key === activeTab;
+          const chip = choiceChipColors(kollab, on);
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => setActiveTab(t.key)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: chip.backgroundColor,
+                  borderColor: chip.borderColor,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+            >
+              <Text style={[styles.chipText, { color: chip.color }]}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {err && !catalog ? (
+        <View style={[styles.card, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+          <Text style={[styles.errorTitle, { color: kollab.color.ink }]}>
+            Couldn't load your {itemWordPlural}
+          </Text>
+          <Text style={[styles.hint, { color: kollab.color.ink }]}>{err}</Text>
+          <KollabButton
+            label={loading ? 'Retrying…' : 'Retry'}
+            disabled={loading}
+            onPress={() => void fetchMyCatalog(kind)}
+          />
+        </View>
+      ) : (
+        <View style={[styles.card, { backgroundColor: kollab.color.card }, kollab.shadow.card]}>
+          <View style={styles.cardHead}>
+            <View style={styles.cardHeadCopy}>
+              <Text style={[styles.count, { color: kollab.color.ink }]}>
+                {count} {count === 1 ? itemWord : itemWordPlural}
+              </Text>
+              <Text style={[styles.hint, { color: kollab.color.ink }]}>
+                {isService
+                  ? 'Offer bookable services like makeup or consultations.'
+                  : 'Sell physical items — food, clothes, and more.'}
+              </Text>
+            </View>
+            <View style={[styles.status, { backgroundColor: st.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: st.fg }]} />
+              <Text style={[styles.statusText, { color: st.fg }]}>{st.short}</Text>
+            </View>
+          </View>
+
+          {catalog?.status === 'rejected' && catalog.adminFeedback ? (
+            <Text style={[styles.feedback, { color: kollab.color.heat }]}>
+              {catalog.adminFeedback}
+            </Text>
+          ) : null}
+
+          {catalog?.status === 'pending_approval' ? (
+            <Text style={[styles.feedback, { color: kollab.color.ink }]}>
+              Ops is reviewing this catalog. You can keep editing after reopening.
+            </Text>
+          ) : null}
+
+          {loading && !catalog ? (
+            <ActivityIndicator color={kollab.color.ink} style={{ marginVertical: 18 }} />
+          ) : products.length > 0 ? (
+            <View style={styles.rows}>
+              {products.map((p) => (
+                <CatalogPhotoRow
+                  key={p.id}
+                  product={p}
+                  meta={productMeta(p, isService, categoryById.get(p.id))}
+                  catalogCover={storeCover}
+                  onPress={goBuilder}
+                />
+              ))}
+            </View>
+          ) : (
+            <Pressable
+              onPress={setupDone ? goBuilder : goSetup}
+              style={styles.emptyRow}
+              accessibilityRole="button"
+            >
+              <View style={[styles.emptyThumb, { backgroundColor: kollab.color.imgBg }]} />
+              <View style={styles.emptyCopy}>
+                <Text style={[styles.emptyTitle, { color: kollab.color.ink }]}>
+                  {setupDone ? `No ${itemWordPlural} yet` : 'Set up your storefront'}
+                </Text>
+                <Text style={[styles.hint, { color: kollab.color.ink }]}>
+                  {setupDone
+                    ? `Add ${itemWordPlural} followers can buy.`
+                    : 'Products and services you sell to followers.'}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+
+          <Pressable
+            onPress={onCta}
+            disabled={saving}
+            style={[styles.cta, { backgroundColor: kollab.color.panel }]}
+            accessibilityRole="button"
+            accessibilityLabel={ctaLabel}
+          >
+            <Text style={[styles.ctaText, { color: kollab.color.panelInk }]}>{ctaLabel}</Text>
+            <Text style={[styles.ctaCaret, { color: kollab.color.panelInk }]}>›</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.actions}>
+        <Pressable
+          onPress={setupDone ? goBuilder : goSetup}
+          style={[
+            styles.dashed,
+            { backgroundColor: kollab.color.cardSoft, borderColor: kollab.color.outline },
+          ]}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.actionText, { color: kollab.color.ink }]}>+ Add {itemWord}</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => void shareStorefront()}
+          style={[styles.share, { borderColor: kollab.color.ink }]}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.actionText, { color: kollab.color.ink }]}>Share link</Text>
+        </Pressable>
+      </View>
+
+      {shareUrl ? (
+        <Pressable onPress={() => void Linking.openURL(shareUrl)} style={styles.liveLink}>
+          <Text style={[styles.liveLinkText, { color: kollab.color.violet }]} numberOfLines={1}>
+            {shareUrl}
+          </Text>
+        </Pressable>
+      ) : null}
     </ScrollScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  heroCard: { alignItems: 'center', gap: spacing.sm },
-  tabBar: { marginBottom: spacing.md },
-  moduleRow: {
+function CatalogPhotoRow({
+  product,
+  meta,
+  catalogCover,
+  onPress,
+}: {
+  product: CatalogProduct;
+  meta: string;
+  catalogCover?: string | null;
+  onPress: () => void;
+}) {
+  const kollab = useKollab();
+  const cover = productCover(product, catalogCover);
+  return (
+    <Pressable onPress={onPress} style={stylesRow.row} accessibilityRole="button">
+      <View style={[stylesRow.thumb, { backgroundColor: kollab.color.imgBg }]}>
+        {cover ? (
+          <Image source={cover} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+        ) : null}
+        <LinearGradient
+          colors={kollab.scrimStops.tile.colors as [string, string]}
+          locations={kollab.scrimStops.tile.locations as [number, number]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={[stylesRow.price, { backgroundColor: kollab.color.chartreuse }]}>
+          <Text style={[stylesRow.priceText, { color: kollab.color.onChartreuse }]}>
+            {formatInr(product.price)}
+          </Text>
+        </View>
+      </View>
+      <View style={stylesRow.copy}>
+        <Text style={[stylesRow.name, { color: kollab.color.ink }]} numberOfLines={2}>
+          {product.name}
+        </Text>
+        <Text style={[stylesRow.meta, { color: kollab.color.ink }]} numberOfLines={1}>
+          {meta}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const stylesRow = StyleSheet.create({
+  row: {
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  heroDivider: {
     alignItems: 'center',
-    marginVertical: spacing.xs,
+    gap: 14,
   },
-  heroDividerText: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    color: '#7C6EFF',
-    fontWeight: '600',
-  },
-  heroSection: {
-    alignItems: 'center',
-    marginTop: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  heroTitleWrapper: {
-    alignItems: 'center',
-    marginBottom: spacing.xxs,
-  },
-  heroMainTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-    lineHeight: 27,
-    color: appShell.textPrimary,
-    textAlign: 'center',
-  },
-  heroTitleAccent: {
-    color: '#8B5CF6',
-  },
-  heroSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    maxWidth: '90%',
-  },
-  phoneContainer: {
-    alignItems: 'center',
-    marginTop: spacing.xxs,
-    marginBottom: spacing.xxs,
-    width: '100%',
-  },
-  phoneMockup: {
-    width: '82%',
-    height: undefined,
-    aspectRatio: 841 / 651,
-  },
-  heroFooter: {
-    alignItems: 'center',
-    marginTop: spacing.xxs,
-    marginBottom: spacing.xs,
-  },
-  heroFooterText: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  moduleCard: {
-    flex: 1,
-    borderWidth: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: spacing.sm,
-    gap: 6,
-    overflow: 'hidden',
-    position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-      },
-      android: { elevation: 6 },
-      default: {},
-    }),
-  },
-  moduleContentWrapper: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  moduleTopGroup: {
-    gap: 4,
-  },
-  cornerDecoration: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 64,
-    height: 64,
-    borderTopLeftRadius: 64,
-    opacity: 0.35,
-  },
-  singleModuleCard: { flex: undefined },
-  getStartedBtn: {
-    marginTop: spacing.sm,
-    backgroundColor: appShell.cta,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  getStartedBtnText: { color: '#fff', fontFamily: fonts.semiBold },
-  moduleIconWell: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F2FF',
-  },
-  moduleTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 18,
-    color: appShell.textPrimary,
-  },
-  moduleHint: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    color: '#6B7280',
-  },
-  arrowButtonContainer: {
-    width: 28,
-    height: 28,
+  thumb: {
+    width: 78,
+    height: 78,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-end',
+    overflow: 'hidden',
+    flexShrink: 0,
   },
-  heroTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    color: appShell.textPrimary,
-    textAlign: 'center',
+  price: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  heroBody: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 21,
-    color: appShell.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
+  priceText: {
+    fontFamily: font.bold,
+    fontSize: 10.5,
   },
-  progressCard: { gap: spacing.sm },
-  progressTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 16,
-    color: appShell.textPrimary,
-    marginBottom: spacing.xs,
+  copy: { flex: 1, minWidth: 0 },
+  name: {
+    ...kType.rowTitle,
   },
-  stepRow: { paddingVertical: 4 },
-  stepDone: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.success },
-  stepPending: { fontFamily: fonts.regular, fontSize: 14, color: appShell.textSecondary },
-  actions: { marginTop: spacing.md, gap: spacing.sm },
+  meta: {
+    fontFamily: font.body,
+    fontSize: 12,
+    opacity: 0.55,
+    marginTop: 4,
+  },
 });
+
+function useStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        headPad: {
+          paddingHorizontal: space.gutter,
+          paddingTop: 2,
+        },
+        chips: {
+          flexDirection: 'row',
+          gap: 8,
+          paddingHorizontal: space.gutter,
+          paddingBottom: 16,
+        },
+        chip: {
+          borderWidth: 1.5,
+          borderRadius: 999,
+          paddingVertical: 10,
+          paddingHorizontal: 20,
+        },
+        chipText: {
+          fontFamily: font.semiBold,
+          fontSize: 13,
+        },
+        card: {
+          marginHorizontal: space.cardGutter,
+          marginBottom: 16,
+          borderRadius: 24,
+          overflow: 'hidden',
+        },
+        cardHead: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingHorizontal: 18,
+          paddingTop: 18,
+        },
+        cardHeadCopy: { flex: 1, minWidth: 0 },
+        count: {
+          ...kType.sectionTitle,
+        },
+        hint: {
+          fontFamily: font.body,
+          fontSize: 12,
+          opacity: 0.55,
+          marginTop: 3,
+          lineHeight: 17,
+        },
+        status: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          borderRadius: 999,
+          paddingVertical: 6,
+          paddingHorizontal: 12,
+          flexShrink: 0,
+        },
+        statusDot: {
+          width: 6,
+          height: 6,
+          borderRadius: 99,
+        },
+        statusText: {
+          fontFamily: font.bold,
+          fontSize: 10.5,
+          letterSpacing: 0.84,
+          textTransform: 'uppercase',
+        },
+        feedback: {
+          fontFamily: font.body,
+          fontSize: 12.5,
+          lineHeight: 18,
+          opacity: 0.75,
+          paddingHorizontal: 18,
+          marginTop: 10,
+        },
+        rows: {
+          gap: 14,
+          paddingHorizontal: 18,
+          paddingVertical: 16,
+        },
+        emptyRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 14,
+          paddingHorizontal: 18,
+          paddingVertical: 16,
+        },
+        emptyThumb: {
+          width: 78,
+          height: 78,
+          borderRadius: 14,
+        },
+        emptyCopy: { flex: 1, minWidth: 0 },
+        emptyTitle: {
+          ...kType.rowTitle,
+        },
+        cta: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 18,
+          paddingHorizontal: 20,
+        },
+        ctaText: {
+          fontFamily: font.semiBold,
+          fontSize: 14.5,
+        },
+        ctaCaret: {
+          fontFamily: font.body,
+          fontSize: 17,
+          opacity: 0.55,
+        },
+        actions: {
+          flexDirection: 'row',
+          gap: 9,
+          paddingHorizontal: space.cardGutter,
+        },
+        dashed: {
+          flex: 1,
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          borderRadius: 20,
+          paddingVertical: 17,
+          alignItems: 'center',
+        },
+        share: {
+          flex: 1,
+          borderWidth: 1.5,
+          borderRadius: 20,
+          paddingVertical: 17,
+          alignItems: 'center',
+          backgroundColor: 'transparent',
+        },
+        actionText: {
+          fontFamily: font.semiBold,
+          fontSize: 13.5,
+        },
+        liveLink: {
+          paddingHorizontal: space.gutter,
+          paddingTop: 12,
+        },
+        liveLinkText: {
+          fontFamily: font.body,
+          fontSize: 12,
+        },
+        errorTitle: {
+          ...kType.sectionTitle,
+          padding: 18,
+          paddingBottom: 6,
+        },
+      }),
+    [kollab]
+  );
+}

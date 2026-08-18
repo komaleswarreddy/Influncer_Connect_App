@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ScrollView,
   ActivityIndicator,
   Switch,
 } from 'react-native';
 import { api } from '../../lib/api';
 import { shadow, useAppShell } from '@/theme';
+import { showKollabToast } from '@/components/ui/PremiumToast';
 
 interface NotificationSectionProps {
   onUpdate?: () => void;
@@ -47,10 +47,10 @@ export default function NotificationSection({ onUpdate }: NotificationSectionPro
     try {
       await api.patch('/api/influencers/notifications', newSettings);
       setNotifications(newSettings);
-      Alert.alert('Success', 'Notification settings updated');
+      showKollabToast('Notification settings updated');
       if (onUpdate) onUpdate();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update notification settings');
+      showKollabToast(error.message || 'Failed to update notification settings');
       // Revert the change on error
       setNotifications(notifications);
     } finally {

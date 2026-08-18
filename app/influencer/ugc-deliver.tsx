@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { ScrollScreen, SectionHeader, PremiumCard, VideoPreview } from '@/components/ui';
+import {
+  ScrollScreen,
+  KollabScreenHeader,
+  KollabButton,
+  KollabTextField,
+  showKollabToast,
+} from '@/components/ui';
 import { ugcApi } from '@/lib/ugc-api';
-import { appShell, spacing } from '@/theme';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 function normalizeUrl(raw: string): string | null {
   const t = raw.trim();
@@ -15,29 +22,30 @@ function normalizeUrl(raw: string): string | null {
 
 function formatDeliverError(e: unknown): string {
   const msg = e instanceof Error ? e.message : 'Something went wrong';
-  if (
-    msg.includes('api_key') ||
-    msg.includes('CLOUDINARY') ||
-    msg.includes('not configured')
-  ) {
-    return 'File upload is not set up on the server. Use Submit link with a Google Drive or video URL.';
+  if (msg.includes('api_key') || msg.includes('CLOUDINARY') || msg.includes('not configured')) {
+    return 'File upload is not set up on the server. Use a Google Drive or video URL instead.';
   }
   return msg;
 }
 
 export default function UgcDeliverScreen() {
-  const { applicationId, title } = useLocalSearchParams<{ applicationId: string; title?: string }>();
+  const kollab = useKollab();
+  const { applicationId, title } = useLocalSearchParams<{
+    applicationId: string;
+    title?: string;
+  }>();
   const router = useRouter();
   const [link, setLink] = useState('');
+  const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pickedUri, setPickedUri] = useState<string | null>(null);
+  const [pickedName, setPickedName] = useState('deliverable.jpg');
   const [pickedMime, setPickedMime] = useState<string | null>(null);
 
-  const pickAndDeliver = async () => {
-    if (!applicationId) return;
+  const pickMedia = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access to upload.');
+      showKollabToast('Allow photo library access to upload.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -48,46 +56,41 @@ export default function UgcDeliverScreen() {
     const asset = result.assets[0];
     setPickedUri(asset.uri);
     setPickedMime(asset.mimeType ?? 'image/jpeg');
-    try {
-      setUploading(true);
-      const up = (await ugcApi.uploadDeliverable(
-        asset.uri,
-        asset.fileName ?? 'deliverable.jpg',
-        asset.mimeType ?? 'image/jpeg'
-      )) as { fileUrl?: string };
-      if (!up.fileUrl) {
-        throw new Error('Upload succeeded but no file URL returned. Try submitting a link instead.');
-      }
-      await ugcApi.deliver(applicationId, {
-        fileUrl: up.fileUrl,
-        driveLink: normalizeUrl(link) ?? undefined,
-        deliveryType: 'file',
-      });
-      Alert.alert('Submitted', 'Your content was sent to the brand for review.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    } catch (e) {
-      Alert.alert('Upload unavailable', formatDeliverError(e));
-    } finally {
-      setUploading(false);
-    }
+    setPickedName(asset.fileName ?? 'deliverable.jpg');
   };
 
-  const deliverLinkOnly = async () => {
+  const submit = async () => {
     if (!applicationId) return;
     const url = normalizeUrl(link);
-    if (!url) {
-      Alert.alert('Link required', 'Paste a valid URL (e.g. Google Drive or video link).');
+    if (!pickedUri && !url) {
+      showKollabToast('Upload a file or paste a share link before submitting.');
       return;
     }
     try {
       setUploading(true);
-      await ugcApi.deliver(applicationId, { driveLink: url, deliveryType: 'link' });
-      Alert.alert('Submitted', 'Your link was sent to the brand for review.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      if (pickedUri) {
+        const up = (await ugcApi.uploadDeliverable(
+          pickedUri,
+          pickedName,
+          pickedMime ?? 'image/jpeg'
+        )) as { fileUrl?: string };
+        if (!up.fileUrl) {
+          throw new Error(
+            'Upload succeeded but no file URL returned. Try submitting a link instead.'
+          );
+        }
+        await ugcApi.deliver(applicationId, {
+          fileUrl: up.fileUrl,
+          driveLink: url ?? undefined,
+          deliveryType: 'file',
+        });
+      } else if (url) {
+        await ugcApi.deliver(applicationId, { driveLink: url, deliveryType: 'link' });
+      }
+      showKollabToast('Delivery submitted for review');
+      router.back();
     } catch (e) {
-      Alert.alert('Error', formatDeliverError(e));
+      showKollabToast(formatDeliverError(e));
     } finally {
       setUploading(false);
     }
@@ -95,97 +98,134 @@ export default function UgcDeliverScreen() {
 
   if (!applicationId) {
     return (
-      <ScrollScreen>
-        <Text style={{ color: appShell.textSecondary }}>Missing application. Go back and try again.</Text>
+      <ScrollScreen canvasColor={kollab.color.screen}>
+        <KollabScreenHeader title="Deliver content" backTone="well" />
+        <Text style={[styles.help, { color: kollab.color.ink }]}>
+          Missing application. Go back and try again.
+        </Text>
       </ScrollScreen>
     );
   }
 
+  const badge = pickedMime?.startsWith('video') ? 'Video' : pickedUri ? 'Photo' : null;
+
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader
+    <ScrollScreen canvasColor={kollab.color.screen}>
+      <KollabScreenHeader
         title="Deliver content"
-        subtitle={title ? String(title) : 'Upload a file or share a link for brand review'}
+        subtitle={title ? String(title) : undefined}
+        backTone="well"
       />
-      <PremiumCard>
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Uploads</Text>
+      <View style={styles.mediaRow}>
         {pickedUri ? (
-          pickedMime?.startsWith('video') ? (
-            <VideoPreview uri={pickedUri} aspectRatio={9 / 16} />
-          ) : null
+          <View style={[styles.thumbWrap, { backgroundColor: kollab.color.imgBg }]}>
+            <Image source={{ uri: pickedUri }} style={styles.thumb} />
+            <LinearGradient
+              colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(11,9,6,0.6)']}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFillObject}
+            />
+            {badge ? (
+              <View style={[styles.dur, { backgroundColor: kollab.color.panel }]}>
+                <Text style={[styles.durText, { color: kollab.color.panelInk }]}>{badge}</Text>
+              </View>
+            ) : null}
+          </View>
         ) : null}
-        <Text style={styles.help}>
-          Easiest: paste a share link and tap Submit link. Gallery upload needs Cloudinary configured
-          on the server. After submit, the brand reviews on the web; approval releases payment.
-        </Text>
-      </PremiumCard>
-      <Text style={styles.label}>Content link (Google Drive, YouTube, etc.)</Text>
-      <TextInput
-        style={styles.input}
+        <Pressable
+          onPress={() => void pickMedia()}
+          disabled={uploading}
+          style={[
+            styles.dashed,
+            { backgroundColor: kollab.color.well, borderColor: kollab.color.outline },
+          ]}
+        >
+          <View style={[styles.plus, { backgroundColor: kollab.color.chartreuse }]}>
+            <Text style={[styles.plusGlyph, { color: kollab.color.onChartreuse }]}>+</Text>
+          </View>
+          <Text style={[styles.dashedLabel, { color: kollab.color.ink }]}>Upload</Text>
+        </Pressable>
+      </View>
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Note to brand</Text>
+      <KollabTextField
+        surface="well"
+        multiline
+        placeholder="Anything the brand should know"
+        value={note}
+        onChangeText={setNote}
+        editable={!uploading}
+        style={styles.note}
+      />
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Content link</Text>
+      <KollabTextField
+        surface="well"
         placeholder="https://..."
         value={link}
         onChangeText={setLink}
         autoCapitalize="none"
         keyboardType="url"
         editable={!uploading}
+        style={styles.link}
       />
-      <TouchableOpacity
-        style={[styles.btn, styles.btnOutline, uploading && styles.btnDisabled]}
+
+      <KollabButton
+        label={uploading ? 'Submitting…' : 'Submit delivery'}
+        variant="ink"
         disabled={uploading}
-        onPress={() => void deliverLinkOnly()}
-      >
-        <Text style={[styles.btnText, styles.btnOutlineText]}>
-          {uploading ? 'Submitting…' : 'Submit link'}
-        </Text>
-      </TouchableOpacity>
-      <View style={styles.divider}>
-        <Text style={styles.dividerText}>or</Text>
-      </View>
-      <TouchableOpacity
-        style={[styles.btn, uploading && styles.btnDisabled]}
-        disabled={uploading}
-        onPress={() => void pickAndDeliver()}
-      >
-        <Text style={styles.btnText}>
-          {uploading ? 'Uploading…' : 'Pick file from gallery & submit'}
-        </Text>
-      </TouchableOpacity>
+        onPress={() => void submit()}
+      />
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  help: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: appShell.textSecondary,
-    lineHeight: 20,
+  help: { fontFamily: font.body, fontSize: 14, lineHeight: 20 },
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
   },
-  label: {
-    fontFamily: 'Inter_600SemiBold',
-    color: appShell.textPrimary,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
+  mediaRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  thumbWrap: {
+    width: 96,
+    height: 132,
+    borderRadius: 18,
+    overflow: 'hidden',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: appShell.cardBorder,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    fontFamily: 'Inter_400Regular',
-    color: appShell.textPrimary,
+  thumb: { width: 96, height: 132 },
+  dur: {
+    position: 'absolute',
+    left: 7,
+    bottom: 7,
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  divider: { alignItems: 'center', marginVertical: spacing.sm },
-  dividerText: { fontFamily: 'Inter_400Regular', color: appShell.textSecondary },
-  btn: {
-    backgroundColor: appShell.cta,
-    padding: spacing.md,
-    borderRadius: 12,
+  durText: { fontFamily: font.bold, fontSize: 10.5 },
+  dashed: {
+    flex: 1,
+    minHeight: 132,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'center',
+    gap: 7,
   },
-  btnDisabled: { opacity: 0.6 },
-  btnOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: appShell.cta },
-  btnText: { color: '#fff', fontFamily: 'Inter_700Bold' },
-  btnOutlineText: { color: appShell.cta },
+  plus: {
+    width: 30,
+    height: 30,
+    borderRadius: 99,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusGlyph: { fontSize: 16, lineHeight: 18 },
+  dashedLabel: { fontFamily: font.semiBold, fontSize: 11, opacity: 0.65 },
+  note: { marginBottom: 18 },
+  link: { marginBottom: 20 },
 });

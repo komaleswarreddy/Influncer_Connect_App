@@ -2,10 +2,10 @@ import { Stack, Redirect, useSegments } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useThemeStore } from '@/store/theme-store';
-import { useAppShell } from '@/theme/useAppShell';
+import { useKollab } from '@/theme/kollab-tokens';
 
 export default function InfluencerLayout() {
-  const shell = useAppShell();
+  const kollab = useKollab();
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const { isAuthenticated, isInitialized, refreshSession, nextStep } = useAuthStore();
   const segments = useSegments();
@@ -25,12 +25,11 @@ export default function InfluencerLayout() {
   // though screenOptions is only used once we reach the final <Stack>.
   const screenOptions = useMemo(
     () => ({
-      headerStyle: { backgroundColor: shell.canvas },
-      headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: shell.textPrimary },
-      headerTintColor: shell.cta,
-      contentStyle: { backgroundColor: shell.canvas },
+      headerShown: false,
+      contentStyle: { backgroundColor: kollab.color.screen },
+      animation: 'slide_from_right' as const,
     }),
-    [shell.canvas, shell.textPrimary, shell.cta]
+    [kollab.color.screen]
   );
 
   if (!isInitialized) {
@@ -64,10 +63,11 @@ export default function InfluencerLayout() {
           presentation: 'card',
         }}
       />
-      <Stack.Screen name="ugc-brief-detail" options={{ title: 'UGC Brief' }} />
-      <Stack.Screen name="ugc-deliver" options={{ title: 'Deliver' }} />
-      <Stack.Screen name="booking-deliver" options={{ title: 'Deliver' }} />
-      <Stack.Screen name="rating-cards" options={{ title: 'Campaign Ratings' }} />
+      <Stack.Screen name="ugc-brief-detail" />
+      <Stack.Screen name="ugc-deliver" />
+      <Stack.Screen name="booking-deliver" />
+      <Stack.Screen name="rating-cards" />
+      <Stack.Screen name="inbox" />
     </Stack>
   );
 }

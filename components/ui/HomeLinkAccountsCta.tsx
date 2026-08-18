@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppShell } from '@/theme';
-import { fonts } from './typography';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
 type Props = {
   onPress: () => void;
@@ -20,7 +19,7 @@ type Props = {
 
 /** Compact premium CTA for linking Instagram / social accounts beside Home shortcuts. */
 export function HomeLinkAccountsCta({ onPress, style }: Props) {
-  const shell = useAppShell();
+  const kollab = useKollab();
 
   return (
     <Pressable
@@ -30,10 +29,8 @@ export function HomeLinkAccountsCta({ onPress, style }: Props) {
       style={({ pressed }) => [styles.pressable, pressed && styles.pressed, style]}
     >
       <LinearGradient
-        colors={
-          shell.isDark ? ['#1A2440', '#121A2E', '#0B1220'] : ['#1A2642', '#141E33', '#0A1018']
-        }
-        locations={[0, 0.5, 1]}
+        colors={kollab.fabGradient}
+        locations={[0, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.card}
@@ -46,11 +43,16 @@ export function HomeLinkAccountsCta({ onPress, style }: Props) {
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.9}>
+        <Text
+          style={[styles.title, { color: kollab.color.inkOn }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.9}
+        >
           Link Account
         </Text>
         <View style={styles.chevron}>
-          <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+          <Ionicons name="arrow-forward" size={14} color={kollab.color.chartreuse} />
         </View>
       </LinearGradient>
     </Pressable>
@@ -91,10 +93,9 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     minWidth: 0,
-    fontFamily: fonts.bold,
+    fontFamily: font.bold,
     fontSize: 15,
     letterSpacing: -0.2,
-    color: '#FFFFFF',
   },
   chevron: {
     width: 26,

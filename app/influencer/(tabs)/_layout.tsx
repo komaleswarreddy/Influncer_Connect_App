@@ -2,11 +2,9 @@ import { useCallback, useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { PremiumTabBar } from '@/components/PremiumTabBar';
-import { useAppShell } from '@/theme/useAppShell';
+import { KollabTabBar } from '@/components/KollabTabBar';
+import { useKollab } from '@/theme/kollab-tokens';
 
-// Pure functions of (color, size) — never need to close over screen state, so
-// hoisted to module scope instead of being recreated on every render.
 function HomeTabIcon({ color, size }: { color: string; size: number }) {
   return <Ionicons name="home-outline" size={size} color={color} />;
 }
@@ -21,28 +19,16 @@ function SettingsTabIcon({ color, size }: { color: string; size: number }) {
 }
 
 export default function InfluencerTabsLayout() {
-  const shell = useAppShell();
-
-  const renderTabBar = useCallback((props: BottomTabBarProps) => <PremiumTabBar {...props} />, []);
+  const kollab = useKollab();
+  const renderTabBar = useCallback((props: BottomTabBarProps) => <KollabTabBar {...props} />, []);
 
   const screenOptions = useMemo(
     () => ({
-      headerShown: true,
-      headerTitleStyle: {
-        fontFamily: 'Inter_700Bold',
-        fontSize: 18,
-        color: shell.textPrimary,
-      },
-      headerStyle: {
-        backgroundColor: shell.canvas,
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 0,
-      },
-      headerTintColor: shell.cta,
+      headerShown: false,
       tabBarShowLabel: true,
+      sceneContainerStyle: { backgroundColor: kollab.color.screen },
     }),
-    [shell.textPrimary, shell.canvas, shell.cta]
+    [kollab.color.screen]
   );
 
   return (
@@ -59,13 +45,12 @@ export default function InfluencerTabsLayout() {
       <Tabs.Screen
         name="campaigns"
         options={{
-          title: 'Campaigns',
-          tabBarLabel: 'Campaigns',
+          title: 'Collabs',
+          tabBarLabel: 'Collabs',
           tabBarIcon: CampaignsTabIcon,
           headerShown: false,
         }}
       />
-      <Tabs.Screen name="inbox" options={{ href: null }} />
       <Tabs.Screen
         name="my-stats"
         options={{
@@ -80,12 +65,10 @@ export default function InfluencerTabsLayout() {
         options={{
           title: 'Settings',
           tabBarLabel: 'Settings',
+          headerShown: false,
           tabBarIcon: SettingsTabIcon,
         }}
       />
-      <Tabs.Screen name="ugc-jobs" options={{ href: null }} />
-      <Tabs.Screen name="bookings" options={{ href: null }} />
-      <Tabs.Screen name="ratings" options={{ href: null }} />
     </Tabs>
   );
 }

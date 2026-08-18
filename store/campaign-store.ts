@@ -130,6 +130,20 @@ interface AppNotification {
   } | null;
 }
 
+function normalizeApplication(row: Record<string, unknown>): CampaignApplication {
+  const campaign = (row.campaign as Campaign | undefined) ?? undefined;
+  return {
+    id: String(row.id ?? ''),
+    campaignId: String(row.campaignId ?? row.campaign_id ?? campaign?.id ?? ''),
+    influencerUserId: String(row.influencerUserId ?? row.influencer_user_id ?? ''),
+    status: String(row.status ?? 'applied'),
+    appliedAt: String(row.appliedAt ?? row.applied_at ?? ''),
+    reviewedAt: (row.reviewedAt ?? row.reviewed_at ?? null) as string | null,
+    reviewNote: (row.reviewNote ?? row.review_note ?? null) as string | null,
+    campaign,
+  };
+}
+
 interface CampaignState {
   campaigns: Campaign[];
   participations: CampaignParticipation[];
@@ -240,7 +254,10 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
         : Array.isArray(raw?.applications)
           ? raw.applications
           : [];
-      set({ applications: list, isLoading: false });
+      set({
+        applications: list.map((row) => normalizeApplication(row as Record<string, unknown>)),
+        isLoading: false,
+      });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to fetch applications';
       set({ error: msg, isLoading: false });

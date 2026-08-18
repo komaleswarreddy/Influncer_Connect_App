@@ -28,18 +28,27 @@ export function formatReachCount(total: number): string {
   return String(Math.round(total));
 }
 
-function sumConnectedFollowers(
+/** Followers/subscribers for one connected row — never treat an explicit 0 subscriberCount as the only value. */
+export function audienceCount(row: InfluencerAnalyticsRow | null | undefined): number {
+  if (!row?.isConnected) return 0;
+  return Math.max(0, row.followerCount || row.subscriberCount || 0);
+}
+
+export function averageEngagementRate(
+  rows: Array<InfluencerAnalyticsRow | null | undefined>
+): number {
+  const connected = rows.filter((r): r is InfluencerAnalyticsRow => Boolean(r?.isConnected));
+  if (connected.length === 0) return 0;
+  const sum = connected.reduce((n, r) => n + Number(r.averageEngagementRate || 0), 0);
+  return sum / connected.length;
+}
+
+export function sumConnectedFollowers(
   instagram: InfluencerAnalyticsRow | null,
   youtube: InfluencerAnalyticsRow | null,
   twitter: InfluencerAnalyticsRow | null
 ): number {
-  let sum = 0;
-  if (instagram?.isConnected) sum += Math.max(0, instagram.followerCount || 0);
-  if (youtube?.isConnected) {
-    sum += Math.max(0, youtube.subscriberCount ?? youtube.followerCount ?? 0);
-  }
-  if (twitter?.isConnected) sum += Math.max(0, twitter.followerCount || 0);
-  return sum;
+  return audienceCount(instagram) + audienceCount(youtube) + audienceCount(twitter);
 }
 
 export type HomeDashboardStats = {

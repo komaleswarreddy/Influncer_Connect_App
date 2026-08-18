@@ -1,13 +1,8 @@
-import { Link, Redirect, Stack, usePathname } from 'expo-router';
+import { Redirect, Stack, usePathname, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { KollabButton } from '@/components/ui/KollabButton';
+import { useKollab, font } from '@/theme/kollab-tokens';
 
-import { fonts } from '@/components/ui/typography';
-import { useAppShell } from '@/theme';
-
-// Mirrors app/+native-intent.ts's redirectSystemPath — same patterns, same
-// destinations. This only runs as a fallback when native-intent didn't
-// intercept the link first, so it must send each pattern to the same place
-// native-intent would, not collapse everything onto /auth/callback.
 function oauthDeepLinkRedirect(pathname: string | null | undefined): string | null {
   if (!pathname) return null;
   if (/instagram-connected/i.test(pathname)) return '/account-screens/dm-automation';
@@ -17,9 +12,9 @@ function oauthDeepLinkRedirect(pathname: string | null | undefined): string | nu
 
 export default function NotFoundScreen() {
   const pathname = usePathname();
-  const shell = useAppShell();
+  const router = useRouter();
+  const kollab = useKollab();
 
-  // Belt-and-suspenders: never flash the Oops UI for OAuth return URLs.
   const redirectTo = oauthDeepLinkRedirect(pathname);
   if (redirectTo) {
     return <Redirect href={redirectTo as never} />;
@@ -27,14 +22,15 @@ export default function NotFoundScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={[styles.container, { backgroundColor: shell.canvas }]}>
-        <Text style={[styles.title, { color: shell.textPrimary }]}>
-          This screen does not exist.
-        </Text>
-        <Link href="/" style={styles.link}>
-          <Text style={[styles.linkText, { color: shell.cta }]}>Go to home screen!</Text>
-        </Link>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.container, { backgroundColor: kollab.color.screen }]}>
+        <Text style={[styles.code, { color: kollab.color.ink }]}>404</Text>
+        <Text style={[styles.body, { color: kollab.color.ink }]}>This screen doesn’t exist.</Text>
+        <KollabButton
+          label="Go to home screen"
+          onPress={() => router.replace('/')}
+          style={styles.cta}
+        />
       </View>
     </>
   );
@@ -45,19 +41,24 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    gap: 10,
+    paddingHorizontal: 32,
   },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
+  code: {
+    fontFamily: font.display,
+    fontSize: 58,
+    lineHeight: 58,
+  },
+  body: {
+    fontFamily: font.body,
+    fontSize: 14,
+    opacity: 0.55,
     textAlign: 'center',
   },
-  link: {
-    marginTop: 15,
+  cta: {
+    marginTop: 14,
+    paddingHorizontal: 26,
     paddingVertical: 15,
-  },
-  linkText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 16,
+    alignSelf: 'center',
   },
 });

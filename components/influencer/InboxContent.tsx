@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,11 +9,15 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { PrimaryButton, SecondaryButton, SectionHeader, PremiumCard } from '@/components/ui';
-import { spacing, useAppShell } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { useKollab, font } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
+import { KollabButton } from '@/components/ui/KollabButton';
+import { showKollabToast } from '@/components/ui/PremiumToast';
+import { KollabSegmented } from '@/components/ui/KollabSegmented';
+import { Glyph, type GlyphName } from '@/components/ui/Glyph';
 import { useCampaignStore } from '@/store/campaign-store';
+import { nicheCoverSource } from '@/lib/niche-cover';
+import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
 
 type NotifNav = {
   type: string;
@@ -102,39 +106,33 @@ function formatRelativeTime(input: string): string {
 }
 
 type NotificationIcon = {
-  name: React.ComponentProps<typeof Ionicons>['name'];
+  name: GlyphName;
   bg: string;
   color: string;
 };
 
-/** Icon + tint matched to the displayed status title. */
-function notificationIconForStatus(statusTitle: string): NotificationIcon {
+function notificationIconForStatus(statusTitle: string, kollab: KollabTokens): NotificationIcon {
   switch (statusTitle) {
     case 'New invite':
-      return { name: 'mail-unread', bg: 'rgba(59, 130, 246, 0.18)', color: '#3B82F6' };
+      return { name: 'layers', bg: kollab.color.tint, color: kollab.color.violet };
     case 'Invite approved':
-      return { name: 'shield-checkmark', bg: 'rgba(99, 102, 241, 0.18)', color: '#6366F1' };
     case 'Invite accepted':
-      return { name: 'checkmark-circle', bg: 'rgba(16, 185, 129, 0.18)', color: '#10B981' };
-    case 'Invite rejected':
-      return { name: 'close-circle', bg: 'rgba(239, 68, 68, 0.18)', color: '#EF4444' };
-    case 'Invite expired':
-      return { name: 'time', bg: 'rgba(148, 163, 184, 0.22)', color: '#94A3B8' };
     case 'Campaign active':
-      return { name: 'flash', bg: 'rgba(245, 158, 11, 0.18)', color: '#F59E0B' };
+      return { name: 'check', bg: kollab.color.tealTint, color: kollab.color.teal };
+    case 'Invite rejected':
+    case 'Invite expired':
+      return { name: 'help', bg: kollab.statusChip.warn.bg, color: kollab.statusChip.warn.fg };
     case 'Payment received':
-      return { name: 'wallet', bg: 'rgba(245, 158, 11, 0.18)', color: '#F59E0B' };
+      return { name: 'wallet', bg: kollab.color.chartreuse, color: kollab.color.onChartreuse };
     case 'Booking request':
-      return { name: 'calendar', bg: 'rgba(14, 165, 233, 0.18)', color: '#0EA5E9' };
     case 'Deliverable submitted':
-      return { name: 'document-text', bg: 'rgba(139, 92, 246, 0.18)', color: '#8B5CF6' };
     case 'Booking update':
-      return { name: 'calendar-outline', bg: 'rgba(14, 165, 233, 0.18)', color: '#0EA5E9' };
+      return { name: 'cal', bg: kollab.color.tint, color: kollab.color.violet };
     case 'UGC update':
-      return { name: 'videocam', bg: 'rgba(236, 72, 153, 0.18)', color: '#EC4899' };
+      return { name: 'video', bg: kollab.color.tealTint, color: kollab.color.teal };
     case 'Campaign update':
     default:
-      return { name: 'megaphone-outline', bg: 'rgba(99, 102, 241, 0.18)', color: '#6366F1' };
+      return { name: 'layers', bg: kollab.color.tint, color: kollab.color.violet };
   }
 }
 
@@ -220,43 +218,52 @@ type InviteItem = ReturnType<typeof useCampaignStore.getState>['invites'][number
 const NotificationRow = React.memo(function NotificationRow({
   notification,
   onOpen,
+  last,
 }: {
   notification: NotificationItem;
   onOpen: (n: NotificationItem) => void;
+  last?: boolean;
 }) {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const styles = useKollabStyles(kollab);
   const isUnread = !notification.isRead;
   const statusTitle = notificationStatusTitle(notification);
   const relativeTime = formatRelativeTime(notification.createdAt);
-  const icon = notificationIconForStatus(statusTitle);
+  const icon = notificationIconForStatus(statusTitle, kollab);
 
   return (
-    <View
-      style={[
-        styles.notificationRow,
-        { backgroundColor: shell.card, borderColor: shell.cardBorder },
-        !isUnread && styles.notificationRowRead,
-      ]}
-    >
-      <View style={styles.notificationLeft}>
-        <View style={[styles.notificationIconWrap, { backgroundColor: icon.bg }]}>
-          <Ionicons name={icon.name} size={18} color={icon.color} />
+    <View style={[styles.notificationRow, last ? styles.notificationRowLast : null]}>
+      <View style={[styles.notificationIconWrap, { backgroundColor: icon.bg }]}>
+        <Glyph name={icon.name} size={17} color={icon.color} />
+      </View>
+      <View style={styles.notificationBody}>
+        <View style={styles.notificationTitleRow}>
+          <Text
+            style={[
+              styles.title,
+              { color: isUnread ? kollab.color.ink : kollab.color.inkMuted },
+              !isUnread ? { fontFamily: font.body } : null,
+            ]}
+            numberOfLines={1}
+          >
+            {statusTitle}
+          </Text>
+          {isUnread ? <View style={styles.unreadDot} /> : null}
         </View>
-        <Text
-          style={[
-            styles.title,
-            { color: isUnread ? shell.textPrimary : shell.textSecondary },
-            !isUnread && styles.titleRead,
-          ]}
-          numberOfLines={1}
-        >
-          {statusTitle}
-        </Text>
+        {notification.body ? (
+          <Text style={styles.messageText} numberOfLines={2}>
+            {notification.body}
+          </Text>
+        ) : null}
+        <Text style={styles.timeText}>{relativeTime}</Text>
       </View>
-      <View style={styles.notificationRight}>
-        <Text style={[styles.timeText, { color: shell.textMuted }]}>{relativeTime}</Text>
-        <PrimaryButton label="Open" compact pill onPress={() => onOpen(notification)} />
-      </View>
+      <KollabButton
+        label="Open"
+        variant="soft"
+        compact
+        onPress={() => onOpen(notification)}
+        style={styles.openButton}
+      />
     </View>
   );
 });
@@ -274,38 +281,83 @@ const InviteRow = React.memo(function InviteRow({
   onDecline: (invite: InviteItem) => void;
   onAccept: (invite: InviteItem) => void;
 }) {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const styles = useKollabStyles(kollab);
+  const campaign = invite.campaign;
+  const isNew = invite.status === 'sent';
+  const brandName = campaign?.tenant?.tenantName;
+  const paySummary = campaign
+    ? resolveCampaignPaySummary({
+        paySummary: campaign.paySummary,
+        paymentModel: campaign.paymentModel,
+        commissionRate: campaign.commissionRate,
+      })
+    : null;
+  const payLine = paySummary ? `${paySummary.primaryLabel} ${paySummary.secondaryLabel}` : null;
+  const metaLine = [brandName, payLine].filter(Boolean).join(' · ');
+
   return (
     <View
       style={[
         styles.inviteCard,
         highlighted
           ? {
-              backgroundColor: shell.iceBlue,
+              backgroundColor: kollab.color.tint,
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: shell.cardBorder,
+              borderColor: kollab.color.hairline,
             }
           : null,
       ]}
     >
       <View style={styles.inviteTopRow}>
-        <Text style={[styles.inviteTitle, { color: shell.textPrimary }]}>
-          {invite.campaign?.name || 'Campaign invite'}
-        </Text>
+        <Image
+          source={nicheCoverSource(campaign?.requiredInfluencerNiche)}
+          style={styles.inviteCover}
+        />
+        <View style={styles.inviteInfo}>
+          {isNew ? (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>New invite</Text>
+            </View>
+          ) : null}
+          <Text style={styles.inviteTitle} numberOfLines={2}>
+            {campaign?.name || 'Campaign invite'}
+          </Text>
+          {metaLine ? (
+            <Text style={styles.muted} numberOfLines={1}>
+              {metaLine}
+            </Text>
+          ) : null}
+        </View>
       </View>
-      <Text style={[styles.muted, { color: shell.textSecondary }]}>
+      <Text style={[styles.muted, styles.expiresLine]}>
         Expires: {invite.expiresAt ? new Date(invite.expiresAt).toLocaleString() : 'N/A'}
       </Text>
       <View style={styles.actions}>
-        <SecondaryButton label="Decline" onPress={() => onDecline(invite)} disabled={disabled} />
-        <PrimaryButton label="Accept" onPress={() => onAccept(invite)} disabled={disabled} />
+        <KollabButton
+          label="Decline"
+          variant="hairline"
+          compact
+          onPress={() => onDecline(invite)}
+          disabled={disabled}
+          style={styles.flexButton}
+        />
+        <KollabButton
+          label="Accept"
+          variant="ink"
+          compact
+          onPress={() => onAccept(invite)}
+          disabled={disabled}
+          style={styles.flexButton}
+        />
       </View>
     </View>
   );
 });
 
 export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
-  const shell = useAppShell();
+  const kollab = useKollab();
+  const styles = useKollabStyles(kollab);
   const router = useRouter();
   const params = useLocalSearchParams<{ inviteId?: string }>();
   const {
@@ -326,6 +378,7 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
   const [focusedInviteId, setFocusedInviteId] = useState<string | null>(
     params.inviteId ? String(params.inviteId) : null
   );
+  const [activeTab, setActiveTab] = useState<'invites' | 'notifications'>('invites');
 
   const refresh = useCallback(async () => {
     await Promise.all([fetchInvites(), fetchNotifications()]);
@@ -342,6 +395,7 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
   }, [params.inviteId]);
 
   const scrollToPendingInvites = useCallback(() => {
+    setActiveTab('invites');
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ y: Math.max(0, pendingY.current - 12), animated: true });
     });
@@ -372,7 +426,7 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
           scrollToPendingInvites,
         });
       } catch (e) {
-        Alert.alert('Notification', e instanceof Error ? e.message : 'Could not open notification');
+        showKollabToast(e instanceof Error ? e.message : 'Could not open notification');
       }
     },
     [markNotificationRead, router, scrollToPendingInvites]
@@ -383,8 +437,9 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
       try {
         await declineInvite(invite.id);
         if (focusedInviteId === invite.id) setFocusedInviteId(null);
+        showKollabToast('Invite declined');
       } catch (e) {
-        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not decline');
+        showKollabToast(e instanceof Error ? e.message : 'Could not decline');
       }
     },
     [declineInvite, focusedInviteId]
@@ -396,10 +451,11 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
         await markInviteViewed(invite.id);
         const participationId = await acceptInvite(invite.id);
         if (participationId) {
+          showKollabToast('Booking accepted');
           router.push(`/influencer/contract?participationId=${participationId}`);
         }
       } catch (e) {
-        Alert.alert('Invite', e instanceof Error ? e.message : 'Could not accept');
+        showKollabToast(e instanceof Error ? e.message : 'Could not accept');
       }
     },
     [markInviteViewed, acceptInvite, router]
@@ -408,116 +464,214 @@ export function InboxContent({ showHeader = true }: { showHeader?: boolean }) {
   return (
     <ScrollView
       ref={scrollRef}
-      style={[styles.screen, { backgroundColor: shell.canvas }]}
+      style={[styles.screen, { backgroundColor: kollab.color.screen }]}
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
           refreshing={isLoading}
           onRefresh={() => void refresh()}
-          tintColor={shell.cta}
+          tintColor={kollab.color.ink}
         />
       }
     >
       {showHeader ? (
-        <SectionHeader
-          overline="Inbox"
-          title="Collab inbox"
-          subtitle={`${unreadNotifications} unread`}
-        />
+        <View style={styles.headerBlock}>
+          <Text style={styles.pageTitle}>Inbox</Text>
+          <Text style={styles.pageSubtitle}>Invites and collab notifications</Text>
+        </View>
       ) : null}
 
-      <PremiumCard compact title="Notifications">
-        {sortedNotifications.length === 0 ? (
-          <Text style={[styles.muted, { color: shell.textSecondary }]}>No notifications yet.</Text>
-        ) : (
-          sortedNotifications.map((n) => (
-            <NotificationRow key={n.id} notification={n} onOpen={onOpenNotification} />
-          ))
-        )}
-      </PremiumCard>
+      <KollabSegmented
+        style={styles.tabTrack}
+        segments={[
+          { key: 'invites', label: 'Invites' },
+          {
+            key: 'notifications',
+            label:
+              unreadNotifications > 0 ? `Notifications (${unreadNotifications})` : 'Notifications',
+          },
+        ]}
+        value={activeTab}
+        onChange={(key) => setActiveTab(key as 'invites' | 'notifications')}
+      />
 
-      <PremiumCard
-        compact
-        title="Pending invites"
-        style={{ marginTop: spacing.md }}
-        onLayout={onPendingLayout}
-      >
-        {pendingInvites.length === 0 ? (
-          <Text style={[styles.muted, { color: shell.textSecondary }]}>No pending invites.</Text>
-        ) : (
-          pendingInvites.map((invite) => (
-            <InviteRow
-              key={invite.id}
-              invite={invite}
-              highlighted={focusedInviteId != null && focusedInviteId === invite.id}
-              disabled={isLoading}
-              onDecline={onDeclineInvite}
-              onAccept={onAcceptInvite}
-            />
-          ))
-        )}
-      </PremiumCard>
+      {activeTab === 'invites' ? (
+        <View style={styles.inviteList} onLayout={onPendingLayout}>
+          {pendingInvites.length === 0 ? (
+            <Text style={[styles.muted, { paddingHorizontal: 4 }]}>No pending invites.</Text>
+          ) : (
+            pendingInvites.map((invite) => (
+              <InviteRow
+                key={invite.id}
+                invite={invite}
+                highlighted={focusedInviteId != null && focusedInviteId === invite.id}
+                disabled={isLoading}
+                onDecline={onDeclineInvite}
+                onAccept={onAcceptInvite}
+              />
+            ))
+          )}
+        </View>
+      ) : (
+        <View style={styles.notifCard}>
+          {sortedNotifications.length === 0 ? (
+            <Text style={[styles.muted, { paddingVertical: 16 }]}>No notifications yet.</Text>
+          ) : (
+            sortedNotifications.map((n, idx) => (
+              <NotificationRow
+                key={n.id}
+                notification={n}
+                onOpen={onOpenNotification}
+                last={idx === sortedNotifications.length - 1}
+              />
+            ))
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  content: { padding: spacing.md, paddingBottom: spacing.lg },
-  muted: { fontSize: 13, fontFamily: fonts.regular },
-  title: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 14,
-    fontFamily: fonts.semiBold,
-  },
-  titleRead: { fontFamily: fonts.regular },
-  inviteTitle: { fontSize: 14, fontFamily: fonts.semiBold, flex: 1 },
-  notificationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-    gap: spacing.sm,
-  },
-  notificationIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  notificationRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    minHeight: 44,
-    paddingLeft: spacing.xs,
-  },
-  timeText: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-  },
-  notificationRow: {
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  notificationRowRead: {
-    opacity: 1,
-  },
-  inviteCard: {
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-    borderRadius: 12,
-    padding: spacing.sm,
-    backgroundColor: 'transparent',
-  },
-  inviteTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-});
+function useKollabStyles(kollab: KollabTokens) {
+  return React.useMemo(
+    () =>
+      StyleSheet.create({
+        screen: { flex: 1 },
+        content: { paddingBottom: 40 },
+        headerBlock: { marginBottom: 8, paddingHorizontal: 22 },
+        pageTitle: {
+          fontFamily: font.display,
+          fontSize: 28,
+          lineHeight: 30,
+          letterSpacing: -0.5,
+          color: kollab.color.ink,
+        },
+        pageSubtitle: {
+          fontFamily: font.body,
+          fontSize: 13,
+          marginTop: 4,
+          color: kollab.color.ink,
+          opacity: 0.55,
+        },
+        tabTrack: {
+          marginHorizontal: 22,
+          marginBottom: 16,
+        },
+        inviteList: {
+          paddingHorizontal: 18,
+          gap: 10,
+        },
+        notifCard: {
+          backgroundColor: kollab.color.card,
+          borderRadius: 24,
+          marginHorizontal: 18,
+          paddingHorizontal: 18,
+          paddingVertical: 4,
+          ...kollab.shadow.card,
+        },
+        muted: { fontSize: 13, fontFamily: font.body, color: kollab.color.inkMuted },
+        title: {
+          flex: 1,
+          minWidth: 0,
+          fontSize: 13.5,
+          fontFamily: font.semiBold,
+        },
+        titleRead: { fontFamily: font.body },
+        inviteTitle: {
+          fontSize: 14.5,
+          fontFamily: font.semiBold,
+          color: kollab.color.ink,
+          marginTop: 5,
+        },
+        inviteTopRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+        inviteCover: {
+          width: 56,
+          height: 56,
+          borderRadius: 18,
+          backgroundColor: kollab.color.imgBg,
+          flexShrink: 0,
+        },
+        inviteInfo: { flex: 1, minWidth: 0 },
+        newBadge: {
+          alignSelf: 'flex-start',
+          backgroundColor: kollab.color.chartreuse,
+          borderRadius: 99,
+          paddingHorizontal: 9,
+          paddingVertical: 3,
+        },
+        newBadgeText: {
+          fontFamily: font.bold,
+          fontSize: 10.5,
+          color: kollab.color.onChartreuse,
+        },
+        expiresLine: { marginTop: 8 },
+        notificationIconWrap: {
+          width: 36,
+          height: 36,
+          borderRadius: 99,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          marginTop: 2,
+        },
+        notificationBody: {
+          flex: 1,
+          minWidth: 0,
+        },
+        notificationTitleRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 7,
+        },
+        unreadDot: {
+          width: 7,
+          height: 7,
+          borderRadius: 99,
+          backgroundColor: kollab.color.violet,
+        },
+        messageText: {
+          fontSize: 12.5,
+          fontFamily: font.body,
+          color: kollab.color.ink,
+          opacity: 0.6,
+          lineHeight: 18,
+          marginTop: 3,
+        },
+        openButton: { flexShrink: 0 },
+        timeText: {
+          fontSize: 11,
+          fontFamily: font.body,
+          color: kollab.color.ink,
+          opacity: 0.4,
+          marginTop: 4,
+        },
+        notificationRow: {
+          paddingVertical: 15,
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 13,
+          borderBottomWidth: 1,
+          borderBottomColor: kollab.color.hairline,
+        },
+        notificationRowLast: {
+          borderBottomWidth: 0,
+        },
+        inviteCard: {
+          backgroundColor: kollab.color.card,
+          borderRadius: 22,
+          padding: 15,
+          ...kollab.shadow.card,
+        },
+        actions: {
+          flexDirection: 'row',
+          gap: 9,
+          marginTop: 13,
+          paddingTop: 12,
+          borderTopWidth: 1,
+          borderTopColor: kollab.color.hairline,
+        },
+        flexButton: { flex: 1 },
+      }),
+    [kollab]
+  );
+}

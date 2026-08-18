@@ -1,70 +1,15 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { ScrollScreen, SectionHeader, PremiumCard, PrimaryButton } from '@/components/ui';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ScrollScreen, KollabScreenHeader } from '@/components/ui';
 import { useSchedulerStore } from '@/store/scheduler-store';
-import type { ScheduledPost } from '@/lib/scheduler-api';
-import { appShell, spacing, radius } from '@/theme';
-import { fonts } from '@/components/ui/typography';
-
-const BENEFITS = [
-  'Plan reels, feed posts, and stories in one place',
-  'Calendar view with upcoming publish times',
-];
-
-function formatWhen(iso: string, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: tz || 'Asia/Kolkata',
-    }).format(new Date(iso));
-  } catch {
-    return new Date(iso).toLocaleString();
-  }
-}
-
-function DmStatusPill({ post }: { post: ScheduledPost }) {
-  if (post.dmLinkStatus === 'failed') {
-    return (
-      <View style={[styles.pill, styles.pillFailed]}>
-        <Text style={styles.pillFailedText}>DM link failed</Text>
-      </View>
-    );
-  }
-  if (post.dmAutomationId) {
-    return (
-      <View style={styles.pill}>
-        <Text style={styles.pillText}>Auto DM</Text>
-      </View>
-    );
-  }
-  return null;
-}
-
-function PostRow({ post }: { post: ScheduledPost }) {
-  const label = post.contentType === 'reel' ? 'Reel' : post.contentType === 'story' ? 'Story' : 'Post';
-  return (
-    <View style={styles.postRow}>
-      <View style={styles.postIcon}>
-        <Ionicons
-          name={post.contentType === 'reel' ? 'film-outline' : post.contentType === 'story' ? 'ellipse-outline' : 'image-outline'}
-          size={18}
-          color={appShell.cta}
-        />
-      </View>
-      <View style={styles.postCopy}>
-        <Text style={styles.postTitle}>{label}</Text>
-        <Text style={styles.postMeta}>{formatWhen(post.scheduledAt, post.timezone)}</Text>
-      </View>
-    </View>
-  );
-}
+import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
 
 export default function ScheduleContentScreen() {
   const router = useRouter();
-  const { posts, fetchPosts, isLoading } = useSchedulerStore();
+  const kollab = useKollab();
+  const { posts, fetchPosts } = useSchedulerStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -75,103 +20,156 @@ export default function ScheduleContentScreen() {
   const upcoming = posts
     .filter((p) => p.status === 'scheduled')
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 3);
+    .slice(0, 2);
+
+  const scheduledCount = posts.filter((p) => p.status === 'scheduled').length;
+  const goCreate = () => router.push('/account-screens/create-scheduled-post' as never);
 
   return (
-    <ScrollScreen safeAreaEdges={['bottom']}>
-      <SectionHeader title="Schedule Content" subtitle="Publish on your timeline" />
+    <ScrollScreen safeAreaEdges={['top', 'left', 'right', 'bottom']}>
+      <KollabScreenHeader title="Schedule content" subtitle="Publish on your timeline" />
 
-      <PremiumCard style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>CONTENT SCHEDULER</Text>
-        <Text style={styles.heroTitle}>Upload once. Publish on time.</Text>
-        <View style={styles.chipRow}>
-          {['Reels', 'Posts', 'Stories'].map((chip) => (
-            <View key={chip} style={styles.chip}>
-              <Text style={styles.chipText}>{chip}</Text>
-            </View>
-          ))}
-        </View>
-        {BENEFITS.map((b) => (
-          <View key={b} style={styles.benefitRow}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={appShell.cta} />
-            <Text style={styles.benefitText}>{b}</Text>
-          </View>
-        ))}
-        <PrimaryButton
-          label="Upload your reel"
-          onPress={() => router.push('/account-screens/create-scheduled-post' as never)}
-        />
-      </PremiumCard>
-
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Upcoming</Text>
-        <TouchableOpacity onPress={() => router.push('/account-screens/scheduled-calendar' as never)}>
-          <Text style={styles.sectionLink}>Calendar</Text>
-        </TouchableOpacity>
+      <View style={styles.tileRow}>
+        <Pressable
+          onPress={goCreate}
+          style={[styles.tile, { backgroundColor: kollab.color.chartreuse }]}
+        >
+          <Text style={[styles.tileTitle, { color: kollab.color.onChartreuse }]}>New post</Text>
+          <Text style={[styles.tileHint, { color: kollab.color.onChartreuse }]}>
+            Reels, posts, and stories
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/account-screens/scheduled-calendar' as never)}
+          style={[styles.tile, { backgroundColor: kollab.color.panel }]}
+        >
+          <Text style={[styles.tileTitle, { color: kollab.color.chartreuse }]}>Calendar</Text>
+          <Text style={[styles.tileHint, { color: kollab.color.panelInk, opacity: 0.6 }]}>
+            {scheduledCount} scheduled
+          </Text>
+        </Pressable>
       </View>
 
-      {isLoading && upcoming.length === 0 ? (
-        <Text style={styles.empty}>Loading…</Text>
-      ) : upcoming.length === 0 ? (
-        <PremiumCard>
-          <Text style={styles.empty}>No scheduled content yet. Tap upload to create your first post.</Text>
-        </PremiumCard>
-      ) : (
-        <PremiumCard style={styles.listCard}>
-          {upcoming.map((p) => (
-            <PostRow key={p.id} post={p} />
-          ))}
-        </PremiumCard>
-      )}
+      <View style={styles.tileRow}>
+        <Pressable
+          onPress={() => router.push('/account-screens/ai-caption-results' as never)}
+          style={[styles.tile, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <Text style={[styles.tileTitle, { color: kollab.color.ink }]}>AI captions</Text>
+          <Text style={[styles.tileHint, { color: kollab.color.ink, opacity: 0.55 }]}>
+            Pick a caption to use
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/account-screens/trending-ideas' as never)}
+          style={[styles.tile, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <Text style={[styles.tileTitle, { color: kollab.color.ink }]}>Trending</Text>
+          <Text style={[styles.tileHint, { color: kollab.color.ink, opacity: 0.55 }]}>
+            AI briefs for your niche
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Upload your reel</Text>
+      <View style={styles.mediaRow}>
+        {upcoming.map((p) => (
+          <Pressable key={p.id} onPress={goCreate} style={styles.thumbWrap}>
+            {p.thumbnailUrl || p.mediaUrl ? (
+              <Image source={{ uri: p.thumbnailUrl || p.mediaUrl }} style={styles.thumb} />
+            ) : (
+              <View style={[styles.thumb, { backgroundColor: kollab.color.imgBg }]} />
+            )}
+            <LinearGradient
+              colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(11,9,6,0.6)']}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={[styles.dur, { backgroundColor: kollab.color.panel }]}>
+              <Text style={[styles.durText, { color: kollab.color.panelInk }]}>
+                {p.contentType === 'reel' ? 'Reel' : p.contentType === 'story' ? 'Story' : 'Post'}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+        <Pressable
+          onPress={goCreate}
+          style={[
+            styles.dashed,
+            {
+              backgroundColor: kollab.color.cardSoft,
+              borderColor: kollab.color.outline,
+            },
+          ]}
+        >
+          <View style={[styles.plus, { backgroundColor: kollab.color.chartreuse }]}>
+            <Text style={[styles.plusGlyph, { color: kollab.color.onChartreuse }]}>+</Text>
+          </View>
+          <Text style={[styles.dashedLabel, { color: kollab.color.ink }]}>Upload</Text>
+        </Pressable>
+      </View>
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroCard: { gap: spacing.sm },
-  heroEyebrow: { fontFamily: fonts.semiBold, fontSize: 11, letterSpacing: 1.2, color: appShell.cta },
-  heroTitle: { fontFamily: fonts.bold, fontSize: 22, color: appShell.textPrimary },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginVertical: spacing.xs },
-  chip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: appShell.canvasAlt,
+  tileRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  tile: {
+    flex: 1,
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
   },
-  chipText: { fontFamily: fonts.semiBold, fontSize: 12, color: appShell.textPrimary },
-  benefitRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  benefitText: { flex: 1, fontFamily: fonts.regular, fontSize: 13, color: appShell.textMuted },
-  sectionHead: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  tileTitle: {
+    ...kType.rowTitle,
+  },
+  tileHint: {
+    fontFamily: font.body,
+    fontSize: 11.5,
+    marginTop: 2,
+    opacity: 0.65,
+  },
+  fieldLabel: {
+    fontFamily: font.semiBold,
+    fontSize: 12.5,
+    opacity: 0.62,
+    marginBottom: 7,
+  },
+  mediaRow: { flexDirection: 'row', gap: 10, marginBottom: space.md },
+  thumbWrap: {
+    width: 106,
+    height: 146,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  thumb: { width: 106, height: 146 },
+  dur: {
+    position: 'absolute',
+    left: 7,
+    bottom: 7,
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  durText: { fontFamily: font.bold, fontSize: 10.5 },
+  dashed: {
+    flex: 1,
+    minHeight: 146,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
   },
-  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: appShell.textPrimary },
-  sectionLink: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.cta },
-  listCard: { gap: spacing.md },
-  postRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  postIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: appShell.canvasAlt,
+  plus: {
+    width: 30,
+    height: 30,
+    borderRadius: 99,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  postCopy: { flex: 1 },
-  postTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
-  pill: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: appShell.canvasAlt,
-  },
-  pillText: { fontFamily: fonts.semiBold, fontSize: 10, color: appShell.cta },
-  pillFailed: { backgroundColor: '#FEF3C7' },
-  pillFailedText: { fontFamily: fonts.semiBold, fontSize: 10, color: '#B45309' },
-  postTitle: { fontFamily: fonts.semiBold, fontSize: 14, color: appShell.textPrimary },
-  postMeta: { fontFamily: fonts.regular, fontSize: 12, color: appShell.textMuted },
-  empty: { fontFamily: fonts.regular, fontSize: 14, color: appShell.textMuted },
+  plusGlyph: { fontSize: 16, fontFamily: font.semiBold },
+  dashedLabel: { fontFamily: font.semiBold, fontSize: 11, opacity: 0.65 },
 });

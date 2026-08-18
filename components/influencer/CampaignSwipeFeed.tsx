@@ -26,8 +26,8 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { spacing, appShell, radius, shadow } from '@/theme';
-import { fonts } from '@/components/ui/typography';
+import { useKollab, font, space, radius as kollabRadius } from '@/theme/kollab-tokens';
+import type { KollabTokens } from '@/theme/kollab-tokens';
 
 export type SwipeFeedRenderOptions = {
   variant: 'active' | 'peek';
@@ -110,6 +110,8 @@ function SwipeFeedSlot({
 }
 
 function SwipeGlassPill({ activeIndex, total }: { activeIndex: number; total: number }) {
+  const kollab = useKollab();
+  const kStyles = useKollabStyles(kollab);
   if (total <= 1) return null;
 
   const atStart = activeIndex <= 0;
@@ -119,16 +121,16 @@ function SwipeGlassPill({ activeIndex, total }: { activeIndex: number; total: nu
       <Ionicons
         name="chevron-up"
         size={14}
-        color={atStart ? 'rgba(10, 17, 40, 0.22)' : appShell.textSecondary}
+        color={atStart ? kollab.color.inkFaint : kollab.color.inkMuted}
       />
-      <Text style={styles.pillCount}>
+      <Text style={kStyles.pillCount}>
         {activeIndex + 1}
-        <Text style={styles.pillCountMuted}> / {total}</Text>
+        <Text style={kStyles.pillCountMuted}> / {total}</Text>
       </Text>
       <Ionicons
         name="chevron-down"
         size={14}
-        color={atEnd ? 'rgba(10, 17, 40, 0.22)' : appShell.textSecondary}
+        color={atEnd ? kollab.color.inkFaint : kollab.color.inkMuted}
       />
     </>
   );
@@ -136,17 +138,23 @@ function SwipeGlassPill({ activeIndex, total }: { activeIndex: number; total: nu
   return (
     <View style={styles.pillWrap} pointerEvents="none">
       {Platform.OS === 'ios' ? (
-        <BlurView intensity={48} tint="light" style={styles.pill}>
+        <BlurView
+          intensity={48}
+          tint={kollab.isDark ? 'dark' : 'light'}
+          style={[styles.pill, kStyles.pill]}
+        >
           {pillBody}
         </BlurView>
       ) : (
-        <View style={[styles.pill, styles.pillAndroid]}>{pillBody}</View>
+        <View style={[styles.pill, kStyles.pill, kStyles.pillAndroid]}>{pillBody}</View>
       )}
     </View>
   );
 }
 
 function SwipeUpHintOverlay({ visible }: { visible: boolean }) {
+  const kollab = useKollab();
+  const kStyles = useKollabStyles(kollab);
   const bounce = useSharedValue(0);
   const fade = useSharedValue(0);
 
@@ -179,9 +187,9 @@ function SwipeUpHintOverlay({ visible }: { visible: boolean }) {
 
   return (
     <Animated.View style={[styles.hintWrap, wrapStyle]} pointerEvents="none">
-      <View style={styles.hintPill}>
-        <Ionicons name="chevron-up" size={16} color={appShell.cta} />
-        <Text style={styles.hintText}>Swipe up for next</Text>
+      <View style={[styles.hintPill, kStyles.hintPill]}>
+        <Ionicons name="chevron-up" size={16} color={kollab.color.ink} />
+        <Text style={kStyles.hintText}>Swipe up for next</Text>
       </View>
     </Animated.View>
   );
@@ -200,6 +208,7 @@ export function CampaignSwipeFeed<T>({
   onRefresh,
   peekPx = CAMPAIGN_FEED_PEEK_PX,
 }: Props<T>) {
+  const kollab = useKollab();
   const scrollY = useSharedValue(0);
   const nudgeY = useSharedValue(0);
   const listRef = useRef<Animated.FlatList<T>>(null);
@@ -405,7 +414,7 @@ export function CampaignSwipeFeed<T>({
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={appShell.cta}
+                tintColor={kollab.color.ink}
               />
             ) : undefined
           }
@@ -438,7 +447,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slot: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space.md,
     paddingTop: SLOT_PAD_TOP,
     paddingBottom: 0,
     justifyContent: 'flex-start',
@@ -457,7 +466,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: spacing.sm + 40,
+    bottom: space.sm + 40,
     alignItems: 'center',
     zIndex: 3,
   },
@@ -467,23 +476,19 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: kollabRadius.pill,
     borderWidth: 1,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-    ...shadow.cardLight,
   },
   hintText: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.semiBold,
     fontSize: 12,
-    color: appShell.cta,
     letterSpacing: 0.2,
   },
   pillWrap: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: spacing.sm,
+    bottom: space.sm,
     alignItems: 'center',
     zIndex: 2,
   },
@@ -493,25 +498,49 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: radius.pill,
+    borderRadius: kollabRadius.pill,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(20, 30, 51, 0.1)',
-    ...shadow.cardLight,
-  },
-  pillAndroid: {
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
   pillCount: {
-    fontFamily: fonts.semiBold,
+    fontFamily: font.semiBold,
     fontSize: 12,
     lineHeight: 14,
-    color: appShell.textPrimary,
     minWidth: 44,
     textAlign: 'center',
   },
   pillCountMuted: {
-    fontFamily: fonts.regular,
-    color: appShell.textMuted,
+    fontFamily: font.body,
   },
 });
+
+/** Reactive (light/dark) color + shadow slice — layout/shape lives in the static `styles` above. */
+function useKollabStyles(kollab: KollabTokens) {
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        hintPill: {
+          backgroundColor: kollab.color.card,
+          borderColor: kollab.color.hairline,
+          ...kollab.shadow.card,
+        },
+        hintText: {
+          color: kollab.color.ink,
+        },
+        pill: {
+          borderColor: kollab.color.hairline,
+          ...kollab.shadow.card,
+        },
+        pillAndroid: {
+          backgroundColor: kollab.color.card,
+        },
+        pillCount: {
+          color: kollab.color.ink,
+        },
+        pillCountMuted: {
+          color: kollab.color.inkFaint,
+        },
+      }),
+    [kollab]
+  );
+}

@@ -19,12 +19,20 @@ export type TrendingIdeasResponse = {
 };
 
 export const contentIdeasApi = {
-  trending: (params: { platform?: TrendingPlatform; keyword?: string; range?: '7d' | '30d' }) => {
+  trending: (params: {
+    platform?: TrendingPlatform;
+    keyword?: string;
+    range?: '7d' | '30d';
+    refresh?: boolean;
+  }) => {
     const q = new URLSearchParams();
     if (params.platform) q.set('platform', params.platform);
     if (params.keyword) q.set('keyword', params.keyword);
     if (params.range) q.set('range', params.range);
+    if (params.refresh) q.set('refresh', 'true');
     const qs = q.toString();
-    return api.get(`/api/content-ideas/trending${qs ? `?${qs}` : ''}`) as Promise<TrendingIdeasResponse>;
+    return api.get(
+      `/api/content-ideas/trending${qs ? `?${qs}` : ''}`
+    ) as Promise<TrendingIdeasResponse>;
   },
 };

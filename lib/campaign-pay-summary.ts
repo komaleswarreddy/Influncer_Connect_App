@@ -3,6 +3,8 @@
  * Prefer API `paySummary` when present.
  */
 
+import { formatInr } from './currency';
+
 export type CompensationModel = 'fixed' | 'performance' | 'hybrid';
 
 export type CampaignPaymentModel = {
@@ -22,10 +24,6 @@ export type CampaignPaySummary = {
 function toNum(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
-}
-
-function formatInr(amount: number): string {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
 function formatPct(n: number): string {
