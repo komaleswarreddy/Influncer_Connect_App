@@ -71,5 +71,3 @@ export function Glyph({ name, color, size = 23 }: Props) {
     </Svg>
   );
 }
-
-export default Glyph;

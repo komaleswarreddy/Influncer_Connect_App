@@ -196,5 +196,3 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
   },
 });
-
-export default KollabSelect;

@@ -12,10 +12,23 @@ import {
   cognitoRedirectUri,
   isExpoGo,
 } from './auth-config';
+import { bestEffortCloseBrowser, withTimeout, WebBrowserTimeoutError } from './web-browser-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const SCOPES = ['openid', 'email', 'profile'];
+
+/** Thrown when the user genuinely dismissed/cancelled the Hosted UI browser sheet. */
+export class CognitoCancelledError extends Error {
+  readonly code = 'COGNITO_CANCELLED' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'CognitoCancelledError';
+  }
+}
+
+const SIGN_IN_TIMEOUT_MS = 45_000;
+const LOGOUT_TIMEOUT_MS = 20_000;
 
 /**
  * PKCE code_verifier only ever lived in the in-memory AuthRequest instance.
@@ -28,7 +41,7 @@ const SCOPES = ['openid', 'email', 'profile'];
  */
 const PKCE_PENDING_KEY = 'cognito_pkce_pending';
 
-type PendingPkce = { codeVerifier: string; redirectUri: string };
+type PendingPkce = { codeVerifier: string; redirectUri: string; state: string };
 
 async function storePendingPkce(data: PendingPkce): Promise<void> {
   try {
@@ -148,8 +161,19 @@ function isAuthCallbackUrl(url: string, redirectUri: string): boolean {
   if (!url) return false;
   const base = redirectUri.split('?')[0].replace(/\/+$/, '');
   if (url.startsWith(base)) return true;
-  if (/affiliateplatform:\/\/auth\/callback/i.test(url)) return true;
-  if (url.startsWith('exp://') && (url.includes('code=') || url.includes('error='))) return true;
+  // Production/dev-client scheme: require an exact scheme+host+path match, not a substring test.
+  if (/^affiliateplatform:\/\/auth\/callback(?:[/?#]|$)/i.test(url)) return true;
+  // Expo Go dev-only branch: still require the path to actually end in /auth/callback (before
+  // any query/fragment), not merely contain "code=" or "error=" anywhere in the URL.
+  if (url.startsWith('exp://')) {
+    const pathPart = url.split(/[?#]/)[0];
+    if (
+      /\/auth\/callback\/?$/i.test(pathPart) &&
+      (url.includes('code=') || url.includes('error='))
+    ) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -165,8 +189,22 @@ async function openCognitoAuthSession(
 ): Promise<WebBrowser.WebBrowserAuthSessionResult> {
   const options = androidAuthSessionOptions();
 
-  // Prefer the simple Instagram-style path first (most reliable).
-  const primary = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri, options);
+  // Prefer the simple Instagram-style path first (most reliable). Bounded so
+  // a native/Hosted-UI quirk that never hands control back can't hang the
+  // sign-in flow (and the "Continue with Google" button's busy state) forever.
+  let primary: WebBrowser.WebBrowserAuthSessionResult;
+  try {
+    primary = await withTimeout(
+      WebBrowser.openAuthSessionAsync(authUrl, redirectUri, options),
+      SIGN_IN_TIMEOUT_MS,
+      'Sign-in timed out.'
+    );
+  } catch (e) {
+    if (e instanceof WebBrowserTimeoutError) {
+      bestEffortCloseBrowser();
+    }
+    throw e;
+  }
   if (primary.type === 'success' && 'url' in primary && primary.url) {
     dismissAuthSessionSafely();
     return primary;
@@ -244,7 +282,11 @@ export async function signInWithCognito(): Promise<CognitoAuthResult> {
   // Persisted before opening the browser so a cold-start relaunch (app killed
   // while Hosted UI was open) can still complete this exact code exchange —
   // see tryCompletePendingCognitoAuth().
-  await storePendingPkce({ codeVerifier: request.codeVerifier || '', redirectUri });
+  await storePendingPkce({
+    codeVerifier: request.codeVerifier || '',
+    redirectUri,
+    state: request.state || '',
+  });
 
   try {
     const tUi = Date.now();
@@ -253,7 +295,7 @@ export async function signInWithCognito(): Promise<CognitoAuthResult> {
       console.log(`[Cognito] hostedUI session ${Date.now() - tUi}ms type=${result.type}`);
 
     if (result.type === 'cancel' || result.type === 'dismiss') {
-      throw new Error(
+      throw new CognitoCancelledError(
         'Sign-in was cancelled or the browser did not return to the app. Close all Cognito tabs and try again.'
       );
     }
@@ -266,6 +308,13 @@ export async function signInWithCognito(): Promise<CognitoAuthResult> {
       throw new Error(
         params.error_description || `Cognito error: ${params.error}. redirectUri=${redirectUri}`
       );
+    }
+    // CSRF/callback-injection protection: the `state` returned by Cognito must match the one
+    // this exact AuthRequest generated. Without this check, a malicious app registered for the
+    // same custom scheme (or an injected deep link) could hand us its own authorization code and
+    // we'd exchange it as if it were the user's.
+    if (!request.state || params.state !== request.state) {
+      throw new Error('Authentication failed: state mismatch');
     }
     const code = params.code;
     if (!code) {
@@ -330,6 +379,13 @@ export async function tryCompletePendingCognitoAuth(): Promise<CognitoAuthResult
   const pending = await takePendingPkce();
   if (!pending) return null;
 
+  // Same CSRF/callback-injection protection as the in-process flow (see signInWithCognito) —
+  // the cold-start recovery path must not exchange a code whose state doesn't match what was
+  // persisted for this exact pending auth attempt.
+  if (!pending.state || params.state !== pending.state) {
+    throw new Error('Authentication failed: state mismatch');
+  }
+
   const tokenResponse = await AuthSession.exchangeCodeAsync(
     {
       clientId: cognitoClientId,
@@ -351,14 +407,25 @@ export async function tryCompletePendingCognitoAuth(): Promise<CognitoAuthResult
 /** @deprecated Use signInWithCognito */
 export const signInWithCognitoGoogle = signInWithCognito;
 
-/** Cognito Hosted UI logout (best-effort). */
+/**
+ * Cognito Hosted UI logout (best-effort). Always resolves — this is
+ * internally bounded (LOGOUT_TIMEOUT_MS) so a hung browser session can never
+ * block the caller from clearing the local session and navigating away.
+ */
 export async function logoutFromCognito(): Promise<void> {
   if (!cognitoConfigured) return;
   const logoutUri = encodeURIComponent(cognitoLogoutUri);
   const url = `${cognitoDomain}/logout?client_id=${encodeURIComponent(cognitoClientId)}&logout_uri=${logoutUri}`;
   try {
-    await WebBrowser.openAuthSessionAsync(url, cognitoLogoutUri, androidAuthSessionOptions());
-  } catch {
+    await withTimeout(
+      WebBrowser.openAuthSessionAsync(url, cognitoLogoutUri, androidAuthSessionOptions()),
+      LOGOUT_TIMEOUT_MS,
+      'Logout timed out.'
+    );
+  } catch (e) {
+    if (e instanceof WebBrowserTimeoutError) {
+      bestEffortCloseBrowser();
+    }
     /* still clear local session */
   }
 }

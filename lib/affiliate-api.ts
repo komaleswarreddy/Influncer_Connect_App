@@ -24,19 +24,27 @@ export function trackingClickUrl(code: string): string {
 export const affiliateApi = {
   listLinks: async (): Promise<TrackingLink[]> => {
     const res = (await api.get('/api/affiliates/tracking-links')) as { data?: unknown[] };
-    const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-    return rows.map((link: Record<string, unknown>) => ({
+    const rows = (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as Record<
+      string,
+      unknown
+    >[];
+    return rows.map((link) => ({
       id: String(link.id),
       productId: String(link.productId),
       trackingCode: String(link.trackingCode),
       totalClicks: Number(link.totalClicks ?? 0),
       totalConversions: Number(link.totalConversions ?? 0),
-      totalSales: typeof link.totalSales === 'string' ? parseFloat(link.totalSales) : Number(link.totalSales ?? 0),
+      totalSales:
+        typeof link.totalSales === 'string'
+          ? parseFloat(link.totalSales)
+          : Number(link.totalSales ?? 0),
       product: (link.product as TrackingLink['product']) ?? null,
     }));
   },
   eligibleProducts: async (): Promise<EligibleProduct[]> => {
-    const res = (await api.get('/api/affiliates/tracking-links/eligible-products')) as { data?: EligibleProduct[] };
+    const res = (await api.get('/api/affiliates/tracking-links/eligible-products')) as {
+      data?: EligibleProduct[];
+    };
     return (res?.data ?? res ?? []) as EligibleProduct[];
   },
   createLink: (productId: string) => api.post('/api/affiliates/tracking-links', { productId }),

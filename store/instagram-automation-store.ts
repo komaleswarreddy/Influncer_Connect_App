@@ -9,6 +9,13 @@ import {
   type SummaryStats,
   type CreateAutomationPayload,
 } from '@/lib/instagram-automation-api';
+import {
+  bestEffortCloseBrowser,
+  withTimeout,
+  WebBrowserTimeoutError,
+} from '@/lib/web-browser-session';
+
+const INSTAGRAM_CONNECT_TIMEOUT_MS = 20_000;
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -90,10 +97,20 @@ export const useInstagramAutomationStore = create<InstagramAutomationState>((set
     try {
       const response = await instagramAutomationApi.getConnectUrl();
       const authUrl = assertValidOAuthUrl(response.authUrl, 'Instagram auth URL');
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, getInstagramOAuthRedirect(), {
-        ...(Platform.OS === 'android' ? { createTask: false } : {}),
-        showInRecents: false,
-      });
+      let result: WebBrowser.WebBrowserAuthSessionResult;
+      try {
+        result = await withTimeout(
+          WebBrowser.openAuthSessionAsync(authUrl, getInstagramOAuthRedirect(), {
+            ...(Platform.OS === 'android' ? { createTask: false } : {}),
+            showInRecents: false,
+          }),
+          INSTAGRAM_CONNECT_TIMEOUT_MS,
+          'Instagram connection timed out.'
+        );
+      } catch (e) {
+        if (e instanceof WebBrowserTimeoutError) bestEffortCloseBrowser();
+        throw e;
+      }
 
       if (result.type === 'success' && result.url) {
         let success = false;

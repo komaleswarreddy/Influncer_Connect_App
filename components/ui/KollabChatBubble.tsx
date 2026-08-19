@@ -43,5 +43,3 @@ const styles = StyleSheet.create({
     fontFamily: 'InstrumentSans_400Regular',
   },
 });
-
-export default KollabChatBubble;

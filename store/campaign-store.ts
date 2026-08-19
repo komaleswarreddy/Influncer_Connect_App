@@ -255,7 +255,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
           ? raw.applications
           : [];
       set({
-        applications: list.map((row) => normalizeApplication(row as Record<string, unknown>)),
+        applications: list.map((row) =>
+          normalizeApplication(row as unknown as Record<string, unknown>)
+        ),
         isLoading: false,
       });
     } catch (error: unknown) {
@@ -399,7 +401,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   },
   markInviteViewed: async (inviteId: string) => {
     try {
-      await api.post(`/api/campaign-invites/invite/${inviteId}/view`);
+      await api.post(`/api/campaign-invites/invite/${inviteId}/view`, {});
     } catch {
       /* non-blocking */
     }

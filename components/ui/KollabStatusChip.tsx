@@ -32,5 +32,3 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
 });
-
-export default KollabStatusChip;

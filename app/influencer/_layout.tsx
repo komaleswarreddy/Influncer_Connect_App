@@ -40,7 +40,7 @@ export default function InfluencerLayout() {
     return <Redirect href="/login" />;
   }
 
-  const onUsernameScreen = segments.includes('set-username');
+  const onUsernameScreen = (segments as string[]).includes('set-username');
   if (nextStep === 'SET_USERNAME' && !onUsernameScreen) {
     return <Redirect href="/influencer/set-username" />;
   }

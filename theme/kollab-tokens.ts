@@ -459,5 +459,3 @@ export function useKollab(): KollabTokens {
     };
   }, [appearance]);
 }
-
-export default useKollab;

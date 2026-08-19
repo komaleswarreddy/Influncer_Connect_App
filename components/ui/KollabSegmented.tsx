@@ -67,5 +67,3 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
   },
 });
-
-export default KollabSegmented;

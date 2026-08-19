@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { schedulerApi } from '@/lib/scheduler-api';
@@ -94,11 +94,27 @@ export default function CreateScheduledPostScreen() {
   const editingId = typeof params.postId === 'string' ? params.postId : undefined;
   const tz = deviceTimezone();
 
+  // Fresh navigation into this screen with an applied caption (e.g. from
+  // trending-ideas.tsx) — runs once on mount via route params.
   useEffect(() => {
     if (params.appliedCaption) setCaption(String(params.appliedCaption));
     if (params.appliedHashtags) setHashtags(String(params.appliedHashtags));
     if (params.topic) setAiTopic(String(params.topic));
   }, [params.appliedCaption, params.appliedHashtags, params.topic]);
+
+  // Returning here from ai-caption-results via router.back() — the same
+  // screen instance regains focus (uploaded media/schedule state intact),
+  // so pick up the chosen caption from the store instead of route params.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = useSchedulerStore.getState().pendingAppliedCaption;
+      if (pending) {
+        setCaption(pending.caption);
+        if (pending.hashtags) setHashtags(pending.hashtags);
+        useSchedulerStore.getState().setPendingAppliedCaption(null);
+      }
+    }, [])
+  );
 
   useEffect(() => {
     if (!editingId) return;

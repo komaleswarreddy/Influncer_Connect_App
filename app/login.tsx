@@ -49,7 +49,7 @@ export default function LoginScreen() {
       />
       <View style={styles.inner}>
         <View style={styles.topRow}>
-          <Text style={styles.brand}>
+          <Text style={styles.brand} numberOfLines={1} adjustsFontSizeToFit>
             Influencer{' '}
             <Text style={[styles.brandEm, { color: kollab.color.chartreuse }]}>Connect</Text>
           </Text>
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0B0906' },
   inner: {
     flex: 1,
-    paddingTop: 72,
+    paddingTop: 50,
     paddingHorizontal: 24,
     paddingBottom: 38,
   },
@@ -127,27 +127,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 14,
   },
   brand: {
+    flexShrink: 1,
     fontFamily: font.display,
-    fontSize: 24,
-    letterSpacing: -0.5,
+    fontSize: 17,
+    letterSpacing: -0.3,
     color: '#FFFFFF',
   },
   brandEm: {
     fontFamily: font.displayItalic,
   },
   chip: {
+    flexShrink: 0,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.4)',
     borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 13,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
   },
   chipText: {
     fontFamily: font.bold,
-    fontSize: 11,
-    letterSpacing: 1.1,
+    fontSize: 9,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: '#FFFFFF',
   },

@@ -14,7 +14,9 @@ import {
 export type AuthNextStep = 'SET_USERNAME' | 'COMPLETE_INFLUENCER_PROFILE' | null;
 
 /** Where to send the user after sign-in (Cognito or password) based on server `nextStep`. */
-export function getInfluencerEntryPath(nextStep: AuthNextStep | null | undefined): string {
+export function getInfluencerEntryPath(
+  nextStep: AuthNextStep | null | undefined
+): '/influencer/set-username' | '/influencer/dashboard' {
   if (nextStep === 'SET_USERNAME') return '/influencer/set-username';
   // Legacy COMPLETE_INFLUENCER_PROFILE sessions → Home (profile settings are optional)
   return '/influencer/dashboard';

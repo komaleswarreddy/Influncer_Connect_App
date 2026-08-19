@@ -15,6 +15,13 @@ interface SchedulerState {
   captionSuggestions: CaptionSuggestion[];
   exampleCaptions: CaptionSuggestion[];
   lastUpload: MediaUploadResult | null;
+  /**
+   * Caption/hashtags chosen on the AI-captions screen, relayed back via
+   * router.back() rather than router.replace() so the create/edit screen's
+   * in-progress state (uploaded media, schedule time, etc.) survives instead
+   * of being reset by a fresh mount.
+   */
+  pendingAppliedCaption: { caption: string; hashtags?: string } | null;
   isLoading: boolean;
   isSaving: boolean;
   isLoadingExamples: boolean;
@@ -36,6 +43,7 @@ interface SchedulerState {
   cancelPost: (postId: string) => Promise<void>;
   retryDmLink: (postId: string) => Promise<ScheduledPost>;
   clearCaptionSuggestions: () => void;
+  setPendingAppliedCaption: (value: { caption: string; hashtags?: string } | null) => void;
   clearError: () => void;
 }
 
@@ -45,6 +53,7 @@ export const useSchedulerStore = create<SchedulerState>((set) => ({
   captionSuggestions: [],
   exampleCaptions: [],
   lastUpload: null,
+  pendingAppliedCaption: null,
   isLoading: false,
   isSaving: false,
   isLoadingExamples: false,
@@ -178,5 +187,6 @@ export const useSchedulerStore = create<SchedulerState>((set) => ({
   },
 
   clearCaptionSuggestions: () => set({ captionSuggestions: [] }),
+  setPendingAppliedCaption: (value) => set({ pendingAppliedCaption: value }),
   clearError: () => set({ error: null }),
 }));

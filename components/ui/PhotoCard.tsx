@@ -225,5 +225,3 @@ const styles = StyleSheet.create({
     color: '#171410',
   },
 });
-
-export default PhotoCard;

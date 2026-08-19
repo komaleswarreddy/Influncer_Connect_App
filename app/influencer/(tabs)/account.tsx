@@ -84,6 +84,9 @@ export default function AccountScreen() {
   const onLogout = async () => {
     if (cognitoConfigured) {
       try {
+        // logoutFromCognito() is internally bounded (LOGOUT_TIMEOUT_MS) and
+        // never throws — this await is guaranteed to resolve within that
+        // window, so a hung Cognito browser session can't block logout.
         await logoutFromCognito();
       } catch {
         /* still clear local session */

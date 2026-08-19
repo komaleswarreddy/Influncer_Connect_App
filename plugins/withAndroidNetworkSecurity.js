@@ -9,7 +9,7 @@ const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins'
 
 const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-  <base-config cleartextTrafficPermitted="true">
+  <base-config cleartextTrafficPermitted="false">
     <trust-anchors>
       <certificates src="system" />
       <certificates src="user" />

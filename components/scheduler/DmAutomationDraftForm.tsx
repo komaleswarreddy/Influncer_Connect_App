@@ -17,7 +17,7 @@ const REPLY_OPTIONS: { key: DmReplyType; label: string }[] = [
   { key: 'ai_generated', label: 'AI replies' },
 ];
 
-export type DmAutomationDraftVariant = 'post' | 'story';
+type DmAutomationDraftVariant = 'post' | 'story';
 
 type Props = {
   value: DmAutomationDraft;

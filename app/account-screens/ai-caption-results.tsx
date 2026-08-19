@@ -59,10 +59,18 @@ export default function AiCaptionResultsScreen() {
   const canSuggest = topic.trim().length > 0 && !isSaving;
 
   const applySuggestion = (s: CaptionSuggestion) => {
-    router.replace({
-      pathname: returnTo as never,
-      params: { appliedCaption: s.caption, appliedHashtags: s.hashtags },
-    } as never);
+    // Relay the pick via the store and go back to the existing screen
+    // instance (router.replace would remount create-scheduled-post fresh,
+    // wiping out its in-progress media/schedule state).
+    useSchedulerStore.getState().setPendingAppliedCaption({
+      caption: s.caption,
+      hashtags: s.hashtags,
+    });
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(returnTo as never);
+    }
   };
 
   const suggest = async () => {

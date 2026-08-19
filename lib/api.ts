@@ -3,6 +3,27 @@ import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
 import { useMockApi } from './auth-config';
 
+const SENSITIVE_KEYS = new Set([
+  'token',
+  'accessToken',
+  'idToken',
+  'refreshToken',
+  'authorization',
+]);
+
+/** Deep-clones `value`, replacing any sensitive field (token/Authorization/etc.) with `[REDACTED]`. */
+function redactSensitive(value: unknown, depth = 0): unknown {
+  if (depth > 5 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => redactSensitive(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = SENSITIVE_KEYS.has(key.toLowerCase())
+      ? '[REDACTED]'
+      : redactSensitive(val, depth + 1);
+  }
+  return out;
+}
+
 const MOCK_HOSTS = ['jsonplaceholder.typicode.com'];
 
 /** Android emulator: host machine is reachable at 10.0.2.2. Physical devices must use LAN or adb reverse + 127.0.0.1. */
@@ -324,7 +345,9 @@ class ApiClient {
       );
     }
 
-    console.log(`Making ${options.method || 'GET'} request to: ${API_URL}${endpoint}`);
+    if (__DEV__) {
+      console.log(`Making ${options.method || 'GET'} request to: ${API_URL}${endpoint}`);
+    }
 
     try {
       if (shouldUseMockResponses(API_URL)) {
@@ -363,7 +386,9 @@ class ApiClient {
         data = {};
       }
 
-      console.log(`Response status: ${response.status}, data:`, data);
+      if (__DEV__) {
+        console.log(`Response status: ${response.status}, data:`, redactSensitive(data));
+      }
 
       if (!response.ok) {
         const expectedNotConnected = this.isExpectedNotConnected(endpoint, response.status, data);
@@ -374,8 +399,8 @@ class ApiClient {
         } else if (suppressAnalyticsServerError) {
           // Temporary suppression: avoid noisy redbox for transient analytics backend errors.
           console.log('API info (analytics temporarily unavailable):', data, response.status);
-        } else {
-          console.error('API error:', data, response.status);
+        } else if (__DEV__) {
+          console.error('API error:', redactSensitive(data), response.status);
         }
         const payload = data as { error?: string; message?: string };
         const detail =
@@ -389,7 +414,9 @@ class ApiClient {
       }
 
       // Log for debugging
-      console.log('API success:', data, response.status);
+      if (__DEV__) {
+        console.log('API success:', redactSensitive(data), response.status);
+      }
       return data;
     } catch (error: unknown) {
       const expectedNotConnected = this.isExpectedNotConnected(endpoint, 404, {

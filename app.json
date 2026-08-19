@@ -10,7 +10,10 @@
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.affiliateplatform.app"
+      "bundleIdentifier": "com.affiliateplatform.app",
+      "infoPlist": {
+        "CFBundleURLTypes": [{ "CFBundleURLSchemes": ["affiliate-platform"] }]
+      }
     },
     "android": {
       "versionCode": 12,

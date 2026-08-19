@@ -49,11 +49,6 @@ export function estimateCampaignPotentialPay(campaign: PotentialCampaign): numbe
   return total;
 }
 
-/** @deprecated use `estimateCampaignPotentialPay` — kept for existing callers. */
-export function estimateCampaignFixedPay(campaign: PotentialCampaign): number {
-  return estimateCampaignPotentialPay(campaign);
-}
-
 export function sumPotentialEarningsFromEligible(args: {
   campaigns: PotentialCampaign[];
   enrolledCampaignIds: Set<string>;

@@ -3,7 +3,7 @@ import { View, Pressable, Text, ActivityIndicator, StyleSheet } from 'react-nati
 import Svg, { Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
-import { signInWithCognito } from '../lib/cognito-auth';
+import { signInWithCognito, CognitoCancelledError } from '../lib/cognito-auth';
 import { useKollab } from '@/theme/kollab-tokens';
 import { showKollabToast } from '@/components/ui';
 
@@ -48,8 +48,10 @@ export function CognitoAuthButtons({ mode, variant = 'lime' }: Props) {
       const step = useAuthStore.getState().nextStep;
       router.replace(getInfluencerEntryPath(step));
     } catch (e: unknown) {
+      // Genuine user cancellation stays silent; everything else (including a
+      // timed-out browser session) shows real feedback instead of nothing.
+      if (e instanceof CognitoCancelledError) return;
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
-      if (/cancel/i.test(msg) || /dismiss/i.test(msg)) return;
       showKollabToast(msg);
     } finally {
       setBusy(false);
@@ -94,5 +96,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
-export default CognitoAuthButtons;
