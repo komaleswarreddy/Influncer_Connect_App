@@ -117,6 +117,19 @@ function RootLayout() {
             name="register/influencer"
             options={{ title: 'Register', headerShown: false }}
           />
+          <Stack.Screen
+            name="register/verify-phone"
+            options={{ title: 'Verify phone', headerShown: false }}
+          />
+          <Stack.Screen
+            name="register/verify-email"
+            options={{ title: 'Verify email', headerShown: false }}
+          />
+          <Stack.Screen name="login-otp" options={{ title: 'Enter code', headerShown: false }} />
+          <Stack.Screen
+            name="login-email-otp"
+            options={{ title: 'Enter code', headerShown: false }}
+          />
           <Stack.Screen name="auth" options={{ headerShown: false, animation: 'none' }} />
           <Stack.Screen name="influencer" options={{ headerShown: false }} />
           <Stack.Screen name="account-screens" options={{ headerShown: false }} />

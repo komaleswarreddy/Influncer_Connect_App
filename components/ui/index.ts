@@ -10,6 +10,7 @@ export { Glyph } from './Glyph';
 export type { GlyphName } from './Glyph';
 export { KollabButton } from './KollabButton';
 export type { KollabButtonVariant } from './KollabButton';
+export { KollabEmptyCard } from './KollabEmptyCard';
 export { KollabAnalyzePulse } from './KollabAnalyzePulse';
 export { PhotoCard } from './PhotoCard';
 export { KollabStatusChip } from './KollabStatusChip';

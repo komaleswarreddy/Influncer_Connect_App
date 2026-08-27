@@ -106,6 +106,27 @@ export default function InstagramHubScreen() {
             Auto-reply to comments, story replies, and DM keywords on specific content.
           </Text>
         </View>
+        <Pressable
+          onPress={() => router.push('/account-screens/trending-ideas' as never)}
+          style={[
+            styles.tool,
+            { backgroundColor: kollab.color.card, marginBottom: 10 },
+            kollab.shadow.card,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Trending ideas"
+        >
+          <View style={[styles.toolIcon, { backgroundColor: kollab.color.tint }]}>
+            <Glyph name="trend" color={kollab.color.violet} size={21} />
+          </View>
+          <View style={styles.toolCopy}>
+            <Text style={[styles.toolTitle, { color: kollab.color.ink }]}>Trending ideas</Text>
+            <Text style={[styles.toolMeta, { color: kollab.color.ink }]}>
+              AI briefs for your niche
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: kollab.color.ink }]}>›</Text>
+        </Pressable>
       </ScrollScreen>
     );
   }
@@ -178,6 +199,22 @@ export default function InstagramHubScreen() {
             <Text style={[styles.toolTitle, { color: kollab.color.ink }]}>DM Automation</Text>
             <Text style={[styles.toolMeta, { color: kollab.color.ink }]}>
               {activeAutomations} automation{activeAutomations === 1 ? '' : 's'} active
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: kollab.color.ink }]}>›</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/account-screens/trending-ideas' as never)}
+          style={[styles.tool, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+        >
+          <View style={[styles.toolIcon, { backgroundColor: kollab.color.tint }]}>
+            <Glyph name="trend" color={kollab.color.violet} size={21} />
+          </View>
+          <View style={styles.toolCopy}>
+            <Text style={[styles.toolTitle, { color: kollab.color.ink }]}>Trending ideas</Text>
+            <Text style={[styles.toolMeta, { color: kollab.color.ink }]}>
+              AI briefs for your niche
             </Text>
           </View>
           <Text style={[styles.chevron, { color: kollab.color.ink }]}>›</Text>

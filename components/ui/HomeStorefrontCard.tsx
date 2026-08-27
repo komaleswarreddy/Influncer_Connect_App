@@ -9,6 +9,7 @@ import {
   catalogProductCount,
   type InfluencerCatalog,
 } from '@/lib/catalog-api';
+import { KollabEmptyCard } from './KollabEmptyCard';
 
 export type StorefrontTabKey = 'products' | 'services';
 
@@ -33,6 +34,10 @@ export function HomeStorefrontCard({
 }: Props) {
   const kollab = useKollab();
   const [tab, setTab] = useState<StorefrontTabKey>('products');
+  const productsCount = catalogProductCount(productsCatalog);
+  const servicesCount = catalogProductCount(servicesCatalog);
+  const isUnconfigured = productsCount === 0 && servicesCount === 0;
+
   const catalog = tab === 'services' ? servicesCatalog : productsCatalog;
   const count = catalogProductCount(catalog);
   const itemWord = tab === 'services' ? 'service' : 'product';
@@ -47,6 +52,19 @@ export function HomeStorefrontCard({
     if (t.length === 0) return ['products', 'services'] as StorefrontTabKey[];
     return t;
   }, [productsCatalog, servicesCatalog]);
+
+  if (isUnconfigured) {
+    return (
+      <View style={[{ paddingTop: 24 }, style]}>
+        <KollabEmptyCard
+          title="Set up your storefront"
+          subtitle="Add products or services so brands and followers can shop from your page."
+          ctaLabel="Set up storefront"
+          onPress={onOpenCatalog}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={style}>

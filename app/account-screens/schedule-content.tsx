@@ -50,26 +50,15 @@ export default function ScheduleContentScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.tileRow}>
-        <Pressable
-          onPress={() => router.push('/account-screens/ai-caption-results' as never)}
-          style={[styles.tile, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
-        >
-          <Text style={[styles.tileTitle, { color: kollab.color.ink }]}>AI captions</Text>
-          <Text style={[styles.tileHint, { color: kollab.color.ink, opacity: 0.55 }]}>
-            Pick a caption to use
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => router.push('/account-screens/trending-ideas' as never)}
-          style={[styles.tile, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
-        >
-          <Text style={[styles.tileTitle, { color: kollab.color.ink }]}>Trending</Text>
-          <Text style={[styles.tileHint, { color: kollab.color.ink, opacity: 0.55 }]}>
-            AI briefs for your niche
-          </Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => router.push('/account-screens/ai-caption-results' as never)}
+        style={[styles.tileFull, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
+      >
+        <Text style={[styles.tileTitle, { color: kollab.color.ink }]}>AI captions</Text>
+        <Text style={[styles.tileHint, { color: kollab.color.ink, opacity: 0.55 }]}>
+          Pick a caption to use
+        </Text>
+      </Pressable>
 
       <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Upload your reel</Text>
       <View style={styles.mediaRow}>
@@ -119,6 +108,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 20,
     paddingHorizontal: 16,
+  },
+  tileFull: {
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginBottom: 18,
   },
   tileTitle: {
     ...kType.rowTitle,

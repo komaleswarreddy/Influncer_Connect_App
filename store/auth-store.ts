@@ -10,6 +10,25 @@ import {
   setSessionToken,
   setSessionUserJson,
 } from '../lib/secure-session';
+import {
+  startPhoneSignup as apiStartPhoneSignup,
+  confirmPhoneSignup as apiConfirmPhoneSignup,
+  resendPhoneSignupCode as apiResendPhoneSignupCode,
+  startPhoneOtpLogin as apiStartPhoneOtpLogin,
+  verifyPhoneOtpLogin as apiVerifyPhoneOtpLogin,
+  type PhoneTokenLoginResponse,
+  type StartPhoneSignupResponse,
+  type StartPhoneOtpLoginResponse,
+} from '../lib/phone-auth-api';
+import {
+  startEmailSignup as apiStartEmailSignup,
+  confirmEmailSignup as apiConfirmEmailSignup,
+  resendEmailSignupCode as apiResendEmailSignupCode,
+  startEmailOtpLogin as apiStartEmailOtpLogin,
+  verifyEmailOtpLogin as apiVerifyEmailOtpLogin,
+  type EmailTokenLoginResponse,
+  type StartEmailSignupResponse,
+} from '../lib/email-auth-api';
 
 export type AuthNextStep = 'SET_USERNAME' | 'COMPLETE_INFLUENCER_PROFILE' | null;
 
@@ -56,6 +75,20 @@ interface AuthState {
   setAuth: (token: string, user: User, nextStep?: AuthNextStep) => Promise<void>;
   loadAuth: () => Promise<void>;
   mockLogin: (email: string, password: string) => Promise<void>;
+  /** Phone-first signup — steps 1 & 2 of app/register/influencer.tsx + verify-phone.tsx. */
+  startPhoneSignup: (phoneNumber: string, username: string) => Promise<StartPhoneSignupResponse>;
+  confirmPhoneSignup: (phoneNumber: string, username: string, code: string) => Promise<void>;
+  resendPhoneSignupCode: (phoneNumber: string) => Promise<void>;
+  /** SMS OTP login for returning phone-first users — app/login.tsx + app/login-otp.tsx. */
+  startPhoneLogin: (phoneNumber: string) => Promise<StartPhoneOtpLoginResponse>;
+  verifyPhoneLogin: (phoneNumber: string, session: string, code: string) => Promise<void>;
+  /** Email-first signup — app/register/influencer.tsx + verify-email.tsx. */
+  startEmailSignup: (email: string) => Promise<StartEmailSignupResponse>;
+  confirmEmailSignup: (email: string, code: string) => Promise<void>;
+  resendEmailSignupCode: (email: string) => Promise<void>;
+  /** Email OTP login for returning users — app/login.tsx + app/login-email-otp.tsx. */
+  startEmailLogin: (email: string) => Promise<{ sent: boolean }>;
+  verifyEmailLogin: (email: string, code: string) => Promise<void>;
 }
 
 type MeResponse = {
@@ -104,6 +137,54 @@ function mapMeUser(u: MeResponse['user'], role?: { roleName: string }): User {
     tenantId: u.tenantId,
     profileCompleted: u.profileCompleted ?? null,
   };
+}
+
+/** Shared by confirmPhoneSignup and verifyPhoneLogin — both resolve to the same
+ *  {token, user, role, tenant, nextStep} shape as exchangeCognitoIdToken. */
+async function applyPhoneTokenLogin(
+  data: PhoneTokenLoginResponse,
+  get: () => AuthState
+): Promise<void> {
+  if (!data?.token || !data?.user || !data?.role) {
+    throw new Error('Invalid phone sign-in response from server');
+  }
+  const tenantId = data.tenant?.id;
+  if (!tenantId) throw new Error('Tenant ID not found in phone sign-in response');
+  const nextStep = data.nextStep ?? null;
+  const user: User = {
+    id: data.user.id,
+    email: data.user.email,
+    firstName: data.user.firstName,
+    lastName: data.user.lastName,
+    role: { roleName: data.role.roleName },
+    tenantId,
+    profileCompleted: nextStep ? false : true,
+  };
+  await get().setAuth(data.token, user, nextStep);
+}
+
+/** Shared by confirmEmailSignup and verifyEmailLogin — same {token, user, role,
+ *  tenant, nextStep} shape as the phone/Cognito equivalents. */
+async function applyEmailTokenLogin(
+  data: EmailTokenLoginResponse,
+  get: () => AuthState
+): Promise<void> {
+  if (!data?.token || !data?.user || !data?.role) {
+    throw new Error('Invalid email sign-in response from server');
+  }
+  const tenantId = data.tenant?.id;
+  if (!tenantId) throw new Error('Tenant ID not found in email sign-in response');
+  const nextStep = data.nextStep ?? null;
+  const user: User = {
+    id: data.user.id,
+    email: data.user.email,
+    firstName: data.user.firstName,
+    lastName: data.user.lastName,
+    role: { roleName: data.role.roleName },
+    tenantId,
+    profileCompleted: nextStep ? false : true,
+  };
+  await get().setAuth(data.token, user, nextStep);
 }
 
 type AuthSnap = Pick<
@@ -294,6 +375,128 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       console.error('Cognito exchange error:', error);
       set({ error: error.message || 'Cognito sign-in failed', isLoading: false });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  startPhoneSignup: async (phoneNumber, username) => {
+    set({ isLoading: true, error: null });
+    try {
+      return await apiStartPhoneSignup(phoneNumber, username);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not start sign-up' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  confirmPhoneSignup: async (phoneNumber, username, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiConfirmPhoneSignup(phoneNumber, username, code);
+      await applyPhoneTokenLogin(data, get);
+    } catch (error: any) {
+      console.error('Phone signup confirm error:', error);
+      set({ error: error.message || 'Could not confirm sign-up', isLoading: false });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resendPhoneSignupCode: async (phoneNumber) => {
+    try {
+      await apiResendPhoneSignupCode(phoneNumber);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not resend code' });
+      throw error;
+    }
+  },
+
+  startPhoneLogin: async (phoneNumber) => {
+    set({ isLoading: true, error: null });
+    try {
+      return await apiStartPhoneOtpLogin(phoneNumber);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not start phone sign-in' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  verifyPhoneLogin: async (phoneNumber, session, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiVerifyPhoneOtpLogin(phoneNumber, session, code);
+      await applyPhoneTokenLogin(data, get);
+    } catch (error: any) {
+      console.error('Phone OTP login error:', error);
+      set({ error: error.message || 'Could not sign you in', isLoading: false });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  startEmailSignup: async (email) => {
+    set({ isLoading: true, error: null });
+    try {
+      return await apiStartEmailSignup(email);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not start sign-up' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  confirmEmailSignup: async (email, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiConfirmEmailSignup(email, code);
+      await applyEmailTokenLogin(data, get);
+    } catch (error: any) {
+      console.error('Email signup confirm error:', error);
+      set({ error: error.message || 'Could not confirm sign-up', isLoading: false });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resendEmailSignupCode: async (email) => {
+    try {
+      await apiResendEmailSignupCode(email);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not resend code' });
+      throw error;
+    }
+  },
+
+  startEmailLogin: async (email) => {
+    set({ isLoading: true, error: null });
+    try {
+      return await apiStartEmailOtpLogin(email);
+    } catch (error: any) {
+      set({ error: error.message || 'Could not start email sign-in' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  verifyEmailLogin: async (email, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiVerifyEmailOtpLogin(email, code);
+      await applyEmailTokenLogin(data, get);
+    } catch (error: any) {
+      console.error('Email OTP login error:', error);
+      set({ error: error.message || 'Could not sign you in', isLoading: false });
       throw error;
     } finally {
       set({ isLoading: false });

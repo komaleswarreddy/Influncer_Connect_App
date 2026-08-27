@@ -1,13 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollScreen, KollabScreenHeader, KollabButton, showKollabToast } from '@/components/ui';
 import { ugcApi } from '@/lib/ugc-api';
 import { applicationStatusLabel, type UgcApplicationRow } from '@/store/ugc-store';
 import { formatInr } from '@/lib/currency';
-import { nicheCoverSource } from '@/lib/niche-cover';
 import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
 
 type BriefResponse = {
@@ -47,7 +44,6 @@ function formatDeadline(raw: unknown): string {
 export default function UgcBriefDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const kollab = useKollab();
   const [brief, setBrief] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,88 +146,63 @@ export default function UgcBriefDetailScreen() {
     `${pieces} ${pieces === 1 ? 'piece' : 'pieces'}`,
     'Raw files',
   ];
-  const hero = kollab.scrimStops.hero;
 
   return (
-    <ScrollScreen
-      canvasColor={kollab.color.screen}
-      padH={0}
-      safeAreaEdges={['left', 'right', 'bottom']}
-    >
-      <View style={styles.hero}>
-        <Image
-          source={nicheCoverSource('food')}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={[hero.colors[0], hero.colors[1], kollab.color.screen]}
-          locations={[...hero.locations]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <View style={[styles.heroChrome, { top: insets.top + 8, left: 18, right: 18 }]}>
-          <KollabScreenHeader title="" backTone="frost" style={styles.heroHeader} />
+    <ScrollScreen canvasColor={kollab.color.screen}>
+      <KollabScreenHeader title="UGC brief" backTone="well" />
+
+      <View style={[styles.pill, { backgroundColor: kollab.color.chartreuse }]}>
+        <Text style={[styles.pillText, { color: kollab.color.onChartreuse }]}>{pillText}</Text>
+      </View>
+      <Text style={[styles.title, { color: kollab.color.ink }]}>{String(brief.title)}</Text>
+      {productNameText ? (
+        <Text style={[styles.subtitle, { color: kollab.color.ink }]}>{productNameText}</Text>
+      ) : null}
+
+      <View style={styles.metrics}>
+        <View style={[styles.metric, { backgroundColor: kollab.color.chartreuse }]}>
+          <Text style={[styles.metricLabel, { color: kollab.color.onChartreuse }]}>rate</Text>
+          <Text style={[styles.metricValue, { color: kollab.color.onChartreuse }]}>
+            {formatInr(Number(brief.budgetPerPiece ?? 0))}
+          </Text>
+          <Text style={[styles.metricHint, { color: kollab.color.onChartreuse }]}>/ piece</Text>
+        </View>
+        <View style={[styles.metric, { backgroundColor: kollab.color.well }]}>
+          <Text style={[styles.metricLabel, { color: kollab.color.ink }]}>deadline</Text>
+          <Text style={[styles.metricValue, { color: kollab.color.ink }]}>
+            {formatDeadline(brief.deadline)}
+          </Text>
+          <Text style={[styles.metricHint, { color: kollab.color.ink }]}>
+            {piecesLeft > 0
+              ? `${piecesLeft} spot${piecesLeft === 1 ? '' : 's'} left`
+              : `${pieces} pieces`}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.body}>
-        <View style={[styles.pill, { backgroundColor: kollab.color.chartreuse }]}>
-          <Text style={[styles.pillText, { color: kollab.color.onChartreuse }]}>{pillText}</Text>
-        </View>
-        <Text style={[styles.title, { color: kollab.color.ink }]}>{String(brief.title)}</Text>
-        {productNameText ? (
-          <Text style={[styles.subtitle, { color: kollab.color.ink }]}>{productNameText}</Text>
-        ) : null}
-
-        <View style={styles.metrics}>
-          <View style={[styles.metric, { backgroundColor: kollab.color.chartreuse }]}>
-            <Text style={[styles.metricLabel, { color: kollab.color.onChartreuse }]}>rate</Text>
-            <Text style={[styles.metricValue, { color: kollab.color.onChartreuse }]}>
-              {formatInr(Number(brief.budgetPerPiece ?? 0))}
-            </Text>
-            <Text style={[styles.metricHint, { color: kollab.color.onChartreuse }]}>/ piece</Text>
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>What to deliver</Text>
+      <View style={styles.chipRow}>
+        {chips.map((chip) => (
+          <View key={chip} style={[styles.chip, { backgroundColor: kollab.color.well }]}>
+            <Text style={[styles.chipText, { color: kollab.color.ink }]}>{chip}</Text>
           </View>
-          <View style={[styles.metric, { backgroundColor: kollab.color.well }]}>
-            <Text style={[styles.metricLabel, { color: kollab.color.ink }]}>deadline</Text>
-            <Text style={[styles.metricValue, { color: kollab.color.ink }]}>
-              {formatDeadline(brief.deadline)}
-            </Text>
-            <Text style={[styles.metricHint, { color: kollab.color.ink }]}>
-              {piecesLeft > 0
-                ? `${piecesLeft} spot${piecesLeft === 1 ? '' : 's'} left`
-                : `${pieces} pieces`}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>What to deliver</Text>
-        <View style={styles.chipRow}>
-          {chips.map((chip) => (
-            <View key={chip} style={[styles.chip, { backgroundColor: kollab.color.well }]}>
-              <Text style={[styles.chipText, { color: kollab.color.ink }]}>{chip}</Text>
-            </View>
-          ))}
-        </View>
-
-        {canApply ? (
-          <KollabButton
-            label={submitting ? 'Submitting…' : 'View & Apply'}
-            disabled={submitting}
-            onPress={() => void apply()}
-          />
-        ) : hasApplied && statusLabel ? (
-          <Text style={[styles.applied, { color: kollab.color.ink }]}>{statusLabel}</Text>
-        ) : null}
+        ))}
       </View>
+
+      {canApply ? (
+        <KollabButton
+          label={submitting ? 'Submitting…' : 'View & Apply'}
+          disabled={submitting}
+          onPress={() => void apply()}
+        />
+      ) : hasApplied && statusLabel ? (
+        <Text style={[styles.applied, { color: kollab.color.ink }]}>{statusLabel}</Text>
+      ) : null}
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 250, overflow: 'hidden' },
-  heroChrome: { position: 'absolute', zIndex: 2 },
-  heroHeader: { paddingTop: 0, paddingBottom: 0 },
-  body: { paddingHorizontal: 22, paddingBottom: 8 },
   pill: {
     alignSelf: 'flex-start',
     borderRadius: 999,

@@ -1,19 +1,23 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { useCampaignStore, type Campaign } from '../../../../store/campaign-store';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   PhotoCard,
   KollabScreenHeader,
   ScrollScreen,
   KollabButton,
   KollabSectionLabel,
+  KollabSegmented,
+  KollabEmptyCard,
 } from '@/components/ui';
 import { CampaignDetailsModal } from '@/components/influencer/CampaignDetailsModal';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
 import { nicheCoverSource } from '@/lib/niche-cover';
 import { buildMineCampaignStatus } from '@/lib/opportunity-card-ui';
+import { formatInr } from '@/lib/currency';
+import { useUgcStore } from '@/store/ugc-store';
 import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
 import type { KollabTokens } from '@/theme/kollab-tokens';
 import {
@@ -21,6 +25,14 @@ import {
   applicationCampaignId,
   isPendingCollabActivity,
 } from '@/lib/campaign-participation-ui';
+
+type CollabSegment = 'exclusive' | 'public' | 'mine';
+
+const SEGMENTS = [
+  { key: 'exclusive', label: 'Exclusive' },
+  { key: 'public', label: 'Public' },
+  { key: 'mine', label: 'My Collab' },
+] as const;
 
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
@@ -62,9 +74,53 @@ function relativeWhen(iso: string | undefined): string {
   return `${Math.round(hours / 24)}d`;
 }
 
+function headerSubtitle(segment: CollabSegment): string {
+  if (segment === 'public') return 'UGC briefs and public opportunities';
+  if (segment === 'mine') return 'Activity and approved work';
+  return 'Exclusive brand collaborations';
+}
+
+function parseSegment(raw: string | undefined): CollabSegment | null {
+  const s = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (s === 'public' || s === 'mine' || s === 'exclusive') return s;
+  return null;
+}
+
+function ugcBriefId(job: Record<string, unknown>): string {
+  return String(job.id ?? job.briefId ?? '').trim();
+}
+
+function ugcBriefTitle(job: Record<string, unknown>): string {
+  return String(job.title ?? job.name ?? 'UGC brief');
+}
+
+function ugcBriefPay(job: Record<string, unknown>): string | undefined {
+  const flat = Number(job.flatFee ?? job.budget ?? job.payAmount ?? NaN);
+  if (Number.isFinite(flat) && flat > 0) return formatInr(flat);
+  const rate = Number(job.rate ?? NaN);
+  if (Number.isFinite(rate) && rate > 0) return formatInr(rate);
+  return undefined;
+}
+
+function ugcBriefMeta(job: Record<string, unknown>): string {
+  const niche = String(job.niche ?? job.category ?? '')
+    .replace(/_/g, ' ')
+    .trim();
+  const content = String(job.contentType ?? job.type ?? '')
+    .replace(/_/g, ' ')
+    .trim();
+  const parts = [niche, content].filter(Boolean);
+  return parts.length > 0
+    ? parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' · ')
+    : 'Open brief';
+}
+
 export default function CampaignsScreen() {
   const kollab = useKollab();
   const router = useRouter();
+  const params = useLocalSearchParams<{ segment?: string }>();
   const {
     campaigns,
     participations,
@@ -75,16 +131,77 @@ export default function CampaignsScreen() {
     fetchParticipations,
     fetchMyApplications,
   } = useCampaignStore();
+  const { jobs: ugcJobs, loading: ugcLoading, error: ugcError, fetchJobs } = useUgcStore();
 
+  const [segment, setSegment] = useState<CollabSegment>(
+    () => parseSegment(params.segment) ?? 'exclusive'
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = parseSegment(params.segment);
+    if (next) setSegment(next);
+  }, [params.segment]);
 
   useFocusEffect(
     useCallback(() => {
       void fetchCampaigns();
       void fetchParticipations();
       void fetchMyApplications();
-    }, [fetchCampaigns, fetchParticipations, fetchMyApplications])
+      if (segment === 'public') void fetchJobs();
+    }, [fetchCampaigns, fetchParticipations, fetchMyApplications, fetchJobs, segment])
+  );
+
+  const takenCampaignIds = useMemo(() => {
+    const ids = new Set<string>();
+    const names = new Set<string>();
+    for (const p of participations) {
+      const id = String(p.campaignId ?? p.campaign?.id ?? '')
+        .trim()
+        .toLowerCase();
+      if (id) ids.add(id);
+      const n = String(p.campaign?.name ?? '')
+        .trim()
+        .toLowerCase();
+      if (n) names.add(n);
+    }
+    for (const a of applications) {
+      const st = String(a.status ?? '')
+        .trim()
+        .toLowerCase();
+      if (st === 'rejected') continue;
+      const id = applicationCampaignId(a);
+      if (id) ids.add(id);
+      const nestedName = String(a.campaign?.name ?? '')
+        .trim()
+        .toLowerCase();
+      if (nestedName) names.add(nestedName);
+      const listed = campaigns.find((c) => String(c.id).trim().toLowerCase() === id);
+      const listedName = String(listed?.name ?? '')
+        .trim()
+        .toLowerCase();
+      if (listedName) names.add(listedName);
+    }
+    return { ids, names };
+  }, [applications, campaigns, participations]);
+
+  const exclusiveList = useMemo(
+    () =>
+      campaigns.filter((c) => {
+        const id = String(c.id ?? '')
+          .trim()
+          .toLowerCase();
+        if (!id) return false;
+        if (String(c.status ?? '').toLowerCase() !== 'active') return false;
+        const name = String(c.name ?? '')
+          .trim()
+          .toLowerCase();
+        if (takenCampaignIds.ids.has(id)) return false;
+        if (name && takenCampaignIds.names.has(name)) return false;
+        return true;
+      }),
+    [campaigns, takenCampaignIds]
   );
 
   const enrolledIds = useMemo(() => {
@@ -110,7 +227,7 @@ export default function CampaignsScreen() {
     return ids;
   }, [participations, applications]);
 
-  const list = useMemo(() => {
+  const mineList = useMemo(() => {
     return campaigns.filter((c) => {
       const id = String(c.id ?? '')
         .trim()
@@ -165,7 +282,13 @@ export default function CampaignsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchCampaigns(), fetchParticipations(), fetchMyApplications()]);
+      const tasks: Promise<unknown>[] = [
+        fetchCampaigns(),
+        fetchParticipations(),
+        fetchMyApplications(),
+      ];
+      if (segment === 'public') tasks.push(fetchJobs());
+      await Promise.all(tasks);
     } catch {
       /* keep last list */
     } finally {
@@ -187,6 +310,200 @@ export default function CampaignsScreen() {
     return { label: mine.label || 'Active', tone: toneKey };
   };
 
+  const subtitle = headerSubtitle(segment);
+  const liveChip = kollab.statusChip.live;
+
+  const renderExclusive = () => {
+    if (isLoading && exclusiveList.length === 0) {
+      return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
+    }
+    if (exclusiveList.length === 0) {
+      return (
+        <KollabEmptyCard
+          title="No exclusive collabs"
+          subtitle="New brand collaborations show up here. You can also browse Fresh collabs on Home."
+          ctaLabel="Browse fresh collabs"
+          onPress={() => router.push('/influencer/dashboard' as never)}
+        />
+      );
+    }
+    return (
+      <View style={styles.feed}>
+        {exclusiveList.map((campaign) => {
+          const cid = String(campaign.id);
+          const pay = resolveCampaignPaySummary(campaign);
+          const brand = String(campaign.tenant?.tenantName || 'Brand');
+          return (
+            <PhotoCard
+              key={cid}
+              cover={nicheCoverSource(campaign.requiredInfluencerNiche)}
+              title={String(campaign.name || 'Untitled')}
+              meta={buildMeta(campaign)}
+              payLabel={pay.primaryLabel}
+              brand={{ logo: brandInitials(brand), logoBg: kollab.color.panel, brand }}
+              status={{ label: 'Active', bg: liveChip.bg, fg: liveChip.fg }}
+              onPress={() => setSelectedCampaignId(cid)}
+            />
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderPublic = () => {
+    if (ugcLoading && ugcJobs.length === 0) {
+      return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
+    }
+    if (ugcJobs.length === 0) {
+      return (
+        <KollabEmptyCard
+          title="No public briefs"
+          subtitle="Open UGC opportunities from brands will appear here when available."
+          ctaLabel="Browse fresh collabs"
+          onPress={() => router.push('/influencer/dashboard' as never)}
+        />
+      );
+    }
+    return (
+      <View style={styles.feed}>
+        {ugcJobs.map((job) => {
+          const id = ugcBriefId(job);
+          if (!id) return null;
+          const niche = String(job.niche ?? job.category ?? job.contentType ?? '');
+          return (
+            <PhotoCard
+              key={id}
+              cover={nicheCoverSource(niche || undefined)}
+              title={ugcBriefTitle(job)}
+              meta={ugcBriefMeta(job)}
+              payLabel={ugcBriefPay(job)}
+              status={{ label: 'Open', bg: liveChip.bg, fg: liveChip.fg }}
+              onPress={() =>
+                router.push(`/influencer/ugc-brief-detail?id=${encodeURIComponent(id)}` as never)
+              }
+            />
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderMine = () => {
+    if (isLoading && mineList.length === 0 && activityItems.length === 0) {
+      return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
+    }
+    if (mineList.length === 0 && activityItems.length === 0) {
+      return (
+        <KollabEmptyCard
+          title="No collabs yet"
+          subtitle="Submitted applications and approved collabs land here. Apply from Fresh collabs on Home."
+          ctaLabel="Browse fresh collabs"
+          onPress={() => router.push('/influencer/dashboard' as never)}
+        />
+      );
+    }
+    return (
+      <View style={styles.feed}>
+        {activityItems.length > 0 ? (
+          <View style={styles.activityBlock}>
+            <KollabSectionLabel label="collab activity" />
+            {activityItems.map((item) => (
+              <Pressable
+                key={item.campaignId}
+                onPress={() => setSelectedCampaignId(item.campaignId)}
+                style={[
+                  styles.activityRow,
+                  { backgroundColor: kollab.color.card },
+                  kollab.shadow.card,
+                ]}
+              >
+                <View style={[styles.activityThumb, { backgroundColor: kollab.color.imgBg }]}>
+                  <Image
+                    source={item.cover}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={styles.statusRow}>
+                    <View style={[styles.statusDot, { backgroundColor: item.dot }]} />
+                    <Text style={[styles.statusText, { color: item.dot }]} numberOfLines={1}>
+                      {item.status}
+                    </Text>
+                    {item.when ? (
+                      <Text style={[styles.whenText, { color: kollab.color.ink }]}>
+                        {item.when}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text
+                    style={[styles.activityName, { color: kollab.color.ink }]}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.niche ? (
+                    <Text
+                      style={[styles.activityMeta, { color: kollab.color.ink }]}
+                      numberOfLines={1}
+                    >
+                      {item.niche}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {mineList.length > 0 && activityItems.length > 0 ? (
+          <KollabSectionLabel label="approved" />
+        ) : null}
+
+        {mineList.map((campaign) => {
+          const cid = String(campaign.id);
+          const pay = resolveCampaignPaySummary(campaign);
+          const brand = String(campaign.tenant?.tenantName || 'Brand');
+          const st = statusFor(campaign);
+          const chip = kollab.statusChip[st.tone];
+          return (
+            <PhotoCard
+              key={cid}
+              cover={nicheCoverSource(campaign.requiredInfluencerNiche)}
+              title={String(campaign.name || 'Untitled')}
+              meta={buildMeta(campaign)}
+              payLabel={pay.primaryLabel}
+              brand={{ logo: brandInitials(brand), logoBg: kollab.color.panel, brand }}
+              status={{ label: st.label, bg: chip.bg, fg: chip.fg }}
+              onPress={() => setSelectedCampaignId(cid)}
+            />
+          );
+        })}
+
+        {mineList.length > 0 ? (
+          <Text style={[styles.endCaption, { color: kollab.color.ink }]}>That's all for now</Text>
+        ) : null}
+
+        <View style={[styles.freshCard, { borderColor: kollab.color.outline }]}>
+          <Text style={[styles.freshTitle, { color: kollab.color.ink }]}>
+            Looking for more work?
+          </Text>
+          <Text style={[styles.freshMeta, { color: kollab.color.ink }]}>
+            Browse open campaigns on Fresh collabs
+          </Text>
+          <KollabButton
+            label="Browse fresh collabs"
+            variant="ink"
+            onPress={() => router.push('/influencer/dashboard' as never)}
+            style={styles.browseBtn}
+          />
+        </View>
+      </View>
+    );
+  };
+
+  const displayError = segment === 'public' ? ugcError : error;
+
   return (
     <ScrollScreen
       padH={0}
@@ -199,129 +516,24 @@ export default function CampaignsScreen() {
       }}
     >
       <View style={styles.head}>
-        <KollabScreenHeader
-          title="My collabs"
-          subtitle="Activity and approved work"
-          showBack={false}
-          size="tab"
+        <KollabScreenHeader title="Collabs" subtitle={subtitle} showBack={false} size="tab" />
+        <KollabSegmented
+          segments={[...SEGMENTS]}
+          value={segment}
+          onChange={(key) => setSegment(key as CollabSegment)}
+          style={styles.segments}
         />
       </View>
 
-      {error ? <Text style={[styles.error, { color: kollab.color.heat }]}>{error}</Text> : null}
+      {displayError ? (
+        <Text style={[styles.error, { color: kollab.color.heat }]}>{displayError}</Text>
+      ) : null}
 
-      {isLoading && list.length === 0 && activityItems.length === 0 ? (
-        <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />
-      ) : list.length === 0 && activityItems.length === 0 ? (
-        <View style={[styles.empty, { borderColor: kollab.color.outline }]}>
-          <Text style={[styles.emptyTitle, { color: kollab.color.ink }]}>No collabs yet</Text>
-          <Text style={[styles.emptySub, { color: kollab.color.ink }]}>
-            Submitted applications and approved collabs land here. Apply from Fresh collabs on Home.
-          </Text>
-          <KollabButton
-            label="Browse fresh collabs"
-            variant="ink"
-            onPress={() => router.push('/influencer/dashboard' as never)}
-            style={styles.browseBtn}
-          />
-        </View>
-      ) : (
-        <View style={styles.feed}>
-          {activityItems.length > 0 ? (
-            <View style={styles.activityBlock}>
-              <KollabSectionLabel label="collab activity" />
-              {activityItems.map((item) => (
-                <Pressable
-                  key={item.campaignId}
-                  onPress={() => setSelectedCampaignId(item.campaignId)}
-                  style={[
-                    styles.activityRow,
-                    { backgroundColor: kollab.color.card },
-                    kollab.shadow.card,
-                  ]}
-                >
-                  <View style={[styles.activityThumb, { backgroundColor: kollab.color.imgBg }]}>
-                    <Image
-                      source={item.cover}
-                      style={StyleSheet.absoluteFillObject}
-                      contentFit="cover"
-                    />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.statusRow}>
-                      <View style={[styles.statusDot, { backgroundColor: item.dot }]} />
-                      <Text style={[styles.statusText, { color: item.dot }]} numberOfLines={1}>
-                        {item.status}
-                      </Text>
-                      {item.when ? (
-                        <Text style={[styles.whenText, { color: kollab.color.ink }]}>
-                          {item.when}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Text
-                      style={[styles.activityName, { color: kollab.color.ink }]}
-                      numberOfLines={1}
-                    >
-                      {item.name}
-                    </Text>
-                    {item.niche ? (
-                      <Text
-                        style={[styles.activityMeta, { color: kollab.color.ink }]}
-                        numberOfLines={1}
-                      >
-                        {item.niche}
-                      </Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          {list.length > 0 && activityItems.length > 0 ? (
-            <KollabSectionLabel label="approved" />
-          ) : null}
-
-          {list.map((campaign) => {
-            const cid = String(campaign.id);
-            const pay = resolveCampaignPaySummary(campaign);
-            const brand = String(campaign.tenant?.tenantName || 'Brand');
-            const st = statusFor(campaign);
-            const chip = kollab.statusChip[st.tone];
-            return (
-              <PhotoCard
-                key={cid}
-                cover={nicheCoverSource(campaign.requiredInfluencerNiche)}
-                title={String(campaign.name || 'Untitled')}
-                meta={buildMeta(campaign)}
-                payLabel={pay.primaryLabel}
-                brand={{ logo: brandInitials(brand), logoBg: kollab.color.panel, brand }}
-                status={{ label: st.label, bg: chip.bg, fg: chip.fg }}
-                onPress={() => setSelectedCampaignId(cid)}
-              />
-            );
-          })}
-
-          {list.length > 0 ? (
-            <Text style={[styles.endCaption, { color: kollab.color.ink }]}>That's all for now</Text>
-          ) : null}
-
-          <View style={[styles.freshCard, { borderColor: kollab.color.outline }]}>
-            <Text style={[styles.freshTitle, { color: kollab.color.ink }]}>
-              Looking for more work?
-            </Text>
-            <Text style={[styles.freshMeta, { color: kollab.color.ink }]}>
-              Browse open campaigns on Fresh collabs
-            </Text>
-            <KollabButton
-              label="Browse fresh collabs"
-              variant="ink"
-              onPress={() => router.push('/influencer/dashboard' as never)}
-              style={styles.browseBtn}
-            />
-          </View>
-        </View>
-      )}
+      {segment === 'exclusive'
+        ? renderExclusive()
+        : segment === 'public'
+          ? renderPublic()
+          : renderMine()}
 
       <CampaignDetailsModal
         campaignId={selectedCampaignId}
@@ -344,32 +556,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 2,
   },
+  segments: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
   error: {
     fontFamily: font.body,
     fontSize: 13,
     paddingHorizontal: 22,
     marginBottom: 8,
-  },
-  empty: {
-    marginHorizontal: 30,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    paddingVertical: 38,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    ...kType.sectionTitle,
-    textAlign: 'center',
-  },
-  emptySub: {
-    fontFamily: font.body,
-    fontSize: 13,
-    opacity: 0.55,
-    marginTop: 6,
-    textAlign: 'center',
-    marginBottom: 16,
   },
   feed: {
     paddingHorizontal: 30,

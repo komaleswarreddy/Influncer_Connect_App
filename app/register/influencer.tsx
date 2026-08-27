@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth-store';
-import { CognitoAuthButtons } from '../../components/CognitoAuthButtons';
-import { cognitoConfigured, useMockAuth } from '../../lib/auth-config';
 import {
   ScrollScreen,
   KollabScreenHeader,
@@ -12,48 +10,47 @@ import {
   showKollabToast,
 } from '@/components/ui';
 import { useKollab, font, space } from '@/theme/kollab-tokens';
+import { isValidEmail, normalizeEmail } from '@/lib/email-validation';
 
-const FIELDS = [
-  { key: 'fullName', ph: 'Full Name' },
-  { key: 'email', ph: 'Email' },
-  { key: 'password', ph: 'Password', secure: true },
-  { key: 'confirmPassword', ph: 'Confirm Password', secure: true },
-  { key: 'phone', ph: 'Phone' },
-  { key: 'instagram', ph: 'Instagram URL' },
-  { key: 'youtube', ph: 'YouTube URL' },
-] as const;
-
+/**
+ * Email-first signup — the primary way to create a new influencer account on mobile.
+ * (Phone-first signup — app/register/verify-phone.tsx — is still in the codebase but
+ * not linked from here: SMS delivery on the shared Cognito pool is currently blocked
+ * by AWS SNS sandbox + India DLT registration, both outside this app's control. Email
+ * has neither blocker.) Sends a one-time confirmation code to the entered email, then
+ * hands off to app/register/verify-email.tsx to confirm it.
+ */
 export default function InfluencerRegisterScreen() {
   const router = useRouter();
   const kollab = useKollab();
-  const { register, isLoading, error } = useAuthStore();
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    instagram: '',
-    youtube: '',
-    bio: '',
-    country: 'India',
-    agreedToTerms: false,
-  });
+  const { startEmailSignup, isLoading, error } = useAuthStore();
+  const [email, setEmail] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const setField = (key: string, v: string) => setForm((f) => ({ ...f, [key]: v }));
-
-  const onRegister = async () => {
-    if (!form.agreedToTerms) {
+  const onContinue = async () => {
+    setFormError(null);
+    if (!isValidEmail(email)) {
+      setFormError('Enter a valid email address.');
+      return;
+    }
+    if (!agreedToTerms) {
       showKollabToast('You must agree to the terms and conditions');
       return;
     }
-    if (useMockAuth) {
-      try {
-        await register(form);
-        router.replace('/influencer/set-username');
-      } catch (e: unknown) {
-        showKollabToast(e instanceof Error ? e.message : 'Please try again.');
-      }
+    const normalized = normalizeEmail(email);
+    try {
+      const res = await startEmailSignup(normalized);
+      router.push({
+        pathname: '/register/verify-email',
+        params: {
+          email: normalized,
+          needsCode: res.needsCode ? '1' : '0',
+          destination: res.destination || '',
+        },
+      });
+    } catch (e: unknown) {
+      showKollabToast(e instanceof Error ? e.message : 'Please try again.');
     }
   };
 
@@ -61,75 +58,54 @@ export default function InfluencerRegisterScreen() {
     <ScrollScreen canvasColor={kollab.color.screen} padH={space.gutter}>
       <KollabScreenHeader
         title="Join as influencer"
-        subtitle="Create your creator account"
+        subtitle="Create your creator account with just your email"
         backTone="well"
         onBack={() => router.back()}
       />
 
-      {cognitoConfigured ? (
-        <View style={{ marginBottom: 18 }}>
-          <CognitoAuthButtons mode="register" variant="lime" />
+      <View style={{ gap: 10, marginBottom: 16 }}>
+        <KollabTextField
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          surface="well"
+        />
+      </View>
+
+      <Pressable
+        onPress={() => setAgreedToTerms((v) => !v)}
+        style={styles.termsRow}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: agreedToTerms }}
+      >
+        <View
+          style={[
+            styles.check,
+            {
+              borderColor: kollab.color.outline,
+              backgroundColor: agreedToTerms ? kollab.color.chartreuse : 'transparent',
+            },
+          ]}
+        >
+          {agreedToTerms ? (
+            <Text style={{ color: kollab.color.onChartreuse, fontSize: 13 }}>✓</Text>
+          ) : null}
         </View>
-      ) : null}
+        <Text style={[styles.termsLabel, { color: kollab.color.ink }]}>
+          I agree to the terms and conditions
+        </Text>
+      </Pressable>
 
-      {useMockAuth || !cognitoConfigured ? (
-        <>
-          <View style={{ gap: 10, marginBottom: 16 }}>
-            {FIELDS.map((f) => (
-              <KollabTextField
-                key={f.key}
-                placeholder={f.ph}
-                value={form[f.key]}
-                onChangeText={(v) => setField(f.key, v)}
-                secureTextEntry={'secure' in f && f.secure}
-                autoCapitalize={f.key === 'email' ? 'none' : 'sentences'}
-                keyboardType={
-                  f.key === 'email' ? 'email-address' : f.key === 'phone' ? 'phone-pad' : 'default'
-                }
-                surface="well"
-              />
-            ))}
-            <KollabTextField
-              placeholder="Bio (optional, max 500 chars)"
-              value={form.bio}
-              onChangeText={(v) => setField('bio', v)}
-              multiline
-              maxLength={500}
-              surface="well"
-            />
-          </View>
-
-          <Pressable
-            onPress={() => setForm((f) => ({ ...f, agreedToTerms: !f.agreedToTerms }))}
-            style={styles.termsRow}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: form.agreedToTerms }}
-          >
-            <View
-              style={[
-                styles.check,
-                {
-                  borderColor: kollab.color.outline,
-                  backgroundColor: form.agreedToTerms ? kollab.color.chartreuse : 'transparent',
-                },
-              ]}
-            >
-              {form.agreedToTerms ? (
-                <Text style={{ color: kollab.color.onChartreuse, fontSize: 13 }}>✓</Text>
-              ) : null}
-            </View>
-            <Text style={[styles.termsLabel, { color: kollab.color.ink }]}>
-              I agree to the terms and conditions
-            </Text>
-          </Pressable>
-
-          <KollabButton
-            label={isLoading ? 'Registering…' : 'Register'}
-            onPress={onRegister}
-            disabled={isLoading}
-          />
-          {error ? <Text style={[styles.err, { color: kollab.color.heat }]}>{error}</Text> : null}
-        </>
+      <KollabButton
+        label={isLoading ? 'Sending code…' : 'Send code'}
+        onPress={onContinue}
+        disabled={isLoading}
+      />
+      {formError || error ? (
+        <Text style={[styles.err, { color: kollab.color.heat }]}>{formError || error}</Text>
       ) : null}
 
       <Pressable onPress={() => router.push('/login')} style={styles.signIn}>
