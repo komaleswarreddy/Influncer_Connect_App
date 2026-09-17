@@ -62,6 +62,13 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
         path: '/account-screens/instagram-hub',
         badge: 'NEW',
       },
+      {
+        key: 'whatsapp',
+        label: 'WhatsApp',
+        glyph: 'dm',
+        path: '/account-screens/whatsapp-hub',
+        badge: 'NEW',
+      },
       { key: 'payments', label: 'Payments', glyph: 'wallet', path: '/account-screens/payments' },
       { key: 'support-hub', label: 'Support', glyph: 'help', path: '/account-screens/support-hub' },
       {

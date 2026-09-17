@@ -19,6 +19,8 @@ export default function AccountScreensLayout() {
       <Stack.Screen name="rate-calculator" />
       <Stack.Screen name="rate-card" />
       <Stack.Screen name="instagram-hub" />
+      <Stack.Screen name="whatsapp-hub" />
+      <Stack.Screen name="whatsapp-conversation" />
       <Stack.Screen name="schedule-content" />
       <Stack.Screen name="create-scheduled-post" />
       <Stack.Screen name="scheduled-calendar" />
