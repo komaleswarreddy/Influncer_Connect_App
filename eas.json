@@ -16,9 +16,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://affiliate-api-uoc2.onrender.com",
         "EXPO_PUBLIC_COGNITO_REGION": "us-east-1",
-        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_Q4GGtslV8",
-        "EXPO_PUBLIC_COGNITO_DOMAIN": "https://zopkit-platform-prod.auth.us-east-1.amazoncognito.com",
-        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "e6p8kt68jmir99akgnnr7d713",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_6e8AY4eMj",
+        "EXPO_PUBLIC_COGNITO_DOMAIN": "https://zopkit-platform-ay4emj.auth.us-east-1.amazoncognito.com",
+        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "6a31jojhgjniff8mho429305gv",
         "EXPO_PUBLIC_COGNITO_REDIRECT_URI": "affiliateplatform://auth/callback",
         "EXPO_PUBLIC_COGNITO_LOGOUT_URI": "affiliate-platform://",
         "EXPO_PUBLIC_USE_MOCK_AUTH": "false",
