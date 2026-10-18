@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { useThemeStore } from '@/store/theme-store';
 import { useKollab } from '@/theme/kollab-tokens';
+import { usePendingReferralApply } from '@/hooks/usePendingReferralApply';
 
 export default function InfluencerLayout() {
   const kollab = useKollab();
@@ -20,6 +21,9 @@ export default function InfluencerLayout() {
       void refreshSession({ logoutOnUnauthorized: false });
     }
   }, [isAuthenticated, isInitialized, refreshSession]);
+
+  // A referral code typed at signup is applied once the new creator is signed in.
+  usePendingReferralApply(isAuthenticated && isInitialized);
 
   // Hooks must run before the early returns below (Rules of Hooks), even
   // though screenOptions is only used once we reach the final <Stack>.

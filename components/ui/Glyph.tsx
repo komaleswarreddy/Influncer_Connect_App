@@ -27,9 +27,16 @@ export type GlyphName =
   | 'cal'
   | 'check'
   | 'pin'
-  | 'plus';
+  | 'plus'
+  | 'doc'
+  | 'spark';
 
 const PATHS: Record<GlyphName, string> = {
+  /** Four-point sparkle with a small companion — AI assistant. */
+  spark:
+    'M12 2l2.2 6.3 6.3 2.2-6.3 2.2L12 19l-2.2-6.3L3.5 10.5l6.3-2.2L12 2zm7 12l1 2.7 2.7 1-2.7 1L19 21.5l-1-2.7-2.7-1 2.7-1L19 14z',
+  /** Document with two text lines cut out (counter-wound sub-paths) — invoices. */
+  doc: 'M6 2h8l6 6v13a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1zm2 10v2h8v-2H8zm0 4v2h5v-2H8z',
   igPost: 'M4 4h16v16H4V4zm2 2v12h12V6H6zm2.5 7.5l2-2.5 2 2.5 2.5-3.5 3 5.5H6l2.5-4z',
   igStory:
     'M12 2a10 10 0 100 20 10 10 0 000-20zm0 2.5a7.5 7.5 0 110 15 7.5 7.5 0 010-15zM12 8a4 4 0 100 8 4 4 0 000-8z',

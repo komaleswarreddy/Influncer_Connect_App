@@ -378,13 +378,21 @@ function buildChoiceChip(color: KollabColor) {
 }
 
 /** Button fills. Outline-only buttons are not part of this system. */
-function buildButton(color: KollabColor) {
+function buildButton(color: KollabColor, isDark: boolean) {
   return {
     primary: { bg: color.chartreuse, fg: color.onChartreuse },
-    ink: { bg: color.ink, fg: color.chartreuse },
+    // In dark mode `ink` is the cream colour, so chartreuse text on it is ~1.15:1 (invisible) —
+    // use the near-black `onChartreuse` for the label there. Light mode keeps chartreuse-on-ink.
+    ink: { bg: color.ink, fg: isDark ? color.onChartreuse : color.chartreuse },
     soft: { bg: color.tint, fg: color.violetDeep },
     /** Only for a paired secondary next to a filled primary */
     hairline: { bg: 'transparent', fg: color.ink, borderWidth: 1.5, borderColor: color.ink },
+    /** Dark-mode disabled look: a flat muted fill with a still-legible label. A plain opacity fade
+     *  turns the bright fills into washed-out slabs against the dark surface. Light mode keeps
+     *  the opacity fade (`null`). */
+    disabled: isDark
+      ? { bg: '#2E2923', fg: 'rgba(243,239,231,0.62)', borderColor: 'rgba(243,239,231,0.28)' }
+      : null,
     paddingVertical: 17,
     borderRadius: radius.pill,
   };
@@ -450,7 +458,7 @@ export function useKollab(): KollabTokens {
       chatBubble: buildChatBubble(color),
       statusChip: buildStatusChip(color),
       choiceChip: buildChoiceChip(color),
-      button: buildButton(color),
+      button: buildButton(color, isDark),
       cardShape,
       uniformCard,
       nicheCover,

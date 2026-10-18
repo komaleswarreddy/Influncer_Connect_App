@@ -93,6 +93,11 @@ export function applicationStatusLabel(item: UgcApplicationRow): string {
   return appStatus || '—';
 }
 
+/** The status without its call to action ("Accepted — tap to deliver content" -> "Accepted"), for a small chip. */
+export function applicationStatusShort(item: UgcApplicationRow): string {
+  return applicationStatusLabel(item).split(' — ')[0];
+}
+
 interface UgcStore {
   jobs: Array<Record<string, unknown>>;
   applications: UgcApplicationRow[];

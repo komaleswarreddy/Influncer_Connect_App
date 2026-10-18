@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,7 +15,8 @@ import { showKollabToast } from '@/components/ui/PremiumToast';
 import { KollabSegmented } from '@/components/ui/KollabSegmented';
 import { Glyph, type GlyphName } from '@/components/ui/Glyph';
 import { useCampaignStore } from '@/store/campaign-store';
-import { nicheCoverSource } from '@/lib/niche-cover';
+import { campaignCoverSource } from '@/lib/campaign-cover';
+import { CoverImage } from '@/components/ui';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
 
 type NotifNav = {
@@ -310,10 +310,9 @@ const InviteRow = React.memo(function InviteRow({
       ]}
     >
       <View style={styles.inviteTopRow}>
-        <Image
-          source={nicheCoverSource(campaign?.requiredInfluencerNiche)}
-          style={styles.inviteCover}
-        />
+        <View style={styles.inviteCover}>
+          <CoverImage source={campaignCoverSource(campaign)} />
+        </View>
         <View style={styles.inviteInfo}>
           {isNew ? (
             <View style={styles.newBadge}>
@@ -590,6 +589,7 @@ function useKollabStyles(kollab: KollabTokens) {
           borderRadius: 18,
           backgroundColor: kollab.color.imgBg,
           flexShrink: 0,
+          overflow: 'hidden',
         },
         inviteInfo: { flex: 1, minWidth: 0 },
         newBadge: {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { api } from '../../lib/api';
 import { cognitoConfigured } from '../../lib/auth-config';
 import { useKollab, font } from '@/theme/kollab-tokens';
@@ -105,9 +105,7 @@ export default function PasswordSection({ onUpdate }: PasswordSectionProps) {
         variant="ink"
         onPress={() => void handleSave()}
         disabled={isLoading}
-        icon={
-          isLoading ? <ActivityIndicator color={kollab.color.chartreuse} size="small" /> : undefined
-        }
+        loading={isLoading}
       />
     </View>
   );

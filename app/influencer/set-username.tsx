@@ -72,7 +72,7 @@ export default function SetUsernameScreen() {
               if (error) setError(null);
             }}
             placeholder="your name"
-            placeholderTextColor={kollab.color.inkFaint}
+            placeholderTextColor={kollab.isDark ? kollab.color.inkMuted : kollab.color.inkFaint}
             autoCapitalize="words"
             autoCorrect={false}
             autoFocus

@@ -14,10 +14,16 @@ import {
 } from '@/components/ui';
 import { CampaignDetailsModal } from '@/components/influencer/CampaignDetailsModal';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
-import { nicheCoverSource } from '@/lib/niche-cover';
+import { campaignCoverSource, ugcCoverSource } from '@/lib/campaign-cover';
 import { buildMineCampaignStatus } from '@/lib/opportunity-card-ui';
 import { formatInr } from '@/lib/currency';
-import { useUgcStore } from '@/store/ugc-store';
+import {
+  appFromRow,
+  applicationStatusShort,
+  canDeliverContent,
+  useUgcStore,
+  type UgcApplicationRow,
+} from '@/store/ugc-store';
 import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
 import type { KollabTokens } from '@/theme/kollab-tokens';
 import {
@@ -131,7 +137,16 @@ export default function CampaignsScreen() {
     fetchParticipations,
     fetchMyApplications,
   } = useCampaignStore();
-  const { jobs: ugcJobs, loading: ugcLoading, error: ugcError, fetchJobs } = useUgcStore();
+  const {
+    jobs: allUgcJobs,
+    applications: ugcApplications,
+    loading: ugcLoading,
+    error: ugcError,
+    fetchJobs,
+    fetchApplications,
+  } = useUgcStore();
+  // A brief the creator has already applied to belongs under My Collab, not in the public list.
+  const ugcJobs = useMemo(() => allUgcJobs.filter((job) => job.hasApplied !== true), [allUgcJobs]);
 
   const [segment, setSegment] = useState<CollabSegment>(
     () => parseSegment(params.segment) ?? 'exclusive'
@@ -150,7 +165,15 @@ export default function CampaignsScreen() {
       void fetchParticipations();
       void fetchMyApplications();
       if (segment === 'public') void fetchJobs();
-    }, [fetchCampaigns, fetchParticipations, fetchMyApplications, fetchJobs, segment])
+      void fetchApplications();
+    }, [
+      fetchCampaigns,
+      fetchParticipations,
+      fetchMyApplications,
+      fetchJobs,
+      fetchApplications,
+      segment,
+    ])
   );
 
   const takenCampaignIds = useMemo(() => {
@@ -271,7 +294,7 @@ export default function CampaignsScreen() {
           campaignId,
           name: campaign?.name || 'Campaign',
           niche: campaign?.requiredInfluencerNiche || campaign?.type || null,
-          cover: nicheCoverSource(campaign?.requiredInfluencerNiche || campaign?.type),
+          cover: campaignCoverSource(campaign),
           status: statusLabel,
           when: relativeWhen(a.appliedAt),
           dot,
@@ -288,6 +311,7 @@ export default function CampaignsScreen() {
         fetchMyApplications(),
       ];
       if (segment === 'public') tasks.push(fetchJobs());
+      tasks.push(fetchApplications());
       await Promise.all(tasks);
     } catch {
       /* keep last list */
@@ -336,7 +360,7 @@ export default function CampaignsScreen() {
           return (
             <PhotoCard
               key={cid}
-              cover={nicheCoverSource(campaign.requiredInfluencerNiche)}
+              cover={campaignCoverSource(campaign)}
               title={String(campaign.name || 'Untitled')}
               meta={buildMeta(campaign)}
               payLabel={pay.primaryLabel}
@@ -347,6 +371,37 @@ export default function CampaignsScreen() {
           );
         })}
       </View>
+    );
+  };
+
+  /** One UGC brief the creator applied to: it stays here through accepted, delivered, approved and paid. */
+  const renderUgcApplication = (row: UgcApplicationRow) => {
+    const app = appFromRow(row);
+    const brief = row.brief ?? {};
+    const briefId = ugcBriefId(brief);
+    if (!briefId) return null;
+    const status = String(app.status ?? '').toLowerCase();
+    const needsAction = canDeliverContent(row);
+    const chip =
+      status === 'rejected'
+        ? kollab.statusChip.neutral
+        : needsAction
+          ? kollab.statusChip.live
+          : status === 'pending'
+            ? kollab.statusChip.warn
+            : kollab.statusChip.info;
+    return (
+      <PhotoCard
+        key={app.id || briefId}
+        cover={ugcCoverSource(brief)}
+        title={ugcBriefTitle(brief)}
+        meta={needsAction ? 'Ready for your content' : ugcBriefMeta(brief)}
+        payLabel={ugcBriefPay(brief)}
+        status={{ label: applicationStatusShort(row), bg: chip.bg, fg: chip.fg }}
+        onPress={() =>
+          router.push(`/influencer/ugc-brief-detail?id=${encodeURIComponent(briefId)}` as never)
+        }
+      />
     );
   };
 
@@ -369,11 +424,10 @@ export default function CampaignsScreen() {
         {ugcJobs.map((job) => {
           const id = ugcBriefId(job);
           if (!id) return null;
-          const niche = String(job.niche ?? job.category ?? job.contentType ?? '');
           return (
             <PhotoCard
               key={id}
-              cover={nicheCoverSource(niche || undefined)}
+              cover={ugcCoverSource(job)}
               title={ugcBriefTitle(job)}
               meta={ugcBriefMeta(job)}
               payLabel={ugcBriefPay(job)}
@@ -389,10 +443,15 @@ export default function CampaignsScreen() {
   };
 
   const renderMine = () => {
-    if (isLoading && mineList.length === 0 && activityItems.length === 0) {
+    if (
+      isLoading &&
+      mineList.length === 0 &&
+      activityItems.length === 0 &&
+      ugcApplications.length === 0
+    ) {
       return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
     }
-    if (mineList.length === 0 && activityItems.length === 0) {
+    if (mineList.length === 0 && activityItems.length === 0 && ugcApplications.length === 0) {
       return (
         <KollabEmptyCard
           title="No collabs yet"
@@ -456,7 +515,14 @@ export default function CampaignsScreen() {
           </View>
         ) : null}
 
-        {mineList.length > 0 && activityItems.length > 0 ? (
+        {ugcApplications.length > 0 ? (
+          <View style={styles.activityBlock}>
+            <KollabSectionLabel label="ugc briefs" />
+            {ugcApplications.map((row) => renderUgcApplication(row))}
+          </View>
+        ) : null}
+
+        {mineList.length > 0 && (activityItems.length > 0 || ugcApplications.length > 0) ? (
           <KollabSectionLabel label="approved" />
         ) : null}
 
@@ -469,7 +535,7 @@ export default function CampaignsScreen() {
           return (
             <PhotoCard
               key={cid}
-              cover={nicheCoverSource(campaign.requiredInfluencerNiche)}
+              cover={campaignCoverSource(campaign)}
               title={String(campaign.name || 'Untitled')}
               meta={buildMeta(campaign)}
               payLabel={pay.primaryLabel}

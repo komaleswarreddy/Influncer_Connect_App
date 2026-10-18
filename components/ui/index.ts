@@ -13,6 +13,7 @@ export type { KollabButtonVariant } from './KollabButton';
 export { KollabEmptyCard } from './KollabEmptyCard';
 export { KollabAnalyzePulse } from './KollabAnalyzePulse';
 export { PhotoCard } from './PhotoCard';
+export { CoverImage } from './CoverImage';
 export { KollabStatusChip } from './KollabStatusChip';
 export { KollabChatBubble } from './KollabChatBubble';
 export { KollabSectionLabel } from './KollabSectionLabel';

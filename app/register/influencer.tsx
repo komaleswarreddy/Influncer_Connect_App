@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth-store';
 import {
   ScrollScreen,
@@ -11,6 +11,11 @@ import {
 } from '@/components/ui';
 import { useKollab, font, space } from '@/theme/kollab-tokens';
 import { isValidEmail, normalizeEmail } from '@/lib/email-validation';
+import {
+  looksLikeReferralCode,
+  normalizeReferralInput,
+  setPendingReferral,
+} from '@/lib/pending-referral';
 
 /**
  * Email-first signup — the primary way to create a new influencer account on mobile.
@@ -24,9 +29,20 @@ export default function InfluencerRegisterScreen() {
   const router = useRouter();
   const kollab = useKollab();
   const { startEmailSignup, isLoading, error } = useAuthStore();
+  const { ref } = useLocalSearchParams<{ ref?: string }>();
   const [email, setEmail] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // A shared invite link opens this screen with ?ref=CODE: pre-fill it and remember it in case the creator leaves and returns.
+  useEffect(() => {
+    if (typeof ref === 'string' && looksLikeReferralCode(ref)) {
+      const code = normalizeReferralInput(ref);
+      setReferralCode(code);
+      void setPendingReferral(code);
+    }
+  }, [ref]);
 
   const onContinue = async () => {
     setFormError(null);
@@ -38,8 +54,14 @@ export default function InfluencerRegisterScreen() {
       showKollabToast('You must agree to the terms and conditions');
       return;
     }
+    if (referralCode.trim() && !looksLikeReferralCode(referralCode)) {
+      setFormError('A referral code is 6 letters or numbers. Clear the field to skip it.');
+      return;
+    }
     const normalized = normalizeEmail(email);
     try {
+      // Saved now, applied automatically after the new account signs in.
+      if (referralCode.trim()) await setPendingReferral(referralCode);
       const res = await startEmailSignup(normalized);
       router.push({
         pathname: '/register/verify-email',
@@ -71,6 +93,15 @@ export default function InfluencerRegisterScreen() {
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
+          surface="well"
+        />
+        <KollabTextField
+          placeholder="Referral code (optional)"
+          value={referralCode}
+          onChangeText={(v) => setReferralCode(v.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={12}
           surface="well"
         />
       </View>

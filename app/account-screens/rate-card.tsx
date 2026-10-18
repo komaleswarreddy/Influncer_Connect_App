@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Switch, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   ScrollScreen,
@@ -188,19 +188,47 @@ export default function RateCardScreen() {
             key={key}
             style={[styles.rowWell, { backgroundColor: kollab.color.card }, kollab.shadow.card]}
           >
-            <Text style={[styles.rowLabel, { color: kollab.color.ink }]}>{label}</Text>
-            <KollabTextField
-              surface="well"
-              keyboardType="numeric"
-              value={rates[key] ?? ''}
-              onChangeText={(v) => setRates({ ...rates, [key]: v })}
-              placeholder="0"
-              style={styles.amount}
-            />
-            {suggested[key] ? (
-              <Text style={[styles.hint, { color: kollab.color.ink }]}>
-                {formatInr(suggested[key].amount)}
+            <View style={styles.rowTop}>
+              <Text style={[styles.rowLabel, { color: kollab.color.ink }]} numberOfLines={2}>
+                {label}
               </Text>
+              <View style={styles.amountWrap}>
+                <Text style={[styles.rupee, { color: kollab.color.ink }]}>₹</Text>
+                <KollabTextField
+                  surface="well"
+                  keyboardType="numeric"
+                  value={rates[key] ?? ''}
+                  onChangeText={(v) => setRates({ ...rates, [key]: v.replace(/[^\d.]/g, '') })}
+                  placeholder="0"
+                  accessibilityLabel={`${label} price in rupees`}
+                  style={styles.amount}
+                />
+              </View>
+            </View>
+            {suggested[key] ? (
+              <Pressable
+                onPress={() => setRates({ ...rates, [key]: String(suggested[key].amount) })}
+                accessibilityRole="button"
+                accessibilityLabel={`Use suggested ${formatInr(suggested[key].amount)} for ${label}`}
+                style={[styles.suggestion, { backgroundColor: kollab.color.well }]}
+              >
+                <View style={styles.suggestionHead}>
+                  <Text style={[styles.suggestionText, { color: kollab.color.violetDeep }]}>
+                    Suggested {formatInr(suggested[key].amount)}
+                  </Text>
+                  <Text style={[styles.suggestionUse, { color: kollab.color.violetDeep }]}>
+                    Use
+                  </Text>
+                </View>
+                {suggested[key].explanation ? (
+                  <Text
+                    style={[styles.suggestionWhy, { color: kollab.color.ink }]}
+                    numberOfLines={3}
+                  >
+                    {suggested[key].explanation}
+                  </Text>
+                ) : null}
+              </Pressable>
             ) : null}
           </View>
         ))}
@@ -256,27 +284,25 @@ const styles = StyleSheet.create({
   bannerText: { fontFamily: font.body, fontSize: 13, opacity: 0.55, lineHeight: 18 },
   actions: { flexDirection: 'row', gap: 9, marginBottom: 16 },
   actionBtn: { flex: 1 },
-  rows: { gap: 9, marginBottom: 16 },
-  rowWell: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingLeft: 16,
-    paddingRight: 6,
+  rows: { gap: 12, marginBottom: 18 },
+  rowWell: { borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16, gap: 10 },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 15, lineHeight: 20 },
+  amountWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rupee: { fontFamily: font.bold, fontSize: 16, opacity: 0.55 },
+  amount: {
+    width: 120,
+    textAlign: 'right',
+    fontFamily: font.bold,
+    fontSize: 16,
+    paddingVertical: 12,
   },
-  rowLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 13.5 },
-  amount: { width: 112, textAlign: 'right', fontFamily: font.bold, paddingVertical: 12 },
-  hint: {
-    fontFamily: font.body,
-    fontSize: 11,
-    opacity: 0.55,
-    position: 'absolute',
-    bottom: -14,
-    right: 16,
-  },
-  toggles: { gap: 9, marginBottom: 18 },
+  suggestion: { borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, gap: 4 },
+  suggestionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  suggestionText: { fontFamily: font.bold, fontSize: 13.5 },
+  suggestionUse: { fontFamily: font.bold, fontSize: 13.5 },
+  suggestionWhy: { fontFamily: font.body, fontSize: 12, opacity: 0.6, lineHeight: 17 },
+  toggles: { gap: 12, marginBottom: 20 },
   toggleWell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -285,5 +311,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
-  toggleLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 13.5 },
+  toggleLabel: { flex: 1, fontFamily: font.semiBold, fontSize: 15 },
 });

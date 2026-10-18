@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../../store/auth-store';
 import { cognitoConfigured } from '../../../lib/auth-config';
 import { logoutFromCognito } from '../../../lib/cognito-auth';
+import { getAuthMethod } from '../../../lib/secure-session';
 import {
   ScrollScreen,
   Glyph,
@@ -25,6 +26,12 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
   {
     label: 'creator tools',
     rows: [
+      {
+        key: 'aira',
+        label: 'Klear AI assistant',
+        glyph: 'spark',
+        path: '/account-screens/aira',
+      },
       { key: 'price-card', label: 'Price Card', glyph: 'tag', path: '/account-screens/rate-card' },
       {
         key: 'rate-calculator',
@@ -38,6 +45,30 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
         glyph: 'store',
         path: '/account-screens/catalog',
       },
+      {
+        key: 'meets',
+        label: 'Meet scheduler',
+        glyph: 'cal',
+        path: '/account-screens/meets',
+      },
+      {
+        key: 'events',
+        label: 'Events & tickets',
+        glyph: 'cal',
+        path: '/account-screens/events',
+      },
+      {
+        key: 'leads',
+        label: 'Leads',
+        glyph: 'dm',
+        path: '/account-screens/leads',
+      },
+      {
+        key: 'brand-kit',
+        label: 'Brand Kit',
+        glyph: 'layers',
+        path: '/account-screens/brand-kit',
+      },
     ],
   },
   {
@@ -48,6 +79,13 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
         label: 'PriceCard Bookings',
         glyph: 'cal',
         path: '/account-screens/bookings',
+      },
+      { key: 'invoices', label: 'Invoices', glyph: 'doc', path: '/account-screens/invoices' },
+      {
+        key: 'referrals',
+        label: 'Refer & earn',
+        glyph: 'trend',
+        path: '/account-screens/referrals',
       },
       { key: 'ratings', label: 'Collab ratings', glyph: 'check', path: '/influencer/rating-cards' },
     ],
@@ -60,14 +98,12 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
         label: 'Instagram',
         glyph: 'ig',
         path: '/account-screens/instagram-hub',
-        badge: 'NEW',
       },
       {
         key: 'whatsapp',
         label: 'WhatsApp',
         glyph: 'dm',
         path: '/account-screens/whatsapp-hub',
-        badge: 'NEW',
       },
       { key: 'payments', label: 'Payments', glyph: 'wallet', path: '/account-screens/payments' },
       { key: 'support-hub', label: 'Support', glyph: 'help', path: '/account-screens/support-hub' },
@@ -89,18 +125,13 @@ export default function AccountScreen() {
   const letter = handle.slice(0, 1).toUpperCase();
 
   const onLogout = async () => {
-    if (cognitoConfigured) {
-      try {
-        // logoutFromCognito() is internally bounded (LOGOUT_TIMEOUT_MS) and
-        // never throws — this await is guaranteed to resolve within that
-        // window, so a hung Cognito browser session can't block logout.
-        await logoutFromCognito();
-      } catch {
-        /* still clear local session */
-      }
-    }
+    // Read before logout() wipes it: only Hosted UI / Google sign-ins have a Cognito browser
+    // session worth ending (email/phone OTP users never opened one).
+    const usedHostedUi = cognitoConfigured && (await getAuthMethod()) === 'hosted-ui';
     await logout();
     router.replace('/login');
+    // Background + best-effort: the user is already signed out and on the login screen.
+    if (usedHostedUi) void logoutFromCognito();
   };
 
   return (

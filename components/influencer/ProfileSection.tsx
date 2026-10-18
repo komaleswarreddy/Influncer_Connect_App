@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth-store';
 import { api } from '../../lib/api';
@@ -264,9 +264,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         variant="ink"
         onPress={handleSave}
         disabled={!canSave || isLoading}
-        icon={
-          isLoading ? <ActivityIndicator color={kollab.color.chartreuse} size="small" /> : undefined
-        }
+        loading={isLoading}
         style={styles.saveButton}
       />
     </View>

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 const NEXT_STEP_KEY = 'authNextStep';
+const AUTH_METHOD_KEY = 'authMethod';
 
 const LEGACY_KEYS = [TOKEN_KEY, USER_KEY, NEXT_STEP_KEY] as const;
 
@@ -85,7 +86,21 @@ export async function setSessionNextStep(value: string | null): Promise<void> {
   await AsyncStorage.removeItem(NEXT_STEP_KEY);
 }
 
+/** How the current session was created. `hosted-ui` = Cognito Hosted UI / Google sign-in, which
+ *  leaves a Cognito browser session that logout should also end; email/phone OTP logins don't. */
+export type AuthMethod = 'hosted-ui';
+
+export async function getAuthMethod(): Promise<AuthMethod | null> {
+  const v = await secureGet(AUTH_METHOD_KEY);
+  return v === 'hosted-ui' ? v : null;
+}
+
+export async function setAuthMethod(method: AuthMethod): Promise<void> {
+  await secureSet(AUTH_METHOD_KEY, method);
+}
+
 export async function clearEntireSession(): Promise<void> {
+  await secureDelete(AUTH_METHOD_KEY);
   await Promise.all(LEGACY_KEYS.map((k) => secureDelete(k)));
   await AsyncStorage.multiRemove([...LEGACY_KEYS]);
 }

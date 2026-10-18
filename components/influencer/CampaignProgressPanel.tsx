@@ -358,16 +358,6 @@ export function CampaignProgressPanel({
     setShowSubmitModal(true);
   };
 
-  const openFallbackSubmitModal = () => {
-    const fallback = {
-      id: '__fallback__',
-      contentType: 'generic_post',
-      requiredCount: 1000,
-      completedCount: 0,
-    };
-    openSubmitModal(fallback);
-  };
-
   const handleCopyPromoLink = async (value: string) => {
     try {
       await Clipboard.setStringAsync(value);
@@ -445,11 +435,6 @@ export function CampaignProgressPanel({
   const doneReqCount = progress.progress.filter((r) => r.completedCount >= r.requiredCount).length;
   const campaignTitle = formatCampaignDisplayName(campaign?.name);
   const brandName = campaign?.tenant?.tenantName || 'Brand';
-  const firstIncomplete = progress.progress.find((r) => r.completedCount < r.requiredCount);
-  const handleFooterSubmit = () => {
-    if (firstIncomplete) openSubmitModal(firstIncomplete);
-    else openFallbackSubmitModal();
-  };
 
   const mainContent = (
     <>
@@ -610,7 +595,9 @@ export function CampaignProgressPanel({
                               value={editingContentUrl}
                               onChangeText={setEditingContentUrl}
                               placeholder="Enter new content URL"
-                              placeholderTextColor={kollab.color.inkFaint}
+                              placeholderTextColor={
+                                kollab.isDark ? kollab.color.inkMuted : kollab.color.inkFaint
+                              }
                               multiline
                               autoFocus
                             />
@@ -741,20 +728,6 @@ export function CampaignProgressPanel({
             </View>
           )}
         </View>
-
-        <View style={styles.footerRow}>
-          <KollabButton
-            label="Submit content"
-            variant="ink"
-            onPress={handleFooterSubmit}
-            style={styles.footerBtn}
-          />
-          <KollabButton
-            label="Schedule"
-            onPress={() => router.push('/account-screens/schedule-content' as never)}
-            style={styles.footerBtn}
-          />
-        </View>
       </ScrollView>
 
       {/* Submit Content Modal */}
@@ -790,7 +763,9 @@ export function CampaignProgressPanel({
                         placeholder={
                           index === 0 ? 'Paste post URL (or multiple URLs)' : `URL ${index + 1}`
                         }
-                        placeholderTextColor={kollab.color.inkFaint}
+                        placeholderTextColor={
+                          kollab.isDark ? kollab.color.inkMuted : kollab.color.inkFaint
+                        }
                         autoCapitalize="none"
                         autoCorrect={false}
                         multiline
@@ -1526,14 +1501,6 @@ function useKollabStyles(kollab: KollabTokens) {
           gap: 8,
           marginTop: 4,
           flexWrap: 'wrap',
-        },
-        footerRow: {
-          flexDirection: 'row',
-          gap: 9,
-          marginBottom: 8,
-        },
-        footerBtn: {
-          flex: 1,
         },
       }),
     [kollab]

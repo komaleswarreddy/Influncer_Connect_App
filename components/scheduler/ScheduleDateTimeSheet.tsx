@@ -98,7 +98,7 @@ type WheelColumnProps<T extends string | number> = {
   formatLabel: (value: T) => string;
 };
 
-function WheelColumn<T extends string | number>({
+export function WheelColumn<T extends string | number>({
   items,
   selected,
   onChange,

@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { ugcApi } from '@/lib/ugc-api';
 import { ScrollScreen, KollabScreenHeader, KollabSectionLabel, Glyph } from '@/components/ui';
 import { useCampaignStore } from '@/store/campaign-store';
+import { ReferralEarningsCard } from '@/components/referrals/ReferralEarningsCard';
 import { sumPotentialEarningsFromEligible } from '@/lib/home-potential-earnings';
 import { getActiveParticipations, participationCampaignId } from '@/lib/home-existing-user';
 import { formatInr } from '@/lib/currency';
@@ -141,7 +142,7 @@ export default function PaymentsScreen() {
         ),
       }}
     >
-      <KollabScreenHeader title="Payments" subtitle="Brand payouts and UGC earnings" />
+      <KollabScreenHeader title="Payments" subtitle="Brand payouts, UGC and referral earnings" />
 
       {loading && !refreshing ? (
         <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 24 }} />
@@ -229,6 +230,9 @@ export default function PaymentsScreen() {
           <Text style={[styles.ugcLink, { color: kollab.color.violet }]}>View UGC earnings →</Text>
         </Pressable>
       </View>
+
+      <KollabSectionLabel label="referral rewards" />
+      <ReferralEarningsCard />
     </ScrollScreen>
   );
 }

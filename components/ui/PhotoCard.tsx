@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { Image, type ImageSource } from 'expo-image';
+import { type ImageSource } from 'expo-image';
+import { CoverImage } from './CoverImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useKollab, uniformCard, font } from '@/theme/kollab-tokens';
 import type { KollabTokens } from '@/theme/kollab-tokens';
@@ -73,7 +74,7 @@ export function PhotoCard({
       accessibilityRole="button"
       accessibilityLabel={title}
     >
-      <Image source={cover} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      <CoverImage source={cover} />
       <LinearGradient
         colors={kollab.scrimStops.card.colors as [string, string, string]}
         locations={kollab.scrimStops.card.locations as [number, number, number]}

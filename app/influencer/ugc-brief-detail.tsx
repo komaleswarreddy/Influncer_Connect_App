@@ -1,15 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollScreen, KollabScreenHeader, KollabButton, showKollabToast } from '@/components/ui';
+import {
+  CoverImage,
+  ScrollScreen,
+  KollabScreenHeader,
+  KollabButton,
+  showKollabToast,
+} from '@/components/ui';
 import { ugcApi } from '@/lib/ugc-api';
-import { applicationStatusLabel, type UgcApplicationRow } from '@/store/ugc-store';
+import {
+  applicationStatusLabel,
+  canDeliverContent,
+  type UgcApplicationRow,
+} from '@/store/ugc-store';
 import { formatInr } from '@/lib/currency';
+import { hasUgcCover, ugcCoverSource } from '@/lib/campaign-cover';
 import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
 
 type BriefResponse = {
   brief?: Record<string, unknown>;
   hasApplied?: boolean;
+  applicationId?: string | null;
   applicationStatus?: string | null;
   deliverableStatus?: string | null;
   paymentStatus?: string | null;
@@ -49,6 +61,7 @@ export default function UgcBriefDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [deliverableStatus, setDeliverableStatus] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
@@ -67,6 +80,7 @@ export default function UgcBriefDetailScreen() {
       }
       setBrief(res.brief);
       setHasApplied(Boolean(res.hasApplied));
+      setApplicationId(res.applicationId ?? null);
       setApplicationStatus(res.applicationStatus ?? null);
       setDeliverableStatus(res.deliverableStatus ?? null);
       setPaymentStatus(res.paymentStatus ?? null);
@@ -86,15 +100,18 @@ export default function UgcBriefDetailScreen() {
     if (!hasApplied) return null;
     return {
       application: {
-        id: 'brief-detail',
+        id: applicationId ?? 'brief-detail',
         status: applicationStatus ?? 'pending',
       },
       deliverable: deliverableStatus ? { status: deliverableStatus } : null,
       payment: paymentStatus ? { status: paymentStatus } : null,
     };
-  }, [hasApplied, applicationStatus, deliverableStatus, paymentStatus]);
+  }, [hasApplied, applicationId, applicationStatus, deliverableStatus, paymentStatus]);
 
   const statusLabel = statusRow ? applicationStatusLabel(statusRow) : null;
+  // Accepted (or sent back for a revision) and nothing waiting for review: the creator's next step is to deliver.
+  const canDeliver = statusRow ? canDeliverContent(statusRow) && Boolean(applicationId) : false;
+  const resubmitting = String(deliverableStatus ?? '').toLowerCase() === 'revision_requested';
 
   const apply = async () => {
     if (!id) return;
@@ -140,7 +157,8 @@ export default function UgcBriefDetailScreen() {
   const productNameText = String(brief.productName ?? '');
   const pieces = Number(brief.piecesNeeded ?? 1);
   const piecesLeft = pieces - Number(brief.piecesFilled ?? 0);
-  const pillText = hasApplied && statusLabel ? `UGC brief · ${statusLabel}` : `UGC brief · Open`;
+  const pillText =
+    hasApplied && statusLabel ? `UGC brief · ${statusLabel.split(' — ')[0]}` : `UGC brief · Open`;
   const chips = [
     contentChip(String(brief.contentType ?? '')),
     `${pieces} ${pieces === 1 ? 'piece' : 'pieces'}`,
@@ -150,6 +168,12 @@ export default function UgcBriefDetailScreen() {
   return (
     <ScrollScreen canvasColor={kollab.color.screen}>
       <KollabScreenHeader title="UGC brief" backTone="well" />
+
+      {hasUgcCover(brief) ? (
+        <View style={styles.hero}>
+          <CoverImage source={ugcCoverSource(brief, 1200)} />
+        </View>
+      ) : null}
 
       <View style={[styles.pill, { backgroundColor: kollab.color.chartreuse }]}>
         <Text style={[styles.pillText, { color: kollab.color.onChartreuse }]}>{pillText}</Text>
@@ -195,14 +219,41 @@ export default function UgcBriefDetailScreen() {
           disabled={submitting}
           onPress={() => void apply()}
         />
+      ) : canDeliver ? (
+        <>
+          <Text style={[styles.applied, { color: kollab.color.ink }]}>
+            {resubmitting
+              ? 'The brand asked for changes. Update your content and send it again.'
+              : 'You are accepted. Send your content when it is ready.'}
+          </Text>
+          <KollabButton
+            label={resubmitting ? 'Resubmit content' : 'Deliver content'}
+            onPress={() =>
+              router.push({
+                pathname: '/influencer/ugc-deliver',
+                params: { applicationId: String(applicationId), title: String(brief.title ?? '') },
+              } as never)
+            }
+          />
+        </>
       ) : hasApplied && statusLabel ? (
-        <Text style={[styles.applied, { color: kollab.color.ink }]}>{statusLabel}</Text>
+        <Text style={[styles.applied, { color: kollab.color.ink }]}>
+          {statusLabel.split(' — ')[0]}
+        </Text>
       ) : null}
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  hero: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginBottom: 14,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
   pill: {
     alignSelf: 'flex-start',
     borderRadius: 999,

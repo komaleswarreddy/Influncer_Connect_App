@@ -22,7 +22,8 @@ import { Glyph } from '@/components/ui/Glyph';
 import { isParticipationEnrolled } from '@/lib/campaign-participation-ui';
 import { formatCampaignDisplayName } from '@/lib/format-campaign-display-name';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
-import { nicheCoverSource } from '@/lib/niche-cover';
+import { campaignCoverSource } from '@/lib/campaign-cover';
+import { CoverImage } from '@/components/ui';
 
 type ContractRow = {
   label: string;
@@ -98,7 +99,10 @@ function isJunkContractLabel(label: string): boolean {
     t === 'campaign type' ||
     t === 'start' ||
     t === 'end' ||
-    t === 'type'
+    t === 'type' ||
+    // The brand's internal workspace address (for example wrapper-1234.wrapper.local) means nothing to a creator.
+    t === 'domain' ||
+    t === 'website'
   );
 }
 
@@ -273,16 +277,18 @@ export default function ContractScreen() {
   ).trim();
   const campaignType = prettyType(liveCampaign?.type ?? participation?.campaign?.type);
 
-  const termParagraphs = useMemo(() => {
+  const termSections = useMemo(() => {
     const skippedTitles = new Set(['campaign information', 'influencer details']);
-    return structuredSections
+    const rows = structuredSections
       .filter((s) => !skippedTitles.has(s.title.trim().toLowerCase()))
-      .flatMap((s) => [
-        ...s.paragraphs,
-        ...s.rows.filter((r) => !isJunkContractLabel(r.label)).map((r) => `${r.label}: ${r.value}`),
-      ])
+      .flatMap((s) => s.rows.filter((r) => !isJunkContractLabel(r.label) && r.value.trim()))
+      .slice(0, 8);
+    const paragraphs = structuredSections
+      .filter((s) => !skippedTitles.has(s.title.trim().toLowerCase()))
+      .flatMap((s) => s.paragraphs)
       .filter(Boolean)
       .slice(0, 6);
+    return { rows, paragraphs };
   }, [structuredSections]);
 
   const hasSignature = Boolean(signature || signatureImageUrl);
@@ -329,11 +335,7 @@ export default function ContractScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         <View style={styles.photoHero}>
-          <Image
-            source={nicheCoverSource(liveCampaign?.requiredInfluencerNiche)}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
+          <CoverImage source={campaignCoverSource(liveCampaign)} />
           <View style={styles.photoScrim} />
           <View style={styles.photoCopy}>
             <Text style={styles.photoKicker}>contract review</Text>
@@ -371,11 +373,25 @@ export default function ContractScreen() {
             </View>
           ) : null}
 
-          {termParagraphs.length > 0 ? (
+          {termSections.rows.length + termSections.paragraphs.length > 0 ? (
             <View style={styles.surfaceCard}>
               <Text style={styles.cardTitle}>Terms</Text>
-              {termParagraphs.map((p) => (
-                <Text key={p} style={styles.bodyCopy}>
+              {termSections.rows.map((row, i) => (
+                <View
+                  key={`${row.label}-${i}`}
+                  style={[styles.termRow, i > 0 && styles.termRowDivider]}
+                >
+                  <Text style={styles.termLabel}>{row.label}</Text>
+                  <Text style={styles.termValue} selectable>
+                    {row.value}
+                  </Text>
+                </View>
+              ))}
+              {termSections.paragraphs.map((p) => (
+                <Text
+                  key={p}
+                  style={[styles.bodyCopy, termSections.rows.length > 0 && { marginTop: 10 }]}
+                >
                   {p}
                 </Text>
               ))}
@@ -537,6 +553,33 @@ function useKollabStyles(kollab: KollabTokens) {
           fontSize: 15,
           fontFamily: font.bold,
           marginTop: 3,
+        },
+        termRow: {
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 14,
+          paddingVertical: 11,
+        },
+        termRowDivider: {
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: kollab.color.hairline,
+        },
+        // The label is the part the eye scans, so it carries the accent colour; the value stays plain and readable.
+        termLabel: {
+          width: '38%',
+          fontFamily: font.bold,
+          fontSize: 12,
+          letterSpacing: 0.4,
+          textTransform: 'uppercase',
+          color: kollab.color.violetDeep,
+          paddingTop: 2,
+        },
+        termValue: {
+          flex: 1,
+          fontFamily: font.semiBold,
+          fontSize: 14.5,
+          lineHeight: 21,
+          color: kollab.color.ink,
         },
         bodyCopy: {
           fontFamily: font.body,

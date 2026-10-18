@@ -229,8 +229,12 @@ export default function CampaignDetailsScreen({
   const hasCommission = Number.isFinite(commissionNum) && commissionNum > 0;
 
   const brandName = campaign.tenant?.tenantName || 'Brand';
-  const brandDomain =
-    campaign.tenant?.domain || campaign.tenant?.subdomain || campaign.requiredInfluencerNiche || '';
+  // Under the brand name: what the campaign is about. The brand's workspace address (wrapper-1234.wrapper.local) is internal.
+  const brandSubtitle = String(campaign.requiredInfluencerNiche ?? '').trim()
+    ? `${String(campaign.requiredInfluencerNiche)
+        .trim()
+        .replace(/^./, (c) => c.toUpperCase())} campaign`
+    : '';
   const dateRange = formatRange(campaign.startDate, campaign.endDate);
   const audience = campaign.targetAudienceAgeGroup
     ? `${String(campaign.targetAudienceAgeGroup).replace(/_/g, ' ')} audience`
@@ -303,7 +307,9 @@ export default function CampaignDetailsScreen({
     joinEnabled = true;
     joinTeal = true;
   } else if (canShowContract) {
-    joinNote = 'Sign the contract to activate this collab.';
+    // The brand approved the application: the next step is the contract, not another application.
+    joinLabel = 'Review & sign contract';
+    joinNote = 'You are approved. Sign the contract to activate this collab.';
   } else if (awaitingBrandApproval) {
     joinLabel = 'Submitted';
     joinNote = 'Application submitted — waiting for brand approval.';
@@ -681,7 +687,7 @@ export default function CampaignDetailsScreen({
               <Text style={styles.brandHeroName} numberOfLines={1}>
                 {brandName}
               </Text>
-              {brandDomain ? <Text style={styles.brandDomain}>{brandDomain}</Text> : null}
+              {brandSubtitle ? <Text style={styles.brandDomain}>{brandSubtitle}</Text> : null}
             </View>
             <KollabStatusChip
               tone={campaignStatusTone(campaign.status)}

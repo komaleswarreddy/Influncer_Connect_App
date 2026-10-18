@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { storefrontShareText } from '@/lib/share-text';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Share, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -133,8 +134,7 @@ export default function CatalogHomeScreen() {
     }
     try {
       await Share.share({
-        message: `Check out my storefront: ${shareUrl}`,
-        url: shareUrl,
+        message: storefrontShareText({ storeName: catalog?.storeName ?? null, url: shareUrl }),
         title: catalog?.storeName || 'My storefront',
       });
       showKollabToast('Storefront link copied');

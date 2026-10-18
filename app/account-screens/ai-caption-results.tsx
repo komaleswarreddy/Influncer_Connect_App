@@ -121,9 +121,7 @@ export default function AiCaptionResultsScreen() {
         variant="ink"
         onPress={() => void suggest()}
         disabled={!canSuggest}
-        icon={
-          isSaving ? <ActivityIndicator color={kollab.color.chartreuse} size="small" /> : undefined
-        }
+        loading={isSaving}
       />
 
       <KollabSectionLabel

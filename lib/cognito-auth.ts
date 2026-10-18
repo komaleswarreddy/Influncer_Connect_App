@@ -28,7 +28,9 @@ export class CognitoCancelledError extends Error {
 }
 
 const SIGN_IN_TIMEOUT_MS = 45_000;
-const LOGOUT_TIMEOUT_MS = 20_000;
+// Logout runs in the background after the local session is already cleared, so a stuck tab
+// should be nudged away quickly rather than left over the login screen.
+const LOGOUT_TIMEOUT_MS = 4_000;
 
 /**
  * PKCE code_verifier only ever lived in the in-memory AuthRequest instance.
@@ -408,9 +410,9 @@ export async function tryCompletePendingCognitoAuth(): Promise<CognitoAuthResult
 export const signInWithCognitoGoogle = signInWithCognito;
 
 /**
- * Cognito Hosted UI logout (best-effort). Always resolves — this is
- * internally bounded (LOGOUT_TIMEOUT_MS) so a hung browser session can never
- * block the caller from clearing the local session and navigating away.
+ * Cognito Hosted UI logout (best-effort). Always resolves and never throws. Callers should clear
+ * the local session and navigate first, then run this in the background (`void`) — it opens a
+ * browser tab that doesn't always auto-close on Android, so nothing should wait on it.
  */
 export async function logoutFromCognito(): Promise<void> {
   if (!cognitoConfigured) return;

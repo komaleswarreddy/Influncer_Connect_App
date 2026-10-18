@@ -8,11 +8,11 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useKollab, font, uniformCard, type as kType } from '@/theme/kollab-tokens';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
-import { nicheCoverSource } from '@/lib/niche-cover';
+import { campaignCoverSource } from '@/lib/campaign-cover';
+import { CoverImage } from './CoverImage';
 import type { Campaign } from '@/store/campaign-store';
 
 type Props = {
@@ -49,7 +49,6 @@ export function HomeFreshCollabsRail({ campaigns, onOpenCampaign, style }: Props
         {campaigns.map((campaign) => {
           const cid = String(campaign.id);
           const pay = resolveCampaignPaySummary(campaign);
-          const niche = campaign.requiredInfluencerNiche;
           const brand = String(campaign.tenant?.tenantName || 'Brand');
           const short = String(campaign.name || 'Untitled')
             .split(' ')
@@ -71,11 +70,7 @@ export function HomeFreshCollabsRail({ campaigns, onOpenCampaign, style }: Props
               accessibilityRole="button"
               accessibilityLabel={short}
             >
-              <Image
-                source={nicheCoverSource(niche)}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-              />
+              <CoverImage source={campaignCoverSource(campaign, uniformCard.railWidth * 2)} />
               <LinearGradient
                 colors={kollab.scrimStops.rail.colors as [string, string]}
                 locations={kollab.scrimStops.rail.locations as [number, number]}

@@ -30,7 +30,9 @@ export function KollabTextField({
         },
         style,
       ]}
-      placeholderTextColor={placeholderTextColor ?? kollab.color.inkFaint}
+      placeholderTextColor={
+        placeholderTextColor ?? (kollab.isDark ? kollab.color.inkMuted : kollab.color.inkFaint)
+      }
       multiline={multiline}
       {...rest}
     />

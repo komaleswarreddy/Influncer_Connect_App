@@ -9,6 +9,7 @@ import {
   setSessionNextStep,
   setSessionToken,
   setSessionUserJson,
+  setAuthMethod,
 } from '../lib/secure-session';
 import {
   startPhoneSignup as apiStartPhoneSignup,
@@ -371,6 +372,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
       // Token-login already returns user + nextStep — skip extra /api/auth/me round-trip.
       await get().setAuth(data.token, user, nextStep);
+      await setAuthMethod('hosted-ui');
       if (__DEV__) console.log(`[auth] cognito exchange total ${Date.now() - t0}ms`);
     } catch (error: any) {
       console.error('Cognito exchange error:', error);
