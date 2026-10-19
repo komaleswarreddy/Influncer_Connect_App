@@ -25,7 +25,8 @@ function normalizeStored(raw: string | null): AppAppearance | null {
 }
 
 export const useThemeStore = create<ThemeStore>((set, get) => ({
-  appearance: 'dark',
+  // Light until the person picks otherwise; a saved choice (dark or light) always wins in hydrate().
+  appearance: 'light',
   hydrated: false,
 
   hydrate: async () => {

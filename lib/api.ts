@@ -356,9 +356,11 @@ class ApiClient {
       }
 
       const controller = new AbortController();
-      const timeoutMs =
-        endpoint.includes('/api/content-ideas/trending') ||
-        endpoint.includes('/api/scheduled-posts/generate-caption')
+      // Sign-in / sign-up get the longest allowance: the first request after the (free-plan) server has slept can take ~1 minute.
+      const timeoutMs = endpoint.startsWith('/api/auth/')
+        ? 75000
+        : endpoint.includes('/api/content-ideas/trending') ||
+            endpoint.includes('/api/scheduled-posts/generate-caption')
           ? 60000
           : 30000;
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
