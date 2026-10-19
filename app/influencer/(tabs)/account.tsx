@@ -13,6 +13,7 @@ import {
   type GlyphName,
 } from '@/components/ui';
 import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
+import { FEATURES } from '@/constants/features';
 
 type AccountLink = {
   key: string;
@@ -99,12 +100,16 @@ const GROUPS: { label: string; rows: AccountLink[] }[] = [
         glyph: 'ig',
         path: '/account-screens/instagram-hub',
       },
-      {
-        key: 'whatsapp',
-        label: 'WhatsApp',
-        glyph: 'dm',
-        path: '/account-screens/whatsapp-hub',
-      },
+      ...(FEATURES.whatsappHub
+        ? [
+            {
+              key: 'whatsapp',
+              label: 'WhatsApp',
+              glyph: 'dm' as const,
+              path: '/account-screens/whatsapp-hub',
+            },
+          ]
+        : []),
       { key: 'payments', label: 'Payments', glyph: 'wallet', path: '/account-screens/payments' },
       { key: 'support-hub', label: 'Support', glyph: 'help', path: '/account-screens/support-hub' },
       {
