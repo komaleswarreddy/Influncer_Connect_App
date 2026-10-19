@@ -2,7 +2,7 @@
   "expo": {
     "name": "Influencer Connect",
     "slug": "affiliate-platform",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/App_icon.png",
     "scheme": "affiliateplatform",
@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "versionCode": 14,
+      "versionCode": 15,
       "adaptiveIcon": {
         "foregroundImage": "./assets/App_icon.png",
         "backgroundColor": "#0B1F3A"
