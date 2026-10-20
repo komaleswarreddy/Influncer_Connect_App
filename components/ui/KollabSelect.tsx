@@ -16,6 +16,8 @@ type Props = {
   accessibilityLabel?: string;
   /** Expand options in-place (no overlay). Use for short lists like profile niche. */
   inline?: boolean;
+  /** Open in place under the field as a two-column panel (no overlay); closes after a choice. */
+  expandable?: boolean;
 };
 
 /** Pill select that matches KollabTextField. Opens a Kollab option sheet. */
@@ -26,6 +28,7 @@ export function KollabSelect({
   onChange,
   accessibilityLabel,
   inline = false,
+  expandable = false,
 }: Props) {
   const kollab = useKollab();
   const [open, setOpen] = useState(false);
@@ -74,6 +77,73 @@ export function KollabSelect({
 
   if (inline) {
     return <View accessibilityLabel={accessibilityLabel ?? placeholder}>{optionPills}</View>;
+  }
+
+  if (expandable) {
+    return (
+      <View>
+        <Pressable
+          onPress={() => setOpen((o) => !o)}
+          style={[
+            styles.field,
+            { backgroundColor: kollab.color.card, borderColor: kollab.color.outline },
+          ]}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={accessibilityLabel ?? placeholder}
+        >
+          <Text
+            style={[
+              styles.fieldText,
+              { color: display ? kollab.color.ink : kollab.color.inkFaint },
+            ]}
+            numberOfLines={1}
+          >
+            {display || placeholder}
+          </Text>
+          <Text style={[styles.caret, { color: kollab.color.inkMuted }]}>{open ? '▴' : '▾'}</Text>
+        </Pressable>
+        {open ? (
+          <View
+            style={[
+              styles.panel,
+              { backgroundColor: kollab.color.card, borderColor: kollab.color.outline },
+            ]}
+          >
+            <View style={styles.panelGrid}>
+              {options.map((opt) => {
+                const on = opt.value === value;
+                const chip = choiceChipColors(kollab, on);
+                return (
+                  <Pressable
+                    key={opt.value}
+                    disabled={opt.disabled}
+                    onPress={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    style={[
+                      styles.panelOption,
+                      { backgroundColor: chip.backgroundColor, borderColor: chip.borderColor },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on, disabled: Boolean(opt.disabled) }}
+                    accessibilityLabel={opt.label}
+                  >
+                    <Text
+                      style={[styles.inlineOptionLabel, { color: chip.color }]}
+                      numberOfLines={2}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
   }
 
   return (
@@ -179,6 +249,27 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontFamily: font.semiBold,
     fontSize: 14,
+  },
+  panel: {
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderRadius: 22,
+    padding: 10,
+  },
+  panelGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  panelOption: {
+    width: '48.5%',
+    flexGrow: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
   inlineList: {
     flexDirection: 'row',

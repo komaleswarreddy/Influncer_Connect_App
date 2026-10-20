@@ -276,6 +276,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Category</Text>
         <View style={styles.nicheSelect}>
           <KollabSelect
+            expandable
             value={formData.niche || null}
             placeholder="Select your category"
             options={NICHE_OPTIONS}

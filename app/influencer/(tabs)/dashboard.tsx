@@ -252,6 +252,7 @@ export default function InfluencerDashboard() {
       hasUnread={unreadNotifications > 0}
       onToggleTheme={() => void setAppearance(appearance === 'dark' ? 'light' : 'dark')}
       onPressNotifications={() => router.push('/influencer/inbox' as never)}
+      onPressAvatar={() => router.push('/account-screens/settings' as never)}
     />
   );
 

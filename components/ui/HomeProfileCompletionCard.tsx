@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
 import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
 import type { ProfileCompletion } from '@/lib/profile-completion';
 
@@ -20,53 +19,70 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 export function HomeProfileCompletionCard({ completion, onPress, style }: Props) {
   const kollab = useKollab();
   if (completion.percent >= 100) return null;
+  const c = kollab.color;
   const dash = (completion.percent / 100) * CIRCUMFERENCE;
   const doneCount = completion.steps.filter((s) => s.done).length;
+  const track = 'rgba(245,243,237,0.18)';
 
   return (
     <View style={[styles.wrap, style]}>
       <Pressable
         onPress={onPress}
-        style={[
-          styles.card,
-          { backgroundColor: kollab.color.card, borderColor: kollab.color.outline },
-        ]}
+        style={[styles.card, { backgroundColor: c.panel }]}
         accessibilityRole="button"
         accessibilityLabel={`Profile ${completion.percent} percent complete. Open profile settings`}
       >
-        <View style={styles.ringWrap}>
-          <Svg width={RING} height={RING} style={styles.ring}>
-            <Circle
-              cx={RING / 2}
-              cy={RING / 2}
-              r={RADIUS}
-              stroke={kollab.color.outline}
-              strokeWidth={STROKE}
-              fill="none"
-            />
-            <Circle
-              cx={RING / 2}
-              cy={RING / 2}
-              r={RADIUS}
-              stroke={kollab.color.violetDeep}
-              strokeWidth={STROKE}
-              strokeLinecap="round"
-              fill="none"
-              strokeDasharray={`${dash} ${CIRCUMFERENCE}`}
-              rotation={-90}
-              origin={`${RING / 2}, ${RING / 2}`}
-            />
-          </Svg>
-          <Text style={[styles.percent, { color: kollab.color.ink }]}>{completion.percent}%</Text>
+        <View style={styles.top}>
+          <View style={styles.ringWrap}>
+            <Svg width={RING} height={RING} style={styles.ring}>
+              <Circle
+                cx={RING / 2}
+                cy={RING / 2}
+                r={RADIUS}
+                stroke={track}
+                strokeWidth={STROKE}
+                fill="none"
+              />
+              <Circle
+                cx={RING / 2}
+                cy={RING / 2}
+                r={RADIUS}
+                stroke={c.chartreuse}
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray={`${dash} ${CIRCUMFERENCE}`}
+                rotation={-90}
+                origin={`${RING / 2}, ${RING / 2}`}
+              />
+            </Svg>
+            <Text style={[styles.percent, { color: c.inkOn }]}>{completion.percent}%</Text>
+          </View>
+          <View style={styles.copy}>
+            <Text style={[styles.title, { color: c.inkOn }]}>Complete your profile</Text>
+            <Text style={[styles.sub, { color: c.inkOn }]} numberOfLines={2}>
+              {completion.next
+                ? completion.next.label
+                : `${doneCount} of ${completion.steps.length} done`}
+            </Text>
+          </View>
         </View>
-        <View style={styles.copy}>
-          <Text style={[styles.title, { color: kollab.color.ink }]}>Complete your profile</Text>
-          <Text style={[styles.sub, { color: kollab.color.inkMuted }]} numberOfLines={2}>
-            {doneCount} of {completion.steps.length} done
-            {completion.next ? ` · Next: ${completion.next.label}` : ''}
-          </Text>
+        <View style={styles.bottom}>
+          <View style={styles.segments}>
+            {completion.steps.map((step) => (
+              <View
+                key={step.key}
+                style={[styles.segment, { backgroundColor: step.done ? c.chartreuse : track }]}
+              />
+            ))}
+          </View>
+          <View style={[styles.pill, { backgroundColor: c.chartreuse }]}>
+            <Text style={[styles.pillText, { color: c.panel }]}>Continue</Text>
+          </View>
         </View>
-        <Ionicons name="chevron-forward" size={22} color={kollab.color.ink} />
+        <Text style={[styles.count, { color: c.inkOn }]}>
+          {doneCount} of {completion.steps.length} steps done
+        </Text>
       </Pressable>
     </View>
   );
@@ -74,19 +90,18 @@ export function HomeProfileCompletionCard({ completion, onPress, style }: Props)
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 22, paddingTop: 12 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    borderWidth: 1.5,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
+  card: { borderRadius: 26, padding: 18, gap: 14 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   ringWrap: { width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute' },
   percent: { fontFamily: font.bold, fontSize: 13.5 },
   copy: { flex: 1 },
-  title: { ...kType.sectionTitle, fontSize: 16, marginBottom: 2 },
-  sub: { fontFamily: font.body, fontSize: 12.5, lineHeight: 17 },
+  title: { ...kType.sectionTitle, fontSize: 17, marginBottom: 3 },
+  sub: { fontFamily: font.body, fontSize: 13, lineHeight: 18, opacity: 0.72 },
+  bottom: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  segments: { flex: 1, flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, height: 6, borderRadius: 99 },
+  pill: { borderRadius: 99, paddingHorizontal: 18, paddingVertical: 10 },
+  pillText: { fontFamily: font.bold, fontSize: 13.5 },
+  count: { fontFamily: font.body, fontSize: 11.5, opacity: 0.55, marginTop: -6 },
 });

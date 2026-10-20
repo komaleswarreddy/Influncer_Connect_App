@@ -10,6 +10,8 @@ type Props = {
   hasUnread: boolean;
   onToggleTheme: () => void;
   onPressNotifications: () => void;
+  /** Tapping the avatar or greeting (opens Profile settings). */
+  onPressAvatar?: () => void;
 };
 
 function SunGlyph({ color }: { color: string }) {
@@ -49,6 +51,7 @@ export function HomeHeaderBar({
   hasUnread,
   onToggleTheme,
   onPressNotifications,
+  onPressAvatar,
 }: Props) {
   const kollab = useKollab();
   const c = kollab.color;
@@ -56,12 +59,20 @@ export function HomeHeaderBar({
 
   return (
     <View style={styles.row}>
-      <View style={[styles.mark, { backgroundColor: c.panel }]}>
-        <Text style={[styles.markText, { color: c.chartreuse }]}>{avatarLetter || '•'}</Text>
-      </View>
-      <Text style={[styles.greeting, { color: c.ink }]} numberOfLines={1}>
-        {greeting}
-      </Text>
+      <Pressable
+        onPress={onPressAvatar}
+        disabled={!onPressAvatar}
+        style={styles.identity}
+        accessibilityRole="button"
+        accessibilityLabel="Open profile settings"
+      >
+        <View style={[styles.mark, { backgroundColor: c.panel }]}>
+          <Text style={[styles.markText, { color: c.chartreuse }]}>{avatarLetter || '•'}</Text>
+        </View>
+        <Text style={[styles.greeting, { color: c.ink }]} numberOfLines={1}>
+          {greeting}
+        </Text>
+      </Pressable>
       <Pressable
         onPress={onToggleTheme}
         style={[styles.circle, { backgroundColor: c.card }]}
@@ -98,6 +109,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 8,
     paddingBottom: 4,
+  },
+  identity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   mark: {
     width: 42,
