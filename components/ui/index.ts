@@ -27,6 +27,7 @@ export type { PremiumSegment, PremiumSegmentTone } from './PremiumSegmentedContr
 export { HomeHeaderBar } from './HomeHeaderBar';
 export { HomeEarningsPair } from './HomeEarningsPair';
 export { HomeStorefrontCard } from './HomeStorefrontCard';
+export { HomeProfileCompletionCard } from './HomeProfileCompletionCard';
 export type { StorefrontTabKey } from './HomeStorefrontCard';
 export { HomeCampaignsSection } from './HomeCampaignsSection';
 export type { HomeCampaignItem } from './HomeCampaignsSection';

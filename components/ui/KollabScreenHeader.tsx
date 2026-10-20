@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useKollab, font } from '@/theme/kollab-tokens';
 
 type TitleSize = 'stack' | 'tab' | 'hero';
@@ -66,7 +67,7 @@ export function KollabScreenHeader({
             accessibilityRole="button"
             accessibilityLabel="Back"
           >
-            <Text style={[styles.backGlyph, { color: backFg }]}>←</Text>
+            <Ionicons name="chevron-back" size={24} color={backFg} />
           </Pressable>
         ) : null}
         <Text
@@ -86,7 +87,7 @@ export function KollabScreenHeader({
         {right}
       </View>
       {subtitle ? (
-        <Text style={[styles.subtitle, { color: kollab.color.ink, marginLeft: showBack ? 45 : 0 }]}>
+        <Text style={[styles.subtitle, { color: kollab.color.ink, marginLeft: showBack ? 55 : 0 }]}>
           {subtitle}
         </Text>
       ) : null}
@@ -105,16 +106,12 @@ const styles = StyleSheet.create({
     gap: 11,
   },
   back: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
     borderRadius: 99,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-  },
-  backGlyph: {
-    fontSize: 15,
-    lineHeight: 18,
   },
   title: {
     flex: 1,

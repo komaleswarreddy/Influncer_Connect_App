@@ -24,6 +24,10 @@ function redactSensitive(value: unknown, depth = 0): unknown {
   return out;
 }
 
+/** When the server last answered. The free-plan server sleeps after ~15 min idle, so a request after 10+ quiet minutes gets a long timeout. */
+let lastServerOkAt = 0;
+const SERVER_ASLEEP_AFTER_MS = 10 * 60 * 1000;
+
 const MOCK_HOSTS = ['jsonplaceholder.typicode.com'];
 
 /** Android emulator: host machine is reachable at 10.0.2.2. Physical devices must use LAN or adb reverse + 127.0.0.1. */
@@ -357,12 +361,15 @@ class ApiClient {
 
       const controller = new AbortController();
       // Sign-in / sign-up get the longest allowance: the first request after the (free-plan) server has slept can take ~1 minute.
-      const timeoutMs = endpoint.startsWith('/api/auth/')
-        ? 75000
-        : endpoint.includes('/api/content-ideas/trending') ||
-            endpoint.includes('/api/scheduled-posts/generate-caption')
-          ? 60000
-          : 30000;
+      // The same goes for any request after a quiet spell (the server sleeps after ~15 min idle and needs ~1 minute to wake).
+      const serverMaybeAsleep = Date.now() - lastServerOkAt > SERVER_ASLEEP_AFTER_MS;
+      const timeoutMs =
+        endpoint.startsWith('/api/auth/') || serverMaybeAsleep
+          ? 75000
+          : endpoint.includes('/api/content-ideas/trending') ||
+              endpoint.includes('/api/scheduled-posts/generate-caption')
+            ? 60000
+            : 30000;
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       let response: Response;
       try {
@@ -380,6 +387,7 @@ class ApiClient {
         clearTimeout(timeout);
       }
 
+      lastServerOkAt = Date.now();
       let data = {};
       try {
         data = await response.json();
@@ -478,6 +486,22 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+/** Pings the health route so a sleeping server starts waking while the person is still looking at the screen. Never throws. */
+export async function wakeServer(): Promise<void> {
+  const base = getApiBaseUrl();
+  if (!base || Date.now() - lastServerOkAt < SERVER_ASLEEP_AFTER_MS / 2) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 75000);
+  try {
+    const res = await fetch(`${base}/api/health`, { signal: controller.signal });
+    if (res.ok) lastServerOkAt = Date.now();
+  } catch {
+    // the real requests will report any problem
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // Content Progress Tracking APIs
 export const contentProgressApi = {

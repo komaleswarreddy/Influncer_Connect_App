@@ -29,7 +29,8 @@ import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 import { initSentry, wrapWithSentry } from '@/lib/sentry';
 import { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { AppState, View, ActivityIndicator } from 'react-native';
+import { wakeServer } from '@/lib/api';
 import { PaperProvider } from 'react-native-paper';
 
 import { useAuthStore } from '@/store/auth-store';
@@ -80,6 +81,15 @@ function RootLayout() {
   useEffect(() => {
     loadAuth();
   }, [loadAuth]);
+
+  // Wake the (free-plan) server as soon as the app opens or comes back from the background, so the first screens don't time out.
+  useEffect(() => {
+    void wakeServer();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void wakeServer();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     void hydrateTheme();

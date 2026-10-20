@@ -12,6 +12,7 @@ import {
   HomeHeaderBar,
   HomeEarningsPair,
   HomeStorefrontCard,
+  HomeProfileCompletionCard,
   HomeCampaignsSection,
   HomeFreshCollabsRail,
   showKollabToast,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/home-existing-user';
 import { isParticipationEnrolled, applicationCampaignId } from '@/lib/campaign-participation-ui';
 import { sumPotentialEarningsFromEligible } from '@/lib/home-potential-earnings';
+import { computeProfileCompletion, type ProfileForCompletion } from '@/lib/profile-completion';
 import { useKollab, space as kollabSpace, font } from '@/theme/kollab-tokens';
 
 function formatHandle(raw?: string | null): string | null {
@@ -62,6 +64,9 @@ export default function InfluencerDashboard() {
 
   const [ready, setReady] = useState(false);
   const [paidTotal, setPaidTotal] = useState(0);
+  const [profileForCompletion, setProfileForCompletion] = useState<ProfileForCompletion | null>(
+    null
+  );
   const [earningsLoading, setEarningsLoading] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
@@ -108,6 +113,11 @@ export default function InfluencerDashboard() {
       void fetchMyCatalog('services').catch(() => {
         /* catalog optional */
       });
+      void (api.get('/api/influencers/profile') as Promise<ProfileForCompletion>)
+        .then((p) => setProfileForCompletion(p))
+        .catch(() => {
+          /* the completion card just stays hidden */
+        });
     }, [
       refreshSession,
       fetchNotifications,
@@ -278,6 +288,13 @@ export default function InfluencerDashboard() {
       }}
     >
       {pageHeader}
+
+      {profileForCompletion ? (
+        <HomeProfileCompletionCard
+          completion={computeProfileCompletion(profileForCompletion)}
+          onPress={() => router.push('/account-screens/settings' as never)}
+        />
+      ) : null}
 
       <HomeEarningsPair
         myEarnings={paidTotal}
