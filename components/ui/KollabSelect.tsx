@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useKollab, font, choiceChipColors } from '@/theme/kollab-tokens';
 
 export type KollabSelectOption = {
@@ -16,8 +17,8 @@ type Props = {
   accessibilityLabel?: string;
   /** Expand options in-place (no overlay). Use for short lists like profile niche. */
   inline?: boolean;
-  /** Open in place under the field as a two-column panel (no overlay); closes after a choice. */
-  expandable?: boolean;
+  /** Bottom sheet with a grab handle, a close button, and a tick on the chosen row (for longer lists). */
+  sheet?: boolean;
 };
 
 /** Pill select that matches KollabTextField. Opens a Kollab option sheet. */
@@ -28,7 +29,7 @@ export function KollabSelect({
   onChange,
   accessibilityLabel,
   inline = false,
-  expandable = false,
+  sheet = false,
 }: Props) {
   const kollab = useKollab();
   const [open, setOpen] = useState(false);
@@ -79,73 +80,6 @@ export function KollabSelect({
     return <View accessibilityLabel={accessibilityLabel ?? placeholder}>{optionPills}</View>;
   }
 
-  if (expandable) {
-    return (
-      <View>
-        <Pressable
-          onPress={() => setOpen((o) => !o)}
-          style={[
-            styles.field,
-            { backgroundColor: kollab.color.card, borderColor: kollab.color.outline },
-          ]}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={accessibilityLabel ?? placeholder}
-        >
-          <Text
-            style={[
-              styles.fieldText,
-              { color: display ? kollab.color.ink : kollab.color.inkFaint },
-            ]}
-            numberOfLines={1}
-          >
-            {display || placeholder}
-          </Text>
-          <Text style={[styles.caret, { color: kollab.color.inkMuted }]}>{open ? '▴' : '▾'}</Text>
-        </Pressable>
-        {open ? (
-          <View
-            style={[
-              styles.panel,
-              { backgroundColor: kollab.color.card, borderColor: kollab.color.outline },
-            ]}
-          >
-            <View style={styles.panelGrid}>
-              {options.map((opt) => {
-                const on = opt.value === value;
-                const chip = choiceChipColors(kollab, on);
-                return (
-                  <Pressable
-                    key={opt.value}
-                    disabled={opt.disabled}
-                    onPress={() => {
-                      onChange(opt.value);
-                      setOpen(false);
-                    }}
-                    style={[
-                      styles.panelOption,
-                      { backgroundColor: chip.backgroundColor, borderColor: chip.borderColor },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on, disabled: Boolean(opt.disabled) }}
-                    accessibilityLabel={opt.label}
-                  >
-                    <Text
-                      style={[styles.inlineOptionLabel, { color: chip.color }]}
-                      numberOfLines={2}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
-
   return (
     <>
       <Pressable
@@ -169,28 +103,97 @@ export function KollabSelect({
         <Text style={[styles.caret, { color: kollab.color.inkMuted }]}>▾</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={[styles.dim, { backgroundColor: 'rgba(15,13,11,0.45)' }]}
-            onPress={() => setOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          />
-          <View
-            style={[
-              styles.sheet,
-              {
-                backgroundColor: kollab.color.card,
-                borderColor: kollab.color.outline,
-              },
-            ]}
-          >
-            <Text style={[styles.sheetTitle, { color: kollab.color.ink }]}>{placeholder}</Text>
-            {optionPills}
+      {sheet ? (
+        <Modal
+          visible={open}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setOpen(false)}
+        >
+          <View style={styles.modalRoot}>
+            <Pressable
+              style={[styles.dim, { backgroundColor: 'rgba(15,13,11,0.45)' }]}
+              onPress={() => setOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            />
+            <View style={[styles.bottomSheet, { backgroundColor: kollab.color.card }]}>
+              <View style={[styles.grabHandle, { backgroundColor: kollab.color.outline }]} />
+              <View style={styles.sheetHeader}>
+                <Text style={[styles.sheetHeading, { color: kollab.color.ink }]}>
+                  {placeholder}
+                </Text>
+                <Pressable
+                  onPress={() => setOpen(false)}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <Ionicons name="close" size={24} color={kollab.color.ink} />
+                </Pressable>
+              </View>
+              <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.optionList}>
+                  {options.map((opt) => {
+                    const on = opt.value === value;
+                    const chip = choiceChipColors(kollab, on);
+                    return (
+                      <Pressable
+                        key={opt.value}
+                        disabled={opt.disabled}
+                        onPress={() => {
+                          onChange(opt.value);
+                          setOpen(false);
+                        }}
+                        style={[
+                          styles.sheetOption,
+                          { backgroundColor: chip.backgroundColor, borderColor: chip.borderColor },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on, disabled: Boolean(opt.disabled) }}
+                        accessibilityLabel={opt.label}
+                      >
+                        <Text style={[styles.optionLabel, { color: chip.color }]} numberOfLines={1}>
+                          {opt.label}
+                        </Text>
+                        {on ? <Ionicons name="checkmark" size={20} color={chip.color} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      ) : (
+        <Modal
+          visible={open}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOpen(false)}
+        >
+          <View style={styles.modalRoot}>
+            <Pressable
+              style={[styles.dim, { backgroundColor: 'rgba(15,13,11,0.45)' }]}
+              onPress={() => setOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            />
+            <View
+              style={[
+                styles.sheet,
+                {
+                  backgroundColor: kollab.color.card,
+                  borderColor: kollab.color.outline,
+                },
+              ]}
+            >
+              <Text style={[styles.sheetTitle, { color: kollab.color.ink }]}>{placeholder}</Text>
+              {optionPills}
+            </View>
+          </View>
+        </Modal>
+      )}
     </>
   );
 }
@@ -250,26 +253,42 @@ const styles = StyleSheet.create({
     fontFamily: font.semiBold,
     fontSize: 14,
   },
-  panel: {
-    marginTop: 8,
-    borderWidth: 1.5,
-    borderRadius: 22,
-    padding: 10,
+  bottomSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 24,
+    maxHeight: '82%',
   },
-  panelGrid: {
+  grabHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 99,
+    marginBottom: 14,
+  },
+  sheetHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  panelOption: {
-    width: '48.5%',
-    flexGrow: 1,
-    minHeight: 44,
-    justifyContent: 'center',
-    borderRadius: 18,
+  sheetHeading: {
+    fontFamily: font.semiBold,
+    fontSize: 17,
+  },
+  sheetScroll: {
+    flexGrow: 0,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 999,
     borderWidth: 1.5,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
   },
   inlineList: {
     flexDirection: 'row',
