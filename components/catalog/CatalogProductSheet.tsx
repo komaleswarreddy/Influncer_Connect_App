@@ -232,7 +232,8 @@ export function CatalogProductSheet({
         </Pressable>
 
         <Text style={[styles.label, { color: kollab.color.ink }]}>
-          {`${itemLabel[0]?.toUpperCase()}${itemLabel.slice(1)} name`}
+          {`${itemLabel[0]?.toUpperCase()}${itemLabel.slice(1)} name`}{' '}
+          <Text style={{ color: '#EF4444' }}>*</Text>
         </Text>
         <KollabTextField
           value={name}
@@ -240,7 +241,9 @@ export function CatalogProductSheet({
           placeholder={isService ? 'e.g. Bridal Makeup' : 'e.g. Butter Chicken'}
         />
 
-        <Text style={[styles.label, { color: kollab.color.ink }]}>Price (₹)</Text>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>
+          Price (₹) <Text style={{ color: '#EF4444' }}>*</Text>
+        </Text>
         <KollabTextField
           value={price}
           onChangeText={setPrice}
@@ -250,7 +253,9 @@ export function CatalogProductSheet({
 
         {isService ? (
           <>
-            <Text style={[styles.label, { color: kollab.color.ink }]}>Duration (minutes)</Text>
+            <Text style={[styles.label, { color: kollab.color.ink }]}>
+              Duration (minutes) <Text style={{ color: '#EF4444' }}>*</Text>
+            </Text>
             <KollabTextField
               value={durationMinutes}
               onChangeText={setDurationMinutes}

@@ -252,7 +252,9 @@ export default function EventPassesScreen() {
                   />
                 </View>
                 <View style={styles.flex}>
-                  <Text style={[styles.label, { color: c.ink }]}>Tickets available</Text>
+                  <Text style={[styles.label, { color: c.ink }]}>
+                    Tickets available <Text style={{ color: '#EF4444' }}>*</Text>
+                  </Text>
                   <KollabTextField
                     surface="well"
                     value={draft.quantity}
@@ -262,7 +264,9 @@ export default function EventPassesScreen() {
                   />
                 </View>
               </View>
-              <Text style={[styles.label, { color: c.ink }]}>Max tickets per order</Text>
+              <Text style={[styles.label, { color: c.ink }]}>
+                Max tickets per order <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <KollabTextField
                 surface="well"
                 value={draft.maxPerOrder}

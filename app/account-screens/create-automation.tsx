@@ -434,7 +434,9 @@ export default function CreateAutomationScreen() {
 
       {step === 1 ? (
         <>
-          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Automation name</Text>
+          <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+            Automation name <Text style={{ color: '#EF4444' }}>*</Text>
+          </Text>
           <KollabTextField
             surface="well"
             placeholder="e.g. Comment LINK reply"
@@ -461,7 +463,9 @@ export default function CreateAutomationScreen() {
 
           {form.matchType !== 'any' ? (
             <>
-              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Keywords</Text>
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+                Keywords <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <KollabTextField
                 surface="well"
                 placeholder="LINK, INFO, PRICE"
@@ -501,7 +505,9 @@ export default function CreateAutomationScreen() {
 
           {form.replyType === 'ai_generated' ? (
             <>
-              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>AI context</Text>
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+                AI context <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <KollabTextField
                 surface="well"
                 multiline
@@ -513,7 +519,9 @@ export default function CreateAutomationScreen() {
             </>
           ) : (
             <>
-              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Reply message</Text>
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+                Reply message <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <KollabTextField
                 surface="well"
                 multiline

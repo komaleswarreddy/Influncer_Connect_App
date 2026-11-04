@@ -328,7 +328,9 @@ export default function CreateScheduledPostScreen() {
         })}
       </View>
 
-      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Media</Text>
+      <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+        Media <Text style={{ color: '#EF4444' }}>*</Text>
+      </Text>
       <View style={styles.mediaRow}>
         {thumbUri ? (
           <View

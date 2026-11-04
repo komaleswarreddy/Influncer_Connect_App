@@ -140,7 +140,9 @@ export default function CatalogBuilderScreen() {
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.label, { color: kollab.color.ink }]}>Category</Text>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>
+          Category <Text style={{ color: '#EF4444' }}>*</Text>
+        </Text>
         <View style={styles.catRow}>
           <View style={styles.catInput}>
             <KollabSelect

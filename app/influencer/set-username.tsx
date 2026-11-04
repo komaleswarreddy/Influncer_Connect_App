@@ -53,7 +53,9 @@ export default function SetUsernameScreen() {
             username
           </Text>
         </Text>
-        <Text style={[styles.label, { color: kollab.color.ink }]}>Username</Text>
+        <Text style={[styles.label, { color: kollab.color.ink }]}>
+          Username <Text style={{ color: '#EF4444' }}>*</Text>
+        </Text>
         <View
           style={[
             styles.inputRow,

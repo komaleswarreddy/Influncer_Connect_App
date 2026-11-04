@@ -105,7 +105,7 @@ export default function LeadFormScreen() {
         <ActivityIndicator color={c.ink} style={{ marginTop: 32 }} />
       ) : (
         <View style={styles.form}>
-          <Field label="Name" error={errors.name}>
+          <Field label="Name" required error={errors.name}>
             <KollabTextField
               surface="card"
               value={name}
@@ -178,17 +178,22 @@ export default function LeadFormScreen() {
 
 function Field({
   label,
+  required,
   error,
   children,
 }: {
   label: string;
+  required?: boolean;
   error?: string;
   children: React.ReactNode;
 }) {
   const kollab = useKollab();
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: kollab.color.ink }]}>{label}</Text>
+      <Text style={[styles.label, { color: kollab.color.ink }]}>
+        {label}
+        {required ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
+      </Text>
       {children}
       {error ? <Text style={[styles.error, { color: kollab.color.heat }]}>{error}</Text> : null}
     </View>

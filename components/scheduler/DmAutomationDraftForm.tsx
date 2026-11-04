@@ -68,7 +68,9 @@ export default function DmAutomationDraftForm({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>Automation name</Text>
+      <Text style={styles.label}>
+        Automation name <Text style={{ color: '#EF4444' }}>*</Text>
+      </Text>
       <TextInput
         style={styles.input}
         value={value.name}
@@ -77,7 +79,10 @@ export default function DmAutomationDraftForm({
         placeholderTextColor={appShell.textMuted}
       />
 
-      <Text style={styles.label}>Keywords</Text>
+      <Text style={styles.label}>
+        Keywords
+        {value.matchType !== 'any' ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
+      </Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={keywordsText}
@@ -106,7 +111,9 @@ export default function DmAutomationDraftForm({
 
       {value.replyType === 'ai_generated' ? (
         <>
-          <Text style={styles.label}>AI context</Text>
+          <Text style={styles.label}>
+            AI context <Text style={{ color: '#EF4444' }}>*</Text>
+          </Text>
           <TextInput
             style={[styles.input, styles.multiline]}
             value={value.aiContext || ''}
@@ -122,7 +129,9 @@ export default function DmAutomationDraftForm({
         </>
       ) : (
         <>
-          <Text style={styles.label}>DM reply</Text>
+          <Text style={styles.label}>
+            DM reply <Text style={{ color: '#EF4444' }}>*</Text>
+          </Text>
           <TextInput
             style={[styles.input, styles.multiline]}
             value={value.replyMessages[0] || ''}
@@ -137,7 +146,9 @@ export default function DmAutomationDraftForm({
           />
           {value.replyType === 'text_with_link' ? (
             <>
-              <Text style={styles.label}>Link URL</Text>
+              <Text style={styles.label}>
+                Link URL <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <TextInput
                 style={styles.input}
                 value={value.replyLink || ''}

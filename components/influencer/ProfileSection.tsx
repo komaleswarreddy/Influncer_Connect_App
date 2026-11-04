@@ -273,7 +273,9 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
           maxLength={500}
           style={styles.bio}
         />
-        <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Category</Text>
+        <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
+          Category <Text style={{ color: '#EF4444' }}>*</Text>
+        </Text>
         <View style={styles.nicheSelect}>
           <KollabSelect
             sheet
@@ -347,7 +349,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         ) : null}
 
         <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
-          Social links (add at least one)
+          Social links (add at least one) <Text style={{ color: '#EF4444' }}>*</Text>
         </Text>
         <View style={styles.fields}>
           {SOCIAL_PLATFORMS.map((p) => (

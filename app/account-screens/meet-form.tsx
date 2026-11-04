@@ -611,7 +611,9 @@ export default function MeetFormScreen() {
             <>
               <View style={styles.inline}>
                 <View style={styles.flex}>
-                  <Text style={[styles.fieldLabel, { color: c.ink }]}>Original price</Text>
+                  <Text style={[styles.fieldLabel, { color: c.ink }]}>
+                    Original price<Text style={{ color: '#EF4444' }}> *</Text>
+                  </Text>
                   <KollabTextField
                     value={mrpText}
                     onChangeText={(t) => setMrpText(t.replace(/[^\d.]/g, ''))}
@@ -620,7 +622,9 @@ export default function MeetFormScreen() {
                   />
                 </View>
                 <View style={styles.flex}>
-                  <Text style={[styles.fieldLabel, { color: c.ink }]}>Selling price</Text>
+                  <Text style={[styles.fieldLabel, { color: c.ink }]}>
+                    Selling price<Text style={{ color: '#EF4444' }}> *</Text>
+                  </Text>
                   <KollabTextField
                     value={priceText}
                     onChangeText={(t) => setPriceText(t.replace(/[^\d.]/g, ''))}
@@ -795,7 +799,7 @@ function Field({
       <View style={styles.fieldHead}>
         <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>
           {label}
-          {required ? <Text style={{ color: kollab.color.violetDeep }}> *</Text> : null}
+          {required ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
         </Text>
         {count ? <Text style={[styles.count, { color: kollab.color.ink }]}>{count}</Text> : null}
       </View>

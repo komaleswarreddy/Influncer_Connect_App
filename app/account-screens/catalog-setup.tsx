@@ -142,7 +142,9 @@ export default function CatalogSetupScreen() {
         backTone="well"
       />
 
-      <Text style={[styles.label, { color: kollab.color.ink }]}>Storefront name</Text>
+      <Text style={[styles.label, { color: kollab.color.ink }]}>
+        Storefront name <Text style={{ color: '#EF4444' }}>*</Text>
+      </Text>
       <KollabTextField
         surface="well"
         value={storeName}
@@ -151,7 +153,9 @@ export default function CatalogSetupScreen() {
         style={styles.field}
       />
 
-      <Text style={[styles.label, { color: kollab.color.ink }]}>Cover photo</Text>
+      <Text style={[styles.label, { color: kollab.color.ink }]}>
+        Cover photo <Text style={{ color: '#EF4444' }}>*</Text>
+      </Text>
       <Pressable
         style={[
           styles.coverWell,

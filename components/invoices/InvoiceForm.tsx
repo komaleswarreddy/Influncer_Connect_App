@@ -265,7 +265,7 @@ export function InvoiceForm({ mode, invoiceId, onSaved, onUnavailable, prefill }
       ) : null}
 
       <Section title="Bill to" subtitle="Customer billing details" glyph="doc">
-        <Field label="Brand name" error={errors.brandName}>
+        <Field label="Brand name" required error={errors.brandName}>
           <KollabTextField
             surface="well"
             value={brandName}
@@ -621,11 +621,13 @@ function Section({
 
 function Field({
   label,
+  required,
   error,
   style,
   children,
 }: {
   label: string;
+  required?: boolean;
   error?: string;
   style?: object;
   children: React.ReactNode;
@@ -633,7 +635,10 @@ function Field({
   const kollab = useKollab();
   return (
     <View style={[styles.field, style]}>
-      <Text style={[styles.label, { color: kollab.color.ink }]}>{label}</Text>
+      <Text style={[styles.label, { color: kollab.color.ink }]}>
+        {label}
+        {required ? <Text style={{ color: '#EF4444' }}> *</Text> : null}
+      </Text>
       {children}
       {error ? <Text style={[styles.error, { color: kollab.color.heat }]}>{error}</Text> : null}
     </View>

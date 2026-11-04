@@ -267,7 +267,7 @@ export default function EventFormScreen() {
           <View style={[styles.card, { backgroundColor: c.card }, kollab.shadow.card]}>
             <View style={styles.rowBetween}>
               <Text style={[styles.cardTitle, { color: c.ink }]}>
-                Event name <Text style={{ color: c.heat }}>*</Text>
+                Event name <Text style={{ color: '#EF4444' }}>*</Text>
               </Text>
               <Text style={[styles.hint, { color: c.ink }]}>{title.length} / 80</Text>
             </View>
@@ -357,7 +357,9 @@ export default function EventFormScreen() {
 
           {/* Capacity */}
           <View style={[styles.card, { backgroundColor: c.card }, kollab.shadow.card]}>
-            <Text style={[styles.cardTitle, { color: c.ink }]}>Event capacity</Text>
+            <Text style={[styles.cardTitle, { color: c.ink }]}>
+              Event capacity <Text style={{ color: '#EF4444' }}>*</Text>
+            </Text>
             <KollabTextField
               surface="well"
               value={capacity}
