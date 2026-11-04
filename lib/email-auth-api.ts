@@ -26,6 +26,8 @@ export type EmailTokenLoginResponse = {
 
 export type StartEmailSignupResponse = {
   needsCode: boolean;
+  /** Sent back to /confirm instead of a code when the pool auto-confirmed the account. */
+  ticket?: string;
   destination?: string;
   deliveryMedium?: string;
 };

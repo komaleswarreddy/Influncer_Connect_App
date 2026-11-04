@@ -25,10 +25,11 @@ export default function VerifyEmailScreen() {
   const router = useRouter();
   const kollab = useKollab();
   const { confirmEmailSignup, resendEmailSignupCode, isLoading } = useAuthStore();
-  const { email, needsCode, destination } = useLocalSearchParams<{
+  const { email, needsCode, destination, ticket } = useLocalSearchParams<{
     email: string;
     needsCode?: string;
     destination?: string;
+    ticket?: string;
   }>();
 
   const emailStr = String(email ?? '');
@@ -53,7 +54,7 @@ export default function VerifyEmailScreen() {
   useEffect(() => {
     if (needsCode === '0' && !attemptedAutoSubmit.current) {
       attemptedAutoSubmit.current = true;
-      void complete('');
+      void complete(String(ticket ?? ''));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

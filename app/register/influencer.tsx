@@ -68,6 +68,7 @@ export default function InfluencerRegisterScreen() {
         params: {
           email: normalized,
           needsCode: res.needsCode ? '1' : '0',
+          ticket: res.ticket || '',
           destination: res.destination || '',
         },
       });
