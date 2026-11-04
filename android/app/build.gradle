@@ -102,15 +102,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Release signing: supply the keystore through gradle properties or environment variables, never in the repo.
+        //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+        // EAS builds sign with their managed credentials and ignore this block.
+        if (System.getenv('RELEASE_STORE_FILE') || findProperty('RELEASE_STORE_FILE')) {
+            release {
+                storeFile file(System.getenv('RELEASE_STORE_FILE') ?: findProperty('RELEASE_STORE_FILE'))
+                storePassword System.getenv('RELEASE_STORE_PASSWORD') ?: findProperty('RELEASE_STORE_PASSWORD')
+                keyAlias System.getenv('RELEASE_KEY_ALIAS') ?: findProperty('RELEASE_KEY_ALIAS')
+                keyPassword System.getenv('RELEASE_KEY_PASSWORD') ?: findProperty('RELEASE_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // A release build is signed with the real release key when one is supplied (see signingConfigs). Without it
+            // the build falls back to the public debug key, which is only acceptable for local testing, never for a store upload.
+            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"

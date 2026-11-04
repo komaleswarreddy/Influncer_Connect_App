@@ -9,10 +9,10 @@ const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins'
 
 const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!-- Release builds trust only system CAs: user-installed CAs would allow interception of API traffic. -->
   <base-config cleartextTrafficPermitted="false">
     <trust-anchors>
       <certificates src="system" />
-      <certificates src="user" />
     </trust-anchors>
   </base-config>
   <domain-config cleartextTrafficPermitted="true">
@@ -55,7 +55,8 @@ function withAndroidNetworkSecurity(config) {
     const app = apps[0];
     app.$ = app.$ || {};
     app.$['android:networkSecurityConfig'] = '@xml/network_security_config';
-    app.$['android:usesCleartextTraffic'] = 'true';
+    // Cleartext is only permitted for localhost/adb via network_security_config (and debug builds via the debug manifest).
+    app.$['android:usesCleartextTraffic'] = 'false';
     app.$['tools:replace'] = 'android:networkSecurityConfig';
     return cfg;
   });

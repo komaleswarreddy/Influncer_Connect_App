@@ -145,7 +145,14 @@ export function getApiBaseUrl(): string {
     raw = resolveLoopbackApiBase(raw);
   }
 
-  return raw.replace(/\/$/, '');
+  const base = raw.replace(/\/$/, '');
+  // A release build must never send tokens over cleartext HTTP. Only development builds may use http (LAN / adb).
+  if (!__DEV__ && /^http:\/\//i.test(base)) {
+    throw new Error(
+      'This build is configured with a non-https API URL. Set EXPO_PUBLIC_API_URL to an https address.'
+    );
+  }
+  return base;
 }
 
 function shouldUseMockResponses(baseUrl: string): boolean {
