@@ -1,14 +1,6 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  Share,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -761,7 +753,7 @@ export default function MeetFormScreen() {
                   variant="hairline"
                   compact
                   onPress={() =>
-                    void Linking.openURL(link).catch(() =>
+                    void openExternalUrl(link).catch(() =>
                       showKollabToast('Could not open the link')
                     )
                   }

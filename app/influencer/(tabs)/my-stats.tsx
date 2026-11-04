@@ -1,3 +1,4 @@
+import { openExternalUrl } from '../../../lib/safe-link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -7,7 +8,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -395,7 +395,7 @@ export default function MyStatsScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => {
-                  if (item.url) void Linking.openURL(item.url);
+                  if (item.url) void openExternalUrl(item.url);
                 }}
                 style={[
                   styles.thumbCard,

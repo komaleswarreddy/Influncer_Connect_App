@@ -1,13 +1,6 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -184,7 +177,7 @@ export default function EventDetailScreen() {
   const openLink = async () => {
     if (!detail) return;
     try {
-      await Linking.openURL(detail.event.url);
+      await openExternalUrl(detail.event.url);
     } catch {
       showKollabToast('Could not open the link');
     }

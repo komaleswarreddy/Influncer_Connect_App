@@ -126,7 +126,10 @@ export const useUgcStore = create<UgcStore>((set) => ({
       set({ jobs: res.briefs ?? res.jobs ?? [] });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load UGC jobs';
-      console.error('[ugc-store] marketplace failed:', e);
+      console.error(
+        '[ugc-store] marketplace failed:',
+        e instanceof Error ? e.message : 'unknown error'
+      );
       set({ jobs: [], error: message });
     } finally {
       set({ loading: false });
@@ -141,7 +144,10 @@ export const useUgcStore = create<UgcStore>((set) => ({
       set({ applications: normalizeApplications(res.applications ?? []) });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load applications';
-      console.error('[ugc-store] my-applications failed:', e);
+      console.error(
+        '[ugc-store] my-applications failed:',
+        e instanceof Error ? e.message : 'unknown error'
+      );
       set({ applications: [], error: message });
     } finally {
       set({ loading: false });

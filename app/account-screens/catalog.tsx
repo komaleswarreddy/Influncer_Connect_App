@@ -1,6 +1,7 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useMemo, useState } from 'react';
 import { storefrontShareText } from '@/lib/share-text';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Share, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -302,7 +303,7 @@ export default function CatalogHomeScreen() {
       </View>
 
       {shareUrl ? (
-        <Pressable onPress={() => void Linking.openURL(shareUrl)} style={styles.liveLink}>
+        <Pressable onPress={() => void openExternalUrl(shareUrl)} style={styles.liveLink}>
           <Text style={[styles.liveLinkText, { color: kollab.color.violet }]} numberOfLines={1}>
             {shareUrl}
           </Text>

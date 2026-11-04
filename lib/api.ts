@@ -440,7 +440,7 @@ class ApiClient {
         error: error instanceof Error ? error.message : String(error),
       });
       if (!expectedNotConnected) {
-        console.error('Network error:', error);
+        console.error('Network error:', error instanceof Error ? error.message : 'unknown error');
       } else {
         console.log(
           'Network info (not connected yet):',

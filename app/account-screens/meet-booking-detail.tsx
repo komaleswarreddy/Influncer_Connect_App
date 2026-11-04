@@ -1,5 +1,6 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -167,7 +168,7 @@ export default function MeetBookingDetailScreen() {
                     variant="primary"
                     compact
                     onPress={() =>
-                      void Linking.openURL(booking.meetUrl as string).catch(() =>
+                      void openExternalUrl(booking.meetUrl).catch(() =>
                         showKollabToast('Could not open the link')
                       )
                     }

@@ -1,7 +1,7 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Pressable,
   RefreshControl,
   Share,
@@ -340,7 +340,7 @@ export default function BrandKitScreen() {
   const openLink = async () => {
     if (!kit) return;
     try {
-      await Linking.openURL(kit.url);
+      await openExternalUrl(kit.url);
     } catch {
       showKollabToast('Could not open the link');
     }

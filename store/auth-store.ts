@@ -245,7 +245,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
     } catch (error) {
-      console.error('Error loading auth:', error);
+      console.error(
+        'Error loading auth:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({
         token: null,
         user: null,
@@ -275,7 +278,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const mockToken = 'mock-jwt-token-' + Date.now();
       await get().setAuth(mockToken, mockUser, null);
     } catch (error: any) {
-      console.error('Mock login error:', error);
+      console.error('Mock login error:', error instanceof Error ? error.message : 'unknown error');
       set({ error: error.message || 'Login failed', isLoading: false });
       throw error;
     } finally {
@@ -323,7 +326,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().setAuth(data.token, user, null);
       await get().refreshSession();
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Login error:', error instanceof Error ? error.message : 'unknown error');
       set({ error: error.message || 'Login failed', isLoading: false });
       throw error;
     } finally {
@@ -375,7 +378,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await setAuthMethod('hosted-ui');
       if (__DEV__) console.log(`[auth] cognito exchange total ${Date.now() - t0}ms`);
     } catch (error: any) {
-      console.error('Cognito exchange error:', error);
+      console.error(
+        'Cognito exchange error:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({ error: error.message || 'Cognito sign-in failed', isLoading: false });
       throw error;
     } finally {
@@ -401,7 +407,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await apiConfirmPhoneSignup(phoneNumber, username, code);
       await applyPhoneTokenLogin(data, get);
     } catch (error: any) {
-      console.error('Phone signup confirm error:', error);
+      console.error(
+        'Phone signup confirm error:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({ error: error.message || 'Could not confirm sign-up', isLoading: false });
       throw error;
     } finally {
@@ -436,7 +445,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await apiVerifyPhoneOtpLogin(phoneNumber, session, code);
       await applyPhoneTokenLogin(data, get);
     } catch (error: any) {
-      console.error('Phone OTP login error:', error);
+      console.error(
+        'Phone OTP login error:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({ error: error.message || 'Could not sign you in', isLoading: false });
       throw error;
     } finally {
@@ -462,7 +474,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await apiConfirmEmailSignup(email, code);
       await applyEmailTokenLogin(data, get);
     } catch (error: any) {
-      console.error('Email signup confirm error:', error);
+      console.error(
+        'Email signup confirm error:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({ error: error.message || 'Could not confirm sign-up', isLoading: false });
       throw error;
     } finally {
@@ -497,7 +512,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await apiVerifyEmailOtpLogin(email, code);
       await applyEmailTokenLogin(data, get);
     } catch (error: any) {
-      console.error('Email OTP login error:', error);
+      console.error(
+        'Email OTP login error:',
+        error instanceof Error ? error.message : 'unknown error'
+      );
       set({ error: error.message || 'Could not sign you in', isLoading: false });
       throw error;
     } finally {
@@ -578,7 +596,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         nextStep: null,
       });
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout error:', error instanceof Error ? error.message : 'unknown error');
       set({
         user: null,
         token: null,

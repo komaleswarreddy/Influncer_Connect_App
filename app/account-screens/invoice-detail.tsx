@@ -1,3 +1,4 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -97,7 +98,7 @@ export default function InvoiceDetailScreen() {
       const url = await invoicesApi.pdfUrl(invoice.id);
       const supported = await Linking.canOpenURL(url);
       if (!supported) throw new Error('No app on this device can open the PDF');
-      await Linking.openURL(url);
+      await openExternalUrl(url);
     });
 
   const markPaid = async () => {

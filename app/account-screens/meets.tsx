@@ -1,7 +1,7 @@
+import { openExternalUrl } from '../../lib/safe-link';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Pressable,
   RefreshControl,
   Share,
@@ -102,7 +102,7 @@ export default function MeetsScreen() {
   };
   const open = async (s: MeetServiceListItem) => {
     try {
-      await Linking.openURL(s.url);
+      await openExternalUrl(s.url);
     } catch {
       showKollabToast('Could not open the link');
     }
