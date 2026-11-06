@@ -51,6 +51,23 @@ npm run build:production     # release build (profile "production")
 - Native values in the committed `android/` project (`versionName`, `versionCode`) override `app.json`. Bump the version in both places before a release build.
 - Step-by-step: [docs/APK-AND-TEST-GUIDE.md](docs/APK-AND-TEST-GUIDE.md) (build, install, and 47 UI test cases) and [docs/BUILD_APK_WITHOUT_BACKEND.md](docs/BUILD_APK_WITHOUT_BACKEND.md).
 
+## Tech stack and key packages
+
+Versions come from `package.json` (the lockfile pins the exact ones). Expo packages must stay on the versions that match SDK 53; use `npx expo install <package>` to add or upgrade them.
+
+| Area              | Packages                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core              | expo ~53, react-native 0.79, react 19, TypeScript ~5.8, metro 0.82                                                                                                               |
+| Navigation        | expo-router ~5, @react-navigation/native and bottom-tabs 7, react-native-screens, react-native-safe-area-context                                                                 |
+| UI                | react-native-paper 5, react-native-reanimated 3.17, react-native-svg, lottie-react-native, expo-image, expo-linear-gradient, expo-blur, @expo/vector-icons, @expo-google-fonts/* |
+| State             | zustand 5, @react-native-async-storage/async-storage                                                                                                                             |
+| Auth and security | expo-auth-session (Cognito PKCE), expo-secure-store, expo-web-browser                                                                                                            |
+| Device features   | expo-camera, expo-image-picker, expo-document-picker, expo-clipboard, expo-video, react-native-view-shot, react-native-webview                                                   |
+| Monitoring        | @sentry/react-native 8                                                                                                                                                           |
+| Tooling           | eas-cli (builds), patch-package (see `patches/`), cross-env, eslint 9 with eslint-config-expo, expo-dev-client                                                                   |
+
+Keeping dependencies healthy: CI runs `npm audit`. After upgrading any native package, make a new development or preview build; a JavaScript reload is not enough.
+
 ## Project layout
 
 ```
