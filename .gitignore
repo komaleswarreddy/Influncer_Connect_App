@@ -40,3 +40,6 @@ yarn-error.*
 app-example
 
 dist-export-check/
+
+.env
+.env.local
