@@ -23,6 +23,7 @@ import {
   KollabTextField,
   KollabAnalyzePulse,
 } from '@/components/ui';
+import { formatDateTime } from '@/lib/content-url';
 import { formatCompactNumber } from '@/lib/my-stats-dashboard-stats';
 import {
   audienceCount,
@@ -425,6 +426,22 @@ export default function MyStatsScreen() {
                   <Text style={[styles.thumbMeta, { color: kollab.color.ink }]} numberOfLines={1}>
                     {postMeta(item)}
                   </Text>
+                  {(() => {
+                    // History rows are database records: they carry createdAt (when the post was analyzed), not fetchedAt.
+                    const raw = (item.rawMetrics ?? {}) as { fetchedAt?: unknown };
+                    const analyzedAt = typeof raw.fetchedAt === 'string' ? raw.fetchedAt : item.createdAt;
+                    const when = formatDateTime(analyzedAt);
+                    if (!when) return null;
+                    // The card is narrow: the full date and time sit on their own line so nothing is cut off.
+                    return (
+                      <View accessible accessibilityLabel={`Analyzed ${when}`}>
+                        <Text style={[styles.thumbTimeLabel, { color: kollab.color.ink }]}>Analyzed</Text>
+                        <Text style={[styles.thumbTime, { color: kollab.color.ink }]} numberOfLines={2}>
+                          {when}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </Pressable>
             );
@@ -573,6 +590,18 @@ function useStyles(kollab: KollabTokens) {
         thumbLikes: {
           fontFamily: font.semiBold,
           fontSize: 12.5,
+        },
+        thumbTimeLabel: {
+          fontFamily: font.body,
+          fontSize: 11,
+          opacity: 0.55,
+          marginTop: 6,
+        },
+        thumbTime: {
+          fontFamily: font.semiBold,
+          fontSize: 12,
+          opacity: 0.9,
+          marginTop: 1,
         },
         thumbMeta: {
           fontFamily: font.body,

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { enterApp } from '@/lib/enter-app';
 import { useAuthStore, getInfluencerEntryPath } from '../../store/auth-store';
 import {
   ScrollScreen,
@@ -50,7 +51,7 @@ export default function VerifyPhoneScreen() {
     try {
       await confirmPhoneSignup(phone, usernameForThisAttempt, submittedCode);
       const step = useAuthStore.getState().nextStep;
-      router.replace(getInfluencerEntryPath(step));
+      enterApp(router, getInfluencerEntryPath(step));
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Could not confirm sign-up.';
       setUsernameTaken(message.toLowerCase().includes(USERNAME_TAKEN_MARKER));

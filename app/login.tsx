@@ -11,6 +11,7 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { enterApp } from '@/lib/enter-app';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
 import { useMockAuth, cognitoConfigured } from '../lib/auth-config';
@@ -46,7 +47,7 @@ export default function LoginScreen() {
     try {
       await login(email, password);
       const step = useAuthStore.getState().nextStep;
-      router.replace(getInfluencerEntryPath(step));
+      enterApp(router, getInfluencerEntryPath(step));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed.');
     } finally {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useTabPressScrollTop } from '@/lib/use-tab-press-scroll-top';
 import { useInfluencerStore } from '@/store/influencer-store';
 import { useCampaignStore } from '@/store/campaign-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -9,6 +10,7 @@ import { useCatalogStore } from '@/store/catalog-store';
 import { api } from '@/lib/api';
 import {
   ScrollScreen,
+  showKollabConfirm,
   HomeHeaderBar,
   HomeEarningsPair,
   HomeStorefrontCard,
@@ -100,8 +102,7 @@ export default function InfluencerDashboard() {
     fetchMyApplications,
   ]);
 
-  useFocusEffect(
-    useCallback(() => {
+  const loadHome = useCallback(() => {
       void refreshSession({ logoutOnUnauthorized: false });
       void fetchNotifications();
       void fetchParticipations();
@@ -125,7 +126,28 @@ export default function InfluencerDashboard() {
       fetchCampaigns,
       fetchMyApplications,
       fetchMyCatalog,
-    ])
+    ]);
+  useFocusEffect(loadHome);
+  const tabScroll = useTabPressScrollTop(loadHome);
+
+  // Android back on Home asks before closing the app. Back from the other tabs returns here first (Tabs backBehavior),
+  // and Login/Register are cleared from the history at sign-in, so back can never land on them.
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return undefined;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        void showKollabConfirm({
+          title: 'Close the app?',
+          message: 'Are you sure you want to close the app?',
+          confirmLabel: 'Close',
+          cancelLabel: 'Stay',
+        }).then((ok) => {
+          if (ok) BackHandler.exitApp();
+        });
+        return true;
+      });
+      return () => sub.remove();
+    }, [])
   );
 
   useEffect(() => {
@@ -280,7 +302,9 @@ export default function InfluencerDashboard() {
       padH={0}
       canvasColor={kollab.color.screen}
       contentInsetBottom
+      scrollRef={tabScroll.scrollRef}
       scrollProps={{
+        ...tabScroll.scrollProps,
         bounces: true,
         overScrollMode: 'always',
         nestedScrollEnabled: true,

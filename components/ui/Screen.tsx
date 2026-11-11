@@ -40,6 +40,8 @@ export function Screen({
 type ScrollScreenProps = Omit<ScreenProps, 'children'> & {
   children: React.ReactNode;
   scrollProps?: ScrollViewProps;
+  /** Optional ref to the inner ScrollView (for scroll-to-top on tab press). */
+  scrollRef?: React.Ref<ScrollView>;
   canvasColor?: string;
   contentInsetBottom?: boolean | number;
   footer?: React.ReactNode;
@@ -51,6 +53,7 @@ export function ScrollScreen({
   safeAreaEdges = ['top', 'left', 'right'],
   padH = space.gutter,
   scrollProps,
+  scrollRef,
   style,
   canvasColor,
   contentInsetBottom = false,
@@ -77,6 +80,7 @@ export function ScrollScreen({
       <View style={[styles.fill, { backgroundColor: bg }]}>
         {dotBackground ? <DotBackground dotColor={kollab.color.dot} /> : null}
         <ScrollView
+          ref={scrollRef}
           style={[styles.scroll, { backgroundColor: bg }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"

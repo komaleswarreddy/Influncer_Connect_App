@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { enterApp } from '@/lib/enter-app';
 import { useAuthStore, getInfluencerEntryPath } from '@/store/auth-store';
 import { tryCompletePendingCognitoAuth } from '@/lib/cognito-auth';
 import { useKollab } from '@/theme/kollab-tokens';
@@ -59,7 +60,7 @@ export default function CognitoAuthCallbackScreen() {
 
     if (isAuthenticated) {
       navigated.current = true;
-      router.replace(getInfluencerEntryPath(nextStep) as never);
+      enterApp(router, getInfluencerEntryPath(nextStep));
       return;
     }
 
@@ -75,7 +76,7 @@ export default function CognitoAuthCallbackScreen() {
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
         navigated.current = true;
-        router.replace(getInfluencerEntryPath(state.nextStep) as never);
+        enterApp(router, getInfluencerEntryPath(state.nextStep));
         return;
       }
       if (!state.isLoading) {

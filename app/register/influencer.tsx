@@ -34,6 +34,7 @@ export default function InfluencerRegisterScreen() {
   const [referralCode, setReferralCode] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   // A shared invite link opens this screen with ?ref=CODE: pre-fill it and remember it in case the creator leaves and returns.
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function InfluencerRegisterScreen() {
 
   const onContinue = async () => {
     setFormError(null);
+    setAlreadyRegistered(false);
     if (!isValidEmail(email)) {
       setFormError('Enter a valid email address.');
       return;
@@ -73,7 +75,14 @@ export default function InfluencerRegisterScreen() {
         },
       });
     } catch (e: unknown) {
-      showKollabToast(e instanceof Error ? e.message : 'Please try again.');
+      const message = e instanceof Error ? e.message : 'Please try again.';
+      // The server answers 409 "already exists" for a registered email: say so on the screen and offer Log in.
+      if (/already (registered|exists)|account .* exists/i.test(message)) {
+        setAlreadyRegistered(true);
+        setFormError('This email is already registered. Please log in instead.');
+      } else {
+        showKollabToast(message);
+      }
     }
   };
 
@@ -136,8 +145,13 @@ export default function InfluencerRegisterScreen() {
         onPress={onContinue}
         disabled={isLoading}
       />
-      {formError || error ? (
+      {formError || (!alreadyRegistered && error) ? (
         <Text style={[styles.err, { color: kollab.color.heat }]}>{formError || error}</Text>
+      ) : null}
+      {alreadyRegistered ? (
+        <View style={{ marginTop: 12 }}>
+          <KollabButton label="Log in" onPress={() => router.replace('/login')} />
+        </View>
       ) : null}
 
       <Pressable onPress={() => router.push('/login')} style={styles.signIn}>

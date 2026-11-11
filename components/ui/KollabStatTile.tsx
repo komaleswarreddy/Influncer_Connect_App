@@ -35,17 +35,8 @@ export function KollabStatTile({ label, value, delta, fill = 'card', onPress, st
   const valueColor = fill === 'dark' ? c.panelInk : fill === 'tint' ? c.violetDeep : c.ink;
   const deltaColor = fill === 'dark' ? c.chartreuse : fill === 'tint' ? c.violetDeep : c.teal;
 
-  const Wrapper = onPress ? Pressable : View;
-  return (
-    <Wrapper
-      style={({ pressed }: { pressed?: boolean }) => [
-        styles.tile,
-        { backgroundColor: bg },
-        pressed && onPress && styles.pressed,
-        style,
-      ]}
-      {...(onPress ? { onPress, accessibilityRole: 'button' as const } : {})}
-    >
+  const content = (
+    <>
       <Text style={[styles.label, { color: labelColor, opacity: labelOpacity }]}>{label}</Text>
       <Text
         style={[styles.value, { color: valueColor, fontSize: metricValueFontSize(value) }]}
@@ -60,8 +51,25 @@ export function KollabStatTile({ label, value, delta, fill = 'card', onPress, st
           {delta}
         </Text>
       ) : null}
-    </Wrapper>
+    </>
   );
+
+  const baseStyle = [styles.tile, { backgroundColor: bg }, style];
+
+  // Only a Pressable understands a style function. Handing one to a plain View made React Native drop the whole style
+  // (no fill, no padding), so a dark tile showed light text straight on the page: "Tickets sold" looked empty.
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        style={({ pressed }) => [baseStyle, pressed && styles.pressed]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+  return <View style={baseStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({

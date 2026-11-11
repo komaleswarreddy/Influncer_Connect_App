@@ -58,9 +58,15 @@ function isApprovedNotif(n: {
 export function notificationStatusTitle(n: {
   type?: string | null;
   title?: string | null;
+  body?: string | null;
+  metadata?: unknown;
 }): string {
   const type = String(n.type || '').toLowerCase();
   const title = String(n.title || '').toLowerCase();
+  const body = String(n.body || '').toLowerCase();
+
+  // A rejected application arrives as a generic "campaign update"; its status and text are what say it was refused.
+  if (readMeta(n.metadata).status === 'rejected' || body.includes('not approved')) return 'Not approved';
 
   if (type === 'campaign_invite') return 'New invite';
   if (title.includes('approv') || type.includes('approv')) return 'Invite approved';
@@ -105,6 +111,11 @@ function formatRelativeTime(input: string): string {
   return `${days}d ago`;
 }
 
+/** Outcomes that need the creator's attention are drawn in red. */
+function isNegativeStatus(statusTitle: string): boolean {
+  return statusTitle === 'Not approved' || statusTitle === 'Invite rejected' || statusTitle === 'Invite expired';
+}
+
 type NotificationIcon = {
   name: GlyphName;
   bg: string;
@@ -119,9 +130,10 @@ function notificationIconForStatus(statusTitle: string, kollab: KollabTokens): N
     case 'Invite accepted':
     case 'Campaign active':
       return { name: 'check', bg: kollab.color.tealTint, color: kollab.color.teal };
+    case 'Not approved':
     case 'Invite rejected':
     case 'Invite expired':
-      return { name: 'help', bg: kollab.statusChip.warn.bg, color: kollab.statusChip.warn.fg };
+      return { name: 'help', bg: kollab.color.heatTint, color: kollab.color.heat };
     case 'Payment received':
       return { name: 'wallet', bg: kollab.color.chartreuse, color: kollab.color.onChartreuse };
     case 'Booking request':
@@ -230,6 +242,7 @@ const NotificationRow = React.memo(function NotificationRow({
   const statusTitle = notificationStatusTitle(notification);
   const relativeTime = formatRelativeTime(notification.createdAt);
   const icon = notificationIconForStatus(statusTitle, kollab);
+  const negative = isNegativeStatus(statusTitle);
 
   return (
     <View style={[styles.notificationRow, last ? styles.notificationRowLast : null]}>
@@ -241,14 +254,16 @@ const NotificationRow = React.memo(function NotificationRow({
           <Text
             style={[
               styles.title,
-              { color: isUnread ? kollab.color.ink : kollab.color.inkMuted },
+              { color: negative ? kollab.color.heat : isUnread ? kollab.color.ink : kollab.color.inkMuted },
               !isUnread ? { fontFamily: font.body } : null,
             ]}
             numberOfLines={1}
           >
             {statusTitle}
           </Text>
-          {isUnread ? <View style={styles.unreadDot} /> : null}
+          {isUnread ? (
+            <View style={[styles.unreadDot, negative ? { backgroundColor: kollab.color.heat } : null]} />
+          ) : null}
         </View>
         {notification.body ? (
           <Text style={styles.messageText} numberOfLines={2}>

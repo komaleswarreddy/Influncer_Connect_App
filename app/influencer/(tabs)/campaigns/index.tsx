@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet, RefreshControl, Pressable } 
 import { Image } from 'expo-image';
 import { useCampaignStore, type Campaign } from '../../../../store/campaign-store';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useTabPressScrollTop } from '@/lib/use-tab-press-scroll-top';
 import {
   PhotoCard,
   KollabScreenHeader,
@@ -11,7 +12,9 @@ import {
   KollabSectionLabel,
   KollabSegmented,
   KollabEmptyCard,
+  KollabTextField,
 } from '@/components/ui';
+import { Ionicons } from '@expo/vector-icons';
 import { CampaignDetailsModal } from '@/components/influencer/CampaignDetailsModal';
 import { resolveCampaignPaySummary } from '@/lib/campaign-pay-summary';
 import { campaignCoverSource, ugcCoverSource } from '@/lib/campaign-cover';
@@ -283,8 +286,16 @@ export default function CampaignsScreen() {
         const st = String(a.status ?? 'applied')
           .trim()
           .toLowerCase();
-        const statusLabel =
-          st === 'applied' || st === 'pending_review' || st === 'pending' ? 'Submitted' : a.status;
+        const leftCollab = participations.some(
+          (row) =>
+            String(row.campaignId ?? row.campaign?.id ?? '').trim().toLowerCase() === campaignId &&
+            String(row.status ?? '').trim().toLowerCase() === 'withdrawn'
+        );
+        const statusLabel = leftCollab
+          ? 'Withdrawn'
+          : st === 'applied' || st === 'pending_review' || st === 'pending'
+            ? 'Submitted'
+            : a.status;
         const s = String(statusLabel).toLowerCase();
         const dot =
           s.includes('pending') || s.includes('submitted') || s.includes('applied')
@@ -320,6 +331,19 @@ export default function CampaignsScreen() {
     }
   };
 
+  const tabScroll = useTabPressScrollTop(() => void onRefresh());
+
+  // Search filters whichever list is showing, by name, brand or niche. It resets when you leave the tab segment.
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const matches = (...parts: Array<unknown>) => !q || parts.some((p) => String(p ?? '').toLowerCase().includes(q));
+  const exclusiveShown = exclusiveList.filter((c) => matches(c.name, c.requiredInfluencerNiche, c.type));
+  const mineShown = mineList.filter((c) => matches(c.name, c.requiredInfluencerNiche, c.type));
+  const activityShown = activityItems.filter((a) => matches(a.name, a.niche));
+  const ugcShown = ugcJobs.filter((j) => matches(ugcBriefTitle(j as Record<string, unknown>), (j as Record<string, unknown>).brandName, (j as Record<string, unknown>).category));
+  const shownCount =
+    segment === 'exclusive' ? exclusiveShown.length : segment === 'public' ? ugcShown.length : mineShown.length + activityShown.length;
+
   const statusFor = (campaign: Campaign) => {
     const cid = String(campaign.id);
     const mine = buildMineCampaignStatus(cid, participations, applications);
@@ -338,10 +362,10 @@ export default function CampaignsScreen() {
   const liveChip = kollab.statusChip.live;
 
   const renderExclusive = () => {
-    if (isLoading && exclusiveList.length === 0) {
+    if (isLoading && exclusiveShown.length === 0) {
       return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
     }
-    if (exclusiveList.length === 0) {
+    if (exclusiveShown.length === 0) {
       return (
         <KollabEmptyCard
           title="No exclusive collabs"
@@ -353,7 +377,7 @@ export default function CampaignsScreen() {
     }
     return (
       <View style={styles.feed}>
-        {exclusiveList.map((campaign) => {
+        {exclusiveShown.map((campaign) => {
           const cid = String(campaign.id);
           const pay = resolveCampaignPaySummary(campaign);
           const brand = String(campaign.tenant?.tenantName || 'Brand');
@@ -406,10 +430,10 @@ export default function CampaignsScreen() {
   };
 
   const renderPublic = () => {
-    if (ugcLoading && ugcJobs.length === 0) {
+    if (ugcLoading && ugcShown.length === 0) {
       return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
     }
-    if (ugcJobs.length === 0) {
+    if (ugcShown.length === 0) {
       return (
         <KollabEmptyCard
           title="No public briefs"
@@ -421,7 +445,7 @@ export default function CampaignsScreen() {
     }
     return (
       <View style={styles.feed}>
-        {ugcJobs.map((job) => {
+        {ugcShown.map((job) => {
           const id = ugcBriefId(job);
           if (!id) return null;
           return (
@@ -445,13 +469,13 @@ export default function CampaignsScreen() {
   const renderMine = () => {
     if (
       isLoading &&
-      mineList.length === 0 &&
-      activityItems.length === 0 &&
+      mineShown.length === 0 &&
+      activityShown.length === 0 &&
       ugcApplications.length === 0
     ) {
       return <ActivityIndicator size="large" color={kollab.color.ink} style={{ marginTop: 40 }} />;
     }
-    if (mineList.length === 0 && activityItems.length === 0 && ugcApplications.length === 0) {
+    if (mineShown.length === 0 && activityShown.length === 0 && ugcApplications.length === 0) {
       return (
         <KollabEmptyCard
           title="No collabs yet"
@@ -463,10 +487,10 @@ export default function CampaignsScreen() {
     }
     return (
       <View style={styles.feed}>
-        {activityItems.length > 0 ? (
+        {activityShown.length > 0 ? (
           <View style={styles.activityBlock}>
             <KollabSectionLabel label="collab activity" />
-            {activityItems.map((item) => (
+            {activityShown.map((item) => (
               <Pressable
                 key={item.campaignId}
                 onPress={() => setSelectedCampaignId(item.campaignId)}
@@ -522,11 +546,11 @@ export default function CampaignsScreen() {
           </View>
         ) : null}
 
-        {mineList.length > 0 && (activityItems.length > 0 || ugcApplications.length > 0) ? (
+        {mineShown.length > 0 && (activityShown.length > 0 || ugcApplications.length > 0) ? (
           <KollabSectionLabel label="approved" />
         ) : null}
 
-        {mineList.map((campaign) => {
+        {mineShown.map((campaign) => {
           const cid = String(campaign.id);
           const pay = resolveCampaignPaySummary(campaign);
           const brand = String(campaign.tenant?.tenantName || 'Brand');
@@ -546,7 +570,7 @@ export default function CampaignsScreen() {
           );
         })}
 
-        {mineList.length > 0 ? (
+        {mineShown.length > 0 ? (
           <Text style={[styles.endCaption, { color: kollab.color.ink }]}>That's all for now</Text>
         ) : null}
 
@@ -574,7 +598,9 @@ export default function CampaignsScreen() {
     <ScrollScreen
       padH={0}
       contentInsetBottom
+      scrollRef={tabScroll.scrollRef}
       scrollProps={{
+        ...tabScroll.scrollProps,
         refreshControl: (
           <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />
         ),
@@ -589,17 +615,44 @@ export default function CampaignsScreen() {
           onChange={(key) => setSegment(key as CollabSegment)}
           style={styles.segments}
         />
+        <View style={styles.searchWrap}>
+          <KollabTextField
+            placeholder={segment === 'public' ? 'Search UGC briefs' : 'Search collabs'}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search collabs"
+            style={styles.searchInput}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={10}
+              style={styles.searchClear}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={20} color={kollab.color.inkMuted} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {displayError ? (
         <Text style={[styles.error, { color: kollab.color.heat }]}>{displayError}</Text>
       ) : null}
 
-      {segment === 'exclusive'
-        ? renderExclusive()
-        : segment === 'public'
-          ? renderPublic()
-          : renderMine()}
+      {q && shownCount === 0 ? (
+        <Text style={[styles.noMatches, { color: kollab.color.inkMuted }]}>No results for “{query.trim()}”</Text>
+      ) : segment === 'exclusive' ? (
+        renderExclusive()
+      ) : segment === 'public' ? (
+        renderPublic()
+      ) : (
+        renderMine()
+      )}
 
       <CampaignDetailsModal
         campaignId={selectedCampaignId}
@@ -625,6 +678,24 @@ const styles = StyleSheet.create({
   segments: {
     marginTop: 12,
     marginBottom: 8,
+  },
+  searchWrap: {
+    marginBottom: 8,
+    justifyContent: 'center',
+  },
+  searchInput: {
+    paddingRight: 44,
+  },
+  searchClear: {
+    position: 'absolute',
+    right: 14,
+  },
+  noMatches: {
+    fontFamily: font.body,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 32,
   },
   error: {
     fontFamily: font.body,

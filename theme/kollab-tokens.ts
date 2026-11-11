@@ -328,11 +328,12 @@ export const asset = {
 } as const;
 
 /** Asymmetric chat bubble corners — the tail corner drops to 5. Colors resolved per-theme by useKollab(). */
-function buildChatBubble(color: KollabColor) {
+function buildChatBubble(color: KollabColor, isDark: boolean) {
   return {
     sent: {
       backgroundColor: color.ink,
-      color: color.inkOn,
+      // `ink` flips to a light tone in dark mode but `inkOn` stays light, which made sent text invisible there.
+      color: isDark ? color.canvas : color.inkOn,
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       borderBottomRightRadius: 5,
@@ -388,11 +389,11 @@ function buildButton(color: KollabColor, isDark: boolean) {
     /** Only for a paired secondary next to a filled primary */
     hairline: { bg: 'transparent', fg: color.ink, borderWidth: 1.5, borderColor: color.ink },
     /** Dark-mode disabled look: a flat muted fill with a still-legible label. A plain opacity fade
-     *  turns the bright fills into washed-out slabs against the dark surface. Light mode keeps
-     *  the opacity fade (`null`). */
+     *  turns the bright fills into washed-out slabs against the dark surface. Light mode uses a flat
+     *  light gray the same way, so a disabled button reads as gray (not a faded black slab). */
     disabled: isDark
       ? { bg: '#2E2923', fg: 'rgba(243,239,231,0.62)', borderColor: 'rgba(243,239,231,0.28)' }
-      : null,
+      : { bg: '#E2DED6', fg: 'rgba(23,20,16,0.45)', borderColor: 'rgba(23,20,16,0.10)' },
     paddingVertical: 17,
     borderRadius: radius.pill,
   };
@@ -455,7 +456,7 @@ export function useKollab(): KollabTokens {
       shadow: buildShadow(color.shadowColor),
       nav,
       navShellPath,
-      chatBubble: buildChatBubble(color),
+      chatBubble: buildChatBubble(color, isDark),
       statusChip: buildStatusChip(color),
       choiceChip: buildChoiceChip(color),
       button: buildButton(color, isDark),

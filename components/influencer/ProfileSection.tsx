@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter } from 'expo-router';
@@ -130,6 +130,12 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
 
   const canSave = useMemo(() => getValidationError(formData) === null, [formData]);
 
+  // Save stays gray until something differs from what was loaded (and goes gray again if the user types it back).
+  const formRef = useRef(formData);
+  formRef.current = formData;
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const isDirty = baseline !== null && JSON.stringify(formData) !== baseline;
+
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -139,7 +145,8 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         const saved = response.subNiches ?? [];
         const chips = saved.filter((v) => known.includes(v));
         const custom = saved.find((v) => !known.includes(v)) ?? '';
-        setFormData((prev) => ({
+        const prev = formRef.current;
+        const loaded: ProfileData = {
           ...prev,
           username: normalizeUsername(response.username || user?.username || prev.username),
           email: response.user.email || prev.email,
@@ -154,7 +161,9 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             (acc, p) => ({ ...acc, [p.key]: toSocialHandle(response.socialMedia?.[p.key] || '') }),
             { ...EMPTY_SOCIAL }
           ),
-        }));
+        };
+        setFormData(loaded);
+        setBaseline(JSON.stringify(loaded));
       } catch (error) {
         console.log('Could not load profile data:', error);
       }
@@ -254,6 +263,21 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
             autoCapitalize="words"
             autoCorrect={false}
           />
+          {formData.email ? (
+            <View>
+              <Text style={[styles.fieldLabel, { color: kollab.color.ink }]}>Email</Text>
+              <KollabTextField
+                value={formData.email}
+                editable={false}
+                selectTextOnFocus={false}
+                accessibilityLabel="Email you sign in with (read only)"
+                style={{ color: kollab.color.inkMuted }}
+              />
+              <Text style={{ color: kollab.color.inkMuted, fontSize: 12, marginTop: 6, marginLeft: 18 }}>
+                The email you sign in with. It can’t be changed here.
+              </Text>
+            </View>
+          ) : null}
           <KollabTextField
             placeholder="Enter your phone number"
             value={formData.phone}
@@ -399,7 +423,7 @@ export default function ProfileSection({ onUpdate }: ProfileSectionProps) {
         label={isLoading ? 'Saving…' : 'Save Changes'}
         variant="ink"
         onPress={handleSave}
-        disabled={!canSave || isLoading}
+        disabled={!canSave || !isDirty || isLoading}
         loading={isLoading}
         style={styles.saveButton}
       />

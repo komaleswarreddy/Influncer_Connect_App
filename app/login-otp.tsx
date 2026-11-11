@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { enterApp } from '@/lib/enter-app';
 import { useAuthStore, getInfluencerEntryPath } from '../store/auth-store';
 import {
   ScrollScreen,
@@ -57,7 +58,7 @@ export default function LoginOtpScreen() {
     try {
       await verifyPhoneLogin(phone, session, code);
       const step = useAuthStore.getState().nextStep;
-      router.replace(getInfluencerEntryPath(step));
+      enterApp(router, getInfluencerEntryPath(step));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not sign you in.');
     }

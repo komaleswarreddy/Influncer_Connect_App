@@ -32,7 +32,7 @@ export default function InfluencerTabsLayout() {
   );
 
   return (
-    <Tabs tabBar={renderTabBar} screenOptions={screenOptions}>
+    <Tabs tabBar={renderTabBar} screenOptions={screenOptions} backBehavior="firstRoute">
       <Tabs.Screen
         name="dashboard"
         options={{
