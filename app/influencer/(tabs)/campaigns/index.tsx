@@ -571,7 +571,7 @@ export default function CampaignsScreen() {
         })}
 
         {mineShown.length > 0 ? (
-          <Text style={[styles.endCaption, { color: kollab.color.ink }]}>That's all for now</Text>
+          <Text style={[styles.endCaption, { color: kollab.color.ink }]}>That&apos;s all for now</Text>
         ) : null}
 
         <View style={[styles.freshCard, { borderColor: kollab.color.outline }]}>
