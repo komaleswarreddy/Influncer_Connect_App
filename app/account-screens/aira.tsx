@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +24,7 @@ import {
   type AiraUsage,
 } from '@/lib/aira-api';
 import { font, useKollab } from '@/theme/kollab-tokens';
+import { useKeyboardInset } from '@/lib/use-keyboard-inset';
 
 type Row = AiraMessage & { pending?: boolean };
 
@@ -42,6 +41,7 @@ export default function AiraScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(Boolean(initialId));
   const [sending, setSending] = useState(false);
+  const keyboardInset = useKeyboardInset();
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollToEnd = useCallback(() => {
@@ -88,6 +88,10 @@ export default function AiraScreen() {
   useEffect(() => {
     if (rows.length) scrollToEnd();
   }, [rows.length, sending, scrollToEnd]);
+
+  useEffect(() => {
+    if (keyboardInset > 0 && rows.length) scrollToEnd();
+  }, [keyboardInset, rows.length, scrollToEnd]);
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
@@ -139,10 +143,7 @@ export default function AiraScreen() {
 
   return (
     <Screen padH={0} safeAreaEdges={['top', 'left', 'right', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={[styles.flex, { paddingBottom: keyboardInset }]}>
         <View style={styles.head}>
           <KollabScreenHeader
             title="Klear AI"
@@ -265,7 +266,7 @@ export default function AiraScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

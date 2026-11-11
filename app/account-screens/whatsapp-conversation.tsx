@@ -6,10 +6,9 @@ import {
   FlatList,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useKeyboardInset } from '@/lib/use-keyboard-inset';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Screen, KollabScreenHeader, showKollabToast } from '@/components/ui';
 import { useWhatsappStore } from '@/store/whatsapp-store';
@@ -22,6 +21,7 @@ function formatMessageTime(iso: string): string {
 }
 
 export default function WhatsappConversationScreen() {
+  const keyboardInset = useKeyboardInset();
   const router = useRouter();
   const kollab = useKollab();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -120,11 +120,7 @@ export default function WhatsappConversationScreen() {
       {isLoading && activeMessages.length === 0 ? (
         <ActivityIndicator color={kollab.color.ink} style={{ marginTop: 32 }} />
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <View style={{ flex: 1, paddingBottom: keyboardInset }}>
           <FlatList
             ref={listRef}
             style={{ flex: 1, paddingHorizontal: 22 }}
@@ -176,7 +172,7 @@ export default function WhatsappConversationScreen() {
               </Pressable>
             </View>
           )}
-        </KeyboardAvoidingView>
+        </View>
       )}
     </Screen>
   );

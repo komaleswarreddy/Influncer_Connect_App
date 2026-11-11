@@ -226,6 +226,9 @@ export default function EventPassesScreen() {
               <Text style={[styles.name, { color: c.ink }]}>
                 {draft.id ? 'Edit pass' : 'New pass'}
               </Text>
+              <Text style={[styles.label, { color: c.ink }]}>
+                Pass name <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
               <KollabTextField
                 surface="well"
                 value={draft.name}

@@ -131,8 +131,14 @@ export default function EventFormScreen() {
     const cap = Number(capacity);
     if (!Number.isInteger(cap) || cap < 1)
       next.capacity = 'Enter a whole number of attendees (1 or more)';
-    if (isOnline && onlineUrl.trim() && !/^https?:\/\//i.test(onlineUrl.trim()))
-      next.onlineUrl = 'The join link must start with http:// or https://';
+    if (isOnline) {
+      if (!onlineUrl.trim()) next.onlineUrl = 'Add the join link (Zoom, Meet…)';
+      else if (!/^https?:\/\//i.test(onlineUrl.trim()))
+        next.onlineUrl = 'The join link must start with http:// or https://';
+    } else {
+      if (!venueName.trim()) next.venueName = 'Add the venue name';
+      if (!address.trim()) next.address = 'Add the address (building, street, city)';
+    }
     return next;
   };
 
@@ -318,6 +324,9 @@ export default function EventFormScreen() {
             />
             {isOnline ? (
               <>
+                <Text style={[styles.fieldLabel, { color: c.ink }]}>
+                  Join link <Text style={{ color: '#EF4444' }}>*</Text>
+                </Text>
                 <KollabTextField
                   surface="well"
                   value={onlineUrl}
@@ -337,6 +346,9 @@ export default function EventFormScreen() {
               </>
             ) : (
               <>
+                <Text style={[styles.fieldLabel, { color: c.ink }]}>
+                  Venue name <Text style={{ color: '#EF4444' }}>*</Text>
+                </Text>
                 <KollabTextField
                   surface="well"
                   value={venueName}
@@ -344,6 +356,12 @@ export default function EventFormScreen() {
                   placeholder="Venue name, e.g. WeWork BKC"
                   maxLength={160}
                 />
+                {errors.venueName ? (
+                  <Text style={[styles.error, { color: c.heat }]}>{errors.venueName}</Text>
+                ) : null}
+                <Text style={[styles.fieldLabel, { color: c.ink }]}>
+                  Address <Text style={{ color: '#EF4444' }}>*</Text>
+                </Text>
                 <KollabTextField
                   surface="well"
                   value={address}
@@ -351,6 +369,9 @@ export default function EventFormScreen() {
                   placeholder="Building, street, city"
                   maxLength={300}
                 />
+                {errors.address ? (
+                  <Text style={[styles.error, { color: c.heat }]}>{errors.address}</Text>
+                ) : null}
               </>
             )}
           </View>
@@ -457,6 +478,7 @@ const styles = StyleSheet.create({
   },
   hint: { fontFamily: font.body, fontSize: 12, opacity: 0.55 },
   error: { fontFamily: font.medium, fontSize: 12.5 },
+  fieldLabel: { fontFamily: font.semiBold, fontSize: 13.5, marginTop: 4 },
   drop: {
     borderWidth: 2,
     borderStyle: 'dashed',
