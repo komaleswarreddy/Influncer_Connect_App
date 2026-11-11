@@ -17,12 +17,30 @@ import {
   type OpportunityStatusTone,
 } from '@/lib/opportunity-card-ui';
 import { formatInr } from '@/lib/currency';
+import { formatDateTime } from '@/lib/content-url';
 import { KollabButton, KollabScreenHeader, showKollabToast } from '@/components/ui';
+import { ReasonSheet, type ReasonOption } from '@/components/influencer/ReasonSheet';
 import { useKollab, font, space, type as kType } from '@/theme/kollab-tokens';
 import type { KollabTokens } from '@/theme/kollab-tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Deliverable = { status?: string; brandFeedback?: string | null };
+
+/** Same lists as the API (server/services/booking-cancel-rules.ts). */
+const DECLINE_REASONS: ReasonOption[] = [
+  { key: 'not_available', label: 'Not available' },
+  { key: 'rate_too_low', label: 'Rate is too low' },
+  { key: 'not_a_fit', label: 'Not a fit for me' },
+  { key: 'other', label: 'Other' },
+];
+const CANCEL_REASONS: ReasonOption[] = [
+  { key: 'schedule_conflict', label: 'Schedule conflict' },
+  { key: 'not_available', label: 'No longer available' },
+  { key: 'brief_changed', label: 'The brief changed' },
+  { key: 'other', label: 'Other' },
+];
+
+type SheetState = { kind: 'decline' | 'cancel'; id: string; inProgress?: boolean } | null;
 
 function canDeliver(status: string, deliverable?: Deliverable | null): boolean {
   if (status === 'accepted') return true;
@@ -66,6 +84,9 @@ export function BookingsList({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
+  // Blocks a second tap on Accept / Decline while the first one is still being sent.
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -91,17 +112,30 @@ export function BookingsList({
   );
 
   const respond = useCallback(
-    async (id: string, status: 'accepted' | 'declined') => {
+    async (id: string, status: 'accepted' | 'declined', extra?: { reason?: string; note?: string }) => {
+      if (busyId) return;
+      setBusyId(id);
       try {
-        await rateCardsApi.respondBooking(id, status);
+        await rateCardsApi.respondBooking(id, status, extra);
         setError(null);
         await load(true);
-        showKollabToast(status === 'accepted' ? 'Booking accepted' : 'Invite declined');
+        showKollabToast(status === 'accepted' ? 'Booking accepted' : 'Booking declined');
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+        const message = e instanceof Error ? e.message : 'Failed';
+        setError(message);
+        throw e;
+      } finally {
+        setBusyId(null);
       }
     },
-    [load]
+    [load, busyId]
+  );
+
+  const acceptBooking = useCallback(
+    (id: string) => {
+      void respond(id, 'accepted').catch(() => undefined);
+    },
+    [respond]
   );
 
   const openDeliver = useCallback(
@@ -172,15 +206,56 @@ export function BookingsList({
                 variant="hairline"
                 compact
                 style={styles.action}
-                onPress={() => void respond(id, 'declined')}
+                disabled={busyId === id}
+                onPress={() => setSheet({ kind: 'decline', id })}
               />
               <KollabButton
                 label="Accept"
                 variant="ink"
                 compact
                 style={styles.action}
-                onPress={() => void respond(id, 'accepted')}
+                disabled={busyId === id}
+                onPress={() => acceptBooking(id)}
               />
+            </View>
+          ) : null}
+          {status === 'accepted' || status === 'in_progress' ? (
+            <View style={[styles.footer, { borderTopColor: kollab.color.hairline }]}>
+              <KollabButton
+                label={status === 'accepted' ? 'Cancel booking' : 'Ask to cancel'}
+                variant="hairline"
+                compact
+                onPress={() => setSheet({ kind: 'cancel', id, inProgress: status === 'in_progress' })}
+              />
+            </View>
+          ) : null}
+          {status === 'cancel_requested' ? (
+            <View style={[styles.footer, { borderTopColor: kollab.color.hairline }]}>
+              <Text style={{ color: kollab.color.inkMuted, fontFamily: font.body, fontSize: 12.5, flex: 1 }}>
+                You asked to cancel. Waiting for the brand to agree.
+              </Text>
+            </View>
+          ) : null}
+          {status === 'declined' || status === 'cancelled' || status === 'cancel_requested' ? (
+            <View style={[styles.footer, { borderTopColor: kollab.color.hairline, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }]}>
+              <Text style={{ color: kollab.color.ink, fontFamily: font.semiBold, fontSize: 12.5 }}>
+                Reason:{' '}
+                <Text style={{ fontFamily: font.body }}>
+                  {typeof booking.statusReasonLabel === 'string' && booking.statusReasonLabel
+                    ? booking.statusReasonLabel
+                    : 'No reason was recorded'}
+                </Text>
+              </Text>
+              {typeof booking.statusNote === 'string' && booking.statusNote.trim() ? (
+                <Text style={{ color: kollab.color.inkMuted, fontFamily: font.body, fontSize: 12.5 }}>
+                  Note: {booking.statusNote.trim()}
+                </Text>
+              ) : null}
+              {formatDateTime((booking.statusChangedAt ?? booking.updatedAt) as string) ? (
+                <Text style={{ color: kollab.color.inkMuted, fontFamily: font.body, fontSize: 12 }}>
+                  {formatDateTime((booking.statusChangedAt ?? booking.updatedAt) as string)}
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {deliver ? (
@@ -191,7 +266,7 @@ export function BookingsList({
         </View>
       );
     },
-    [highlightBookingId, openDeliver, respond, kollab]
+    [highlightBookingId, openDeliver, acceptBooking, busyId, kollab]
   );
 
   const listHeader = (
@@ -228,24 +303,74 @@ export function BookingsList({
     />
   );
 
-  return (
-    <FlatList
-      data={rows}
-      keyExtractor={keyExtractor}
-      renderItem={renderRow}
-      ListHeaderComponent={listHeader}
-      ListEmptyComponent={listEmpty}
-      ListFooterComponent={listFooter}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void load(true)}
-          tintColor={kollab.color.ink}
-        />
+  const confirmSheet = async (reason: string, note: string) => {
+    if (!sheet) return;
+    try {
+      if (sheet.kind === 'decline') {
+        await respond(sheet.id, 'declined', { reason, note: note || undefined });
+      } else {
+        const res = (await rateCardsApi.cancelBooking(sheet.id, { reason, note: note || undefined })) as {
+          mode?: 'direct' | 'request';
+        };
+        await load(true);
+        showKollabToast(
+          res.mode === 'request'
+            ? 'Cancel request sent. The brand needs to agree.'
+            : 'Booking cancelled. The brand has been told.'
+        );
       }
-      contentContainerStyle={[styles.listContent, { paddingTop: showHeader ? 0 : insets.top + 8 }]}
-      showsVerticalScrollIndicator={false}
-    />
+      setSheet(null);
+    } catch (e) {
+      // The sheet shows this message inside itself (a toast would be drawn behind the sheet).
+      throw e instanceof Error ? e : new Error('Something went wrong. Please try again.');
+    }
+  };
+
+  return (
+    <>
+      <FlatList
+        data={rows}
+        extraData={busyId}
+        keyExtractor={keyExtractor}
+        renderItem={renderRow}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        ListFooterComponent={listFooter}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load(true)}
+            tintColor={kollab.color.ink}
+          />
+        }
+        contentContainerStyle={[styles.listContent, { paddingTop: showHeader ? 0 : insets.top + 8 }]}
+        showsVerticalScrollIndicator={false}
+      />
+      <ReasonSheet
+        visible={sheet !== null}
+        title={
+          sheet?.kind === 'decline'
+            ? 'Decline this booking?'
+            : sheet?.inProgress
+              ? 'Ask the brand to cancel?'
+              : 'Cancel this booking?'
+        }
+        message={
+          sheet?.kind === 'decline'
+            ? 'Tell the brand why. They will see your reason.'
+            : sheet?.inProgress
+              ? 'Work has already started, so the booking is only cancelled if the brand agrees.'
+              : 'Nothing has been delivered yet, so this cancels the booking right away and the brand is told.'
+        }
+        reasons={sheet?.kind === 'decline' ? DECLINE_REASONS : CANCEL_REASONS}
+        confirmLabel={
+          sheet?.kind === 'decline' ? 'Decline booking' : sheet?.inProgress ? 'Send request' : 'Cancel booking'
+        }
+        cancelLabel={sheet?.kind === 'decline' ? 'Go back' : 'Keep booking'}
+        onConfirm={confirmSheet}
+        onClose={() => setSheet(null)}
+      />
+    </>
   );
 }
 

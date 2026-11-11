@@ -6,8 +6,14 @@ export const rateCardsApi = {
   getSuggested: () => api.get('/api/rate-cards/suggested'),
   getBookings: () => api.get('/api/rate-cards/bookings'),
   getBooking: (bookingId: string) => api.get(`/api/rate-cards/bookings/${bookingId}`),
-  respondBooking: (bookingId: string, status: 'accepted' | 'declined') =>
-    api.put(`/api/rate-cards/bookings/${bookingId}/respond`, { status }),
+  respondBooking: (
+    bookingId: string,
+    status: 'accepted' | 'declined',
+    extra?: { reason?: string; note?: string }
+  ) => api.put(`/api/rate-cards/bookings/${bookingId}/respond`, { status, ...extra }),
+  /** Before delivery it cancels at once; once work is in progress it asks the brand to agree. */
+  cancelBooking: (bookingId: string, body: { reason: string; note?: string }) =>
+    api.put(`/api/rate-cards/bookings/${bookingId}/cancel`, body),
   deliverBooking: (
     bookingId: string,
     body: { fileUrl?: string; driveLink?: string; deliveryType: 'file' | 'link' }

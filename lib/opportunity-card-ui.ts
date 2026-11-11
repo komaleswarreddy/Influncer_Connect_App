@@ -40,7 +40,8 @@ export function bookingStatusTone(
 ): OpportunityStatusTone {
   const d = deliverable?.status;
   if (status === 'completed') return 'success';
-  if (status === 'declined') return 'declined';
+  if (status === 'declined' || status === 'cancelled') return 'declined';
+  if (status === 'cancel_requested') return 'warning';
   if (status === 'pending') return 'pending';
   if (status === 'in_progress' && d === 'pending_review') return 'review';
   if (status === 'in_progress' && d === 'revision_requested') return 'warning';
@@ -55,6 +56,8 @@ export function bookingStatusShort(
   const d = deliverable?.status;
   if (status === 'completed') return 'Completed';
   if (status === 'declined') return 'Declined';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'cancel_requested') return 'Cancel requested';
   if (status === 'pending') return 'Pending';
   if (status === 'in_progress' && d === 'pending_review') return 'In review';
   if (status === 'in_progress' && d === 'revision_requested') return 'Revision';
