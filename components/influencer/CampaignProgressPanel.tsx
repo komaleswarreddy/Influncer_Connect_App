@@ -13,12 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProgressStore } from '../../store/progress-store';
 import { useCampaignStore } from '../../store/campaign-store';
-import { usePostAnalyzerStore } from '../../store/post-analyzer-store';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useKollab, font, type as kType } from '@/theme/kollab-tokens';
 import { KollabButton } from '@/components/ui/KollabButton';
-import { KollabAnalyzePulse } from '@/components/ui/KollabAnalyzePulse';
 import { KollabStatusChip } from '@/components/ui/KollabStatusChip';
 import { KollabSectionLabel } from '@/components/ui/KollabSectionLabel';
 import { KollabScreenHeader } from '@/components/ui/KollabScreenHeader';
@@ -33,8 +31,8 @@ import {
   getPlatformLabel,
   splitPasteIntoUrls,
 } from '../../lib/post-url-parser';
-import { PostMetricsCard } from '../../components/PostMetricsCard';
-import { isPostAnalyzerDailyLimitError } from '../../lib/post-analyzer-api';
+import { canonicalContentUrl, formatDateTime } from '@/lib/content-url';
+import { LeaveCollabSection } from '@/components/influencer/LeaveCollabSection';
 
 const MAX_URL_FIELDS = 10;
 
@@ -72,10 +70,8 @@ export function CampaignProgressPanel({
     setShowSubmitModal(false);
     setUrlFields(['']);
     setContentType('');
-    setAnalyzedUrl('');
     setSelectedProgress(null);
-    clearCurrentMetrics();
-    clearBulkResults();
+    setSubmitNotice(null);
   };
 
   const router = useRouter();
@@ -89,31 +85,16 @@ export function CampaignProgressPanel({
     updateSubmission,
     deleteSubmission,
   } = useProgressStore();
-  const { campaigns, participations } = useCampaignStore();
+  const { campaigns, participations, fetchParticipations } = useCampaignStore();
   const [refreshing, setRefreshing] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedProgress, setSelectedProgress] = useState<any>(null);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [editingContentUrl, setEditingContentUrl] = useState('');
   const [urlFields, setUrlFields] = useState<string[]>(['']);
+  // Messages for the submit pop-up are shown inside it: a toast is drawn behind a Modal and looks dimmed.
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [contentType, setContentType] = useState('');
-  const [analyzedUrl, setAnalyzedUrl] = useState('');
-  const {
-    analyzeUrls,
-    isAnalyzing,
-    isBulkAnalyzing,
-    currentMetrics,
-    currentAnalysisId,
-    currentPersistError,
-    analyzeError,
-    bulkResults,
-    bulkError,
-    dailyLimitError,
-    quota,
-    fetchQuota,
-    clearCurrentMetrics,
-    clearBulkResults,
-  } = usePostAnalyzerStore();
 
   const progress = participationId ? progressData[participationId] : undefined;
   const campaign = campaigns.find((c) => c.id === campaignId);
@@ -122,18 +103,11 @@ export function CampaignProgressPanel({
   const promotionalCodes = participation?.promotionalCodes ?? [];
   const hasPromoAssets = promotionalLinks.length > 0 || promotionalCodes.length > 0;
   const trimmedUrls = urlFields.map((u) => u.trim()).filter(Boolean);
-  const isBusyAnalyzing = isAnalyzing || isBulkAnalyzing;
-  const hitDailyLimit =
-    Boolean(dailyLimitError) ||
-    Boolean(analyzeError && isPostAnalyzerDailyLimitError(analyzeError)) ||
-    Boolean(bulkError && isPostAnalyzerDailyLimitError(bulkError));
-  const analyzeDisabled = isBusyAnalyzing;
   const didBackfillRefetch = React.useRef(false);
 
   useEffect(() => {
     if (participationId) fetchProgress(participationId);
-    void fetchQuota();
-  }, [participationId, fetchProgress, fetchQuota]);
+  }, [participationId, fetchProgress]);
 
   // One-shot refetch when summary is 0/0 but campaign still has content requirements
   useEffect(() => {
@@ -145,14 +119,6 @@ export function CampaignProgressPanel({
     didBackfillRefetch.current = true;
     void fetchProgress(participationId);
   }, [participationId, progress, campaign?.contentRequirements, fetchProgress]);
-
-  useEffect(() => {
-    const joined = trimmedUrls.join('\n');
-    if (joined !== analyzedUrl) {
-      clearCurrentMetrics();
-      clearBulkResults();
-    }
-  }, [trimmedUrls.join('\n'), analyzedUrl, clearCurrentMetrics, clearBulkResults]);
 
   const styles = useKollabStyles(kollab);
 
@@ -182,12 +148,11 @@ export function CampaignProgressPanel({
 
   const resetUrlFields = () => {
     setUrlFields(['']);
-    setAnalyzedUrl('');
-    clearCurrentMetrics();
-    clearBulkResults();
+    setSubmitNotice(null);
   };
 
   const handleUrlFieldChange = (index: number, text: string) => {
+    setSubmitNotice(null);
     const pasted = splitPasteIntoUrls(text);
     if (pasted.length > 1) {
       setUrlFields((prev) => {
@@ -209,9 +174,6 @@ export function CampaignProgressPanel({
         }
         return deduped.length > 0 ? deduped.slice(0, MAX_URL_FIELDS) : [''];
       });
-      clearCurrentMetrics();
-      clearBulkResults();
-      setAnalyzedUrl('');
       return;
     }
     setUrlFields((prev) => {
@@ -232,109 +194,102 @@ export function CampaignProgressPanel({
     });
   };
 
-  const handleAnalyzeAll = async () => {
-    if (trimmedUrls.length === 0) {
-      showKollabToast('Paste a post URL to analyze');
+  /**
+   * Submit several links, each as its own submission (the brand reviews and counts them one by one).
+   * Invalid links and posts that are already submitted in this collab are skipped, and the creator gets one summary.
+   */
+  const submitMany = async (
+    items: Array<{ url: string; contentType?: string; analysisId?: string | null }>,
+    options: { closeOnSuccess: boolean }
+  ) => {
+    setSubmitNotice(null);
+    if (!selectedProgress?.id) {
+      setSubmitNotice('No requirement selected for submission.');
       return;
     }
-    const outcome = await analyzeUrls(trimmedUrls, campaignId);
-    const limitHit =
-      dailyLimitError ||
-      (analyzeError && isPostAnalyzerDailyLimitError(analyzeError)) ||
-      (bulkError && isPostAnalyzerDailyLimitError(bulkError)) ||
-      Boolean(usePostAnalyzerStore.getState().dailyLimitError);
-    // Clear URL fields after a successful analyze or a quota notice.
-    if (
-      limitHit ||
-      (outcome.mode === 'single' && outcome.metrics) ||
-      (outcome.mode === 'bulk' && outcome.result && outcome.result.results.length > 0)
-    ) {
-      resetUrlFields();
-    }
-    if (limitHit) {
-      void fetchQuota();
+    if (!contentType.trim() && !items.some((i) => i.contentType)) {
+      setSubmitNotice('Please fill in all fields');
       return;
     }
-    if (outcome.mode === 'single' && outcome.metrics) {
-      setAnalyzedUrl(trimmedUrls.join('\n'));
-    } else if (outcome.mode === 'bulk' && outcome.result && outcome.result.results.length > 0) {
-      setAnalyzedUrl(trimmedUrls.join('\n'));
+    const alreadySubmitted = new Set(
+      (progress?.progress ?? [])
+        .flatMap((p) => p.submissions ?? [])
+        .filter((sub) => sub.status !== 'rejected')
+        .map((sub) => canonicalContentUrl(sub.contentUrl))
+    );
+    let submitted = 0;
+    let duplicates = 0;
+    let invalid = 0;
+    let failed = 0;
+    let firstError = '';
+    for (const item of items) {
+      const url = item.url.trim();
+      const parsed = parsePostUrl(url);
+      if (!parsed?.isValid) {
+        invalid += 1;
+        continue;
+      }
+      const key = canonicalContentUrl(url);
+      if (alreadySubmitted.has(key)) {
+        duplicates += 1;
+        continue;
+      }
+      try {
+        await submitContent(participationId, {
+          progressId: selectedProgress.id,
+          contentUrl: url,
+          contentType: item.contentType || contentType.trim() || 'generic_post',
+          analysisId: item.analysisId ?? null,
+        });
+        alreadySubmitted.add(key);
+        submitted += 1;
+      } catch (error: any) {
+        const message = String(error?.message || '');
+        if (/already submitted/i.test(message)) {
+          duplicates += 1;
+        } else {
+          failed += 1;
+          if (!firstError) firstError = message;
+        }
+      }
+    }
+    const skipped = duplicates + invalid + failed;
+    if (submitted === 0) {
+      setSubmitNotice(
+        duplicates > 0 && invalid === 0 && failed === 0
+          ? 'Already submitted. This post is in your submissions for this collab.'
+          : firstError || (invalid > 0 ? 'Enter a valid post URL.' : 'Could not submit. Please try again.')
+      );
+      return;
+    }
+    const parts: string[] = [];
+    if (duplicates > 0) parts.push(`${duplicates} already submitted`);
+    if (invalid > 0) parts.push(`${invalid} not a valid post link`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    const summary =
+      skipped === 0
+        ? submitted === 1
+          ? 'Content submitted successfully!'
+          : `${submitted} submissions sent for review`
+        : `${submitted} submitted · ${parts.join(', ')}`;
+    if (options.closeOnSuccess) {
+      // Close first so the toast is drawn on the screen itself, not behind the pop-up.
+      closeSubmitModal();
+      showKollabToast(summary);
+    } else {
+      setSubmitNotice(summary);
     }
   };
 
   const handleSubmitUrlOnly = async () => {
     if (trimmedUrls.length === 0) {
-      showKollabToast('Enter a content URL to submit.');
+      setSubmitNotice('Enter a content URL to submit.');
       return;
     }
-    const firstUrl = trimmedUrls[0];
-    const parsed = parsePostUrl(firstUrl);
-    if (!parsed?.isValid) {
-      showKollabToast(parsed?.error ?? 'Enter a valid post URL.');
-      return;
-    }
-    if (!contentType.trim()) {
-      showKollabToast('Please fill in all fields');
-      return;
-    }
-    try {
-      await submitContent(participationId, {
-        progressId: selectedProgress.id,
-        contentUrl: firstUrl.trim(),
-        contentType: contentType.trim(),
-        analysisId: null,
-      });
-      closeSubmitModal();
-      showKollabToast('Content submitted successfully!');
-    } catch (error: any) {
-      showKollabToast(error.message || 'Failed to submit content');
-    }
-  };
-
-  const handleSubmitContent = async () => {
-    if (!currentMetrics) {
-      showKollabToast('Please analyze the post URL before submitting.');
-      return;
-    }
-    if (!contentType.trim()) {
-      showKollabToast('Please fill in all fields');
-      return;
-    }
-
-    try {
-      await submitContent(participationId, {
-        progressId: selectedProgress.id,
-        contentUrl: currentMetrics.url.trim(),
-        contentType: currentMetrics.contentType || contentType.trim(),
-        analysisId: currentAnalysisId,
-      });
-      closeSubmitModal();
-      showKollabToast('Content submitted successfully!');
-    } catch (error: any) {
-      showKollabToast(error.message || 'Failed to submit content');
-    }
-  };
-
-  const handleSubmitProof = async (
-    url: string,
-    inferredContentType?: string,
-    analysisId?: string | null
-  ) => {
-    if (!selectedProgress?.id) {
-      showKollabToast('No requirement selected for submission.');
-      return;
-    }
-    try {
-      await submitContent(participationId, {
-        progressId: selectedProgress.id,
-        contentUrl: url.trim(),
-        contentType: inferredContentType || contentType.trim() || 'generic_post',
-        analysisId: analysisId ?? null,
-      });
-      showKollabToast('URL submitted as campaign proof.');
-    } catch (error: any) {
-      showKollabToast(error.message || 'Failed to submit URL proof');
-    }
+    await submitMany(
+      trimmedUrls.map((url) => ({ url })),
+      { closeOnSuccess: true }
+    );
   };
 
   const handleDeleteSubmission = (submission: any) => {
@@ -510,8 +465,7 @@ export function CampaignProgressPanel({
             <View style={styles.emptyProgressCard}>
               <Text style={styles.emptyProgressTitle}>No requirements configured yet</Text>
               <Text style={styles.emptyProgressText}>
-                You can still submit your campaign URL as proof
-                {hitDailyLimit ? ' without analysis today.' : ' using Post Analyzer.'}
+                You can still submit your campaign URL as proof.
               </Text>
             </View>
           ) : null}
@@ -580,7 +534,7 @@ export function CampaignProgressPanel({
                       <View key={submission.id} style={styles.submissionItem}>
                         <View style={styles.submissionHeader}>
                           <Text style={styles.submissionDate}>
-                            {new Date(submission.submissionDate).toLocaleDateString()}
+                            {formatDateTime(submission.submissionDate || submission.createdAt)}
                           </Text>
                           <KollabStatusChip
                             tone={submissionStatusTone(submission.status)}
@@ -728,6 +682,18 @@ export function CampaignProgressPanel({
             </View>
           )}
         </View>
+
+        {['active', 'contract_pending', 'accepted'].includes(String(participation?.status ?? '').toLowerCase()) ? (
+          <LeaveCollabSection
+            participationId={participationId}
+            hasSubmissions={(progress?.progress ?? []).some((p) => (p.submissions?.length ?? 0) > 0)}
+            onLeft={() => {
+              void fetchParticipations();
+              if (router.canGoBack()) router.back();
+              else router.replace('/influencer/dashboard' as never);
+            }}
+          />
+        ) : null}
       </ScrollView>
 
       {/* Submit Content Modal */}
@@ -819,112 +785,37 @@ export function CampaignProgressPanel({
                 <Text style={styles.urlCapHint}>Maximum {MAX_URL_FIELDS} URLs</Text>
               )}
 
-              {quota && !hitDailyLimit ? (
-                <Text style={styles.quotaHint}>
-                  {`${quota.remaining} of ${quota.limit} analyses left today`}
-                </Text>
-              ) : null}
-
-              {hitDailyLimit && trimmedUrls.length > 0 && !currentMetrics && !bulkResults ? (
-                <KollabButton
-                  label={isLoading ? 'Submitting...' : 'Submit URL'}
-                  disabled={isLoading}
-                  onPress={() => void handleSubmitUrlOnly()}
-                  style={{ marginBottom: 12 }}
-                />
-              ) : null}
-
-              {isBusyAnalyzing ? (
-                <View style={{ marginBottom: 12 }}>
-                  <KollabAnalyzePulse />
-                </View>
-              ) : !hitDailyLimit && trimmedUrls.length > 0 && !currentMetrics && !bulkResults ? (
-                <KollabButton
-                  label={
-                    trimmedUrls.length === 1
-                      ? 'Analyze Post'
-                      : `Analyze all (${trimmedUrls.length})`
-                  }
-                  disabled={analyzeDisabled}
-                  onPress={handleAnalyzeAll}
-                  style={{ marginBottom: 12 }}
-                />
-              ) : null}
-
-              {(() => {
-                const limitMsg = hitDailyLimit;
-                const hardError =
-                  analyzeError && !isPostAnalyzerDailyLimitError(analyzeError)
-                    ? analyzeError
-                    : bulkError && !isPostAnalyzerDailyLimitError(bulkError)
-                      ? bulkError
-                      : null;
-                if (limitMsg && !isBusyAnalyzing) {
-                  return (
-                    <View style={styles.limitNotice}>
-                      <Text style={styles.limitNoticeTitle}>Daily analysis limit reached</Text>
-                      <Text style={styles.limitNoticeBody}>
-                        Your free analysis resets at midnight (UTC). You can still submit the URL as
-                        campaign proof without a new analysis.
-                      </Text>
-                    </View>
-                  );
-                }
-                if (hardError) {
-                  return <Text style={styles.validationError}>{hardError}</Text>;
-                }
-                return null;
-              })()}
-              {currentPersistError ? (
-                <Text style={styles.persistWarningText}>
-                  Analysis fetched successfully, but history save had an issue (
-                  {currentPersistError}).
-                </Text>
-              ) : null}
-
-              {currentMetrics ? (
-                <PostMetricsCard
-                  metrics={currentMetrics}
-                  onSubmit={handleSubmitContent}
-                  submitLabel="Submit as Campaign Proof"
-                  isSubmitting={isLoading}
-                  showAuthenticitySignals={false}
-                />
-              ) : null}
-
-              {bulkResults ? (
-                <View style={{ marginBottom: 8 }}>
-                  <Text style={styles.batchSummaryText}>
-                    Results: {bulkResults.summary.successful}/{bulkResults.summary.total} successful
+              {submitNotice ? (
+                <View
+                  style={{
+                    backgroundColor: kollab.color.heatTint,
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    marginBottom: 12,
+                  }}
+                  accessibilityLiveRegion="polite"
+                >
+                  <Text style={{ color: kollab.color.heat, fontFamily: font.medium, fontSize: 13 }}>
+                    {submitNotice}
                   </Text>
-                  {bulkResults.results.map((item, idx) => (
-                    <View key={`${item.url}-${idx}`} style={{ marginBottom: 8 }}>
-                      <PostMetricsCard metrics={item} compact />
-                      <View style={styles.batchRowActions}>
-                        <KollabButton
-                          label="Submit this proof"
-                          compact
-                          onPress={() =>
-                            handleSubmitProof(item.url, item.contentType, item.analysisId)
-                          }
-                        />
-                      </View>
-                    </View>
-                  ))}
-                  {bulkResults.errors.length > 0 ? (
-                    <Text style={styles.validationError}>
-                      {bulkResults.errors.length} URL(s) failed. Fix and retry those URLs.
-                    </Text>
-                  ) : null}
                 </View>
               ) : null}
 
-              <View
-                style={[
-                  styles.modalActions,
-                  currentMetrics || bulkResults ? { marginTop: 0 } : null,
-                ]}
-              >
+              <KollabButton
+                label={
+                  isLoading
+                    ? 'Submitting...'
+                    : trimmedUrls.length > 1
+                      ? `Submit ${trimmedUrls.length} URLs`
+                      : 'Submit URL'
+                }
+                disabled={isLoading || trimmedUrls.length === 0}
+                onPress={() => void handleSubmitUrlOnly()}
+                style={{ marginBottom: 12 }}
+              />
+
+              <View style={styles.modalActions}>
                 <KollabButton label="Cancel" variant="soft" onPress={closeSubmitModal} />
               </View>
             </ScrollView>
@@ -1357,10 +1248,13 @@ function useKollabStyles(kollab: KollabTokens) {
           margin: kollab.space.md,
           width: '92%',
           maxWidth: 420,
+          // A percentage only works against a parent with a fixed height: the overlay has one, this card did not, so
+          // the old cap on the scroll area never applied and the card overflowed once the keyboard shrank the window.
+          maxHeight: '92%',
           ...kollab.shadow.card,
         },
         modalScroll: {
-          maxHeight: '85%',
+          flexShrink: 1,
         },
         modalScrollContent: {
           paddingBottom: 10,

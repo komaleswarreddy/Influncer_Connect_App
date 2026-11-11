@@ -320,6 +320,10 @@ export default function CampaignDetailsScreen({
     joinEnabled = true;
   } else if (showRejectedReapply) {
     joinNote = 'The brand did not approve this application. You can submit again.';
+  } else if (String(participation?.status ?? '').toLowerCase() === 'withdrawn') {
+    joinLabel = 'You left this collab';
+    joinNote = 'Only the brand can invite you back.';
+    joinEnabled = false;
   } else if (!showFirstTimeApply) {
     joinNote = `Current status: ${participation?.status ?? 'none'}.`;
     joinEnabled = false;

@@ -436,6 +436,17 @@ export default function ContractScreen() {
                 onPress={() => void handleAccept()}
                 disabled={!hasSignature || saving}
               />
+              <Text
+                style={{
+                  color: kollab.color.inkMuted,
+                  fontFamily: font.body,
+                  fontSize: 12.5,
+                  textAlign: 'center',
+                  marginTop: 12,
+                }}
+              >
+                You can leave this collab until you submit content.
+              </Text>
             </>
           )}
         </View>

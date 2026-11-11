@@ -29,6 +29,8 @@ export function isParticipationEnrolled(
 ): boolean {
   const pSt = normParticipationStatus(participation?.status);
   const appSt = normParticipationStatus(applicationStatus);
+  // A creator who left is no longer in the collab, even though the old signature is still on the record.
+  if (pSt === 'withdrawn') return false;
   if (['active', 'completed', 'joined'].includes(pSt)) return true;
   if (appSt === 'contract_signed') return true;
   if (Boolean(participation?.influencer_signature?.trim())) return true;
